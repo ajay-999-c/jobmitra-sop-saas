@@ -1,0 +1,38 @@
+{% macro field(name, label, kind='text', type='text') -%}
+<label>{{ label }}<input name="{{ name }}" type="{{ type }}" data-kind="{{ kind }}" value="{{ job[name] if job and job[name] is not none and kind != 'datetime' else '' }}" {% if type == 'number' %}min="{{ '1' if name == 'vacancies' else '0' }}" step="{{ '0.01' if kind == 'decimal' else '1' }}"{% endif %}>
+</label>
+{%- endmacro %}
+<div class="form-grid">
+<label>Company *<select name="company_id" required id="company-select">
+<option value="">Choose existing company</option>{% for company in companies %}<option value="{{ company.id }}" {{ 'selected' if job and company.id|string == job.company_id|string else '' }}>{{ company.company_name }}</option>{% endfor %}</select>
+</label>
+<label>Job title *<input name="job_title" required maxlength="300" value="{{ job.job_title if job else '' }}">
+</label>
+<label>Company contact (optional)<select name="company_contact_id" id="company-contact" data-initial="{{ job.company_contact_id if job and job.company_contact_id else '' }}">
+<option value="">No contact selected</option>
+</select>
+</label>
+{{ field('location_text','Location') }}
+</div>
+<label>Company-confirmed brief<textarea name="raw_requirement" rows="4">{{ job.raw_requirement if job and job.raw_requirement else '' }}</textarea>
+</label>
+<details {% if job %}open{% endif %}>
+<summary>Criteria and skills (optional)</summary>
+<div class="form-grid">
+<label>Required skills — comma or newline separated<textarea name="required_skills" data-kind="skills" rows="3">{{ job.required_skills|join('\n') if job else '' }}</textarea>
+</label>
+<label>Preferred skills — comma or newline separated<textarea name="preferred_skills" data-kind="skills" rows="3">{{ job.preferred_skills|join('\n') if job else '' }}</textarea>
+</label>
+{{ field('domain_key','Functional JD domain (no catalog yet)') }}{{ field('subdomain_key','Functional subdomain') }}
+{{ field('work_mode','Work mode') }}{{ field('qualification','Qualification') }}
+{{ field('experience_min_months','Minimum experience (months)','integer','number') }}{{ field('experience_max_months','Maximum experience (months)','integer','number') }}
+{{ field('salary_min','Minimum salary','decimal','number') }}{{ field('salary_max','Maximum salary','decimal','number') }}
+<label>Salary period<select name="salary_period">{% for value in ['Unknown','Monthly','Annual'] %}<option {{ 'selected' if job and job.salary_period == value else '' }}>{{ value }}</option>{% endfor %}</select>
+</label>
+<label>Salary basis<select name="salary_basis">{% for value in ['Unknown','CTC','Gross','Take-home'] %}<option {{ 'selected' if job and job.salary_basis == value else '' }}>{{ value }}</option>{% endfor %}</select>
+</label>
+{{ field('salary_currency','Salary currency') }}{{ field('vacancies','Vacancies (leave blank if unknown)','integer','number') }}
+{{ field('specific_skill','Specific skill') }}{{ field('specific_skill_min_months','Specific skill experience (months)','integer','number') }}
+{{ field('received_at',"Received at (device timezone)",'datetime','datetime-local') }}
+</div>
+</details>

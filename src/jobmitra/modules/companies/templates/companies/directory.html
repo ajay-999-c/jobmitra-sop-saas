@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Companies · Jobmitra</title>
+  <link rel="icon" href="/static/stage2/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="{{ url_for('company-static', path='directory.css') }}">
+  <script type="module" src="{{ url_for('company-static', path='directory.mjs') }}"></script>
+</head>
+<body>
+  <header class="page-header">
+    <a class="brand" href="/companies" aria-label="Jobmitra companies"><span class="brand-mark" aria-hidden="true">JM</span>jobmitra</a>
+    <span>Company directory</span>
+    <a href="/overview">Requirements &amp; tasks</a>
+    <button id="add-company" type="button" class="primary">+ Add company</button>
+  </header>
+  <main class="workspace">
+    <aside class="directory" aria-label="Company directory">
+      <div class="directory-tools">
+        <label for="company-search">Find a company</label>
+        <input id="company-search" type="search" placeholder="Search company names" autocomplete="off">
+        <div class="list-meta">
+          <p id="match-count" role="status" aria-live="polite">{{ companies|length }} companies</p>
+          <button id="refresh-directory" type="button" class="quiet">Refresh</button>
+        </div>
+        <p id="directory-error" role="alert" hidden></p>
+      </div>
+      <ul id="company-list" class="company-list" aria-label="Companies">
+        {% for company in companies %}
+        <li><button type="button" data-company-id="{{ company.id }}">{{ company.company_name }}</button></li>
+        {% endfor %}
+      </ul>
+      <p id="list-empty" class="empty-list" {% if companies %}hidden{% endif %}>No companies yet. Add your first company.</p>
+    </aside>
+    <section id="details" class="details" aria-label="Company details">
+      <div id="detail-placeholder" class="placeholder">
+        <span class="eyebrow">COMPANIES</span>
+        <h1>A place for every company.</h1>
+        <p>Select a company to view and edit its details, or add a new one.</p>
+      </div>
+      <p id="detail-status" role="status" aria-live="polite"></p>
+      <p id="form-error" role="alert" hidden></p>
+      <form id="company-form" autocomplete="off" hidden>
+        <div class="form-heading">
+          <div><span class="eyebrow" id="form-mode">COMPANY DETAILS</span><h1 id="form-title">Company</h1></div>
+          <button id="reload-details" type="button" class="quiet">Reload details</button>
+        </div>
+        <fieldset id="company-fields">
+          <label for="company-name">Company name <span aria-hidden="true">*</span></label>
+          <input id="company-name" name="company_name" required maxlength="500" autocomplete="off">
+          <label for="general-phones">General phone numbers</label>
+          <textarea id="general-phones" name="general_phone_numbers" rows="2" placeholder="One number per line" spellcheck="false"></textarea>
+          <h2>Address</h2>
+          <label for="address-line">Address line</label>
+          <input id="address-line" name="address_line" autocomplete="off">
+          <div class="field-grid">
+            <div><label for="city">City</label><input id="city" name="city" autocomplete="off"></div>
+            <div><label for="state">State</label><input id="state" name="state" autocomplete="off"></div>
+            <div><label for="postal-code">Postal code</label><input id="postal-code" name="postal_code" autocomplete="off"></div>
+          </div>
+          <div class="section-heading"><h2>Contacts</h2><button id="add-contact" type="button" class="quiet">+ Add contact</button></div>
+          <div id="contact-list"></div>
+          <p id="no-contacts" class="muted">No contacts. You can add them later.</p>
+          <p id="source-references" class="muted" hidden></p>
+        </fieldset>
+        <div class="form-actions">
+          <button id="save-company" type="submit" class="primary">Save company</button>
+          <button id="cancel-edit" type="button">Cancel</button>
+          <button id="delete-company" type="button" class="danger">Delete company</button>
+        </div>
+      </form>
+      <noscript><p>Enable JavaScript for instant search and company editing.</p></noscript>
+    </section>
+  </main>
+  <template id="contact-template">
+    <div class="contact-card">
+      <div class="contact-heading"><h3>Contact</h3><button type="button" data-remove-contact class="quiet danger">Remove</button></div>
+      <div class="field-grid contact-fields">
+        <div><label>Contact name<input name="contact_name" autocomplete="off"></label></div>
+        <div><label>Designation<input name="designation" autocomplete="off"></label></div>
+      </div>
+      <label>Phone numbers<textarea name="phone_numbers" rows="2" placeholder="One number per line" spellcheck="false"></textarea></label>
+    </div>
+  </template>
+  <script id="directory-data" type="application/json">{{ companies|tojson }}</script>
+</body>
+</html>

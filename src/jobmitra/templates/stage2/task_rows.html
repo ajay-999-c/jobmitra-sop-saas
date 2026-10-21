@@ -1,0 +1,20 @@
+<div id="task-results" aria-live="polite">
+{% for task in tasks %}<article class="card">
+<div class="heading">
+<h3>{{ task.title }}</h3>
+<span class="badge {{ 'overdue' if task.is_overdue else '' }}">{{ 'Overdue' if task.is_overdue else task.status }}</span>
+</div>
+<p>
+<a href="/requirements/{{ task.job_id }}">{{ task.job_title }}</a> · {{ task.assigned_staff_name }} · {{ task.due_date or 'No due date' }}</p>{% if task.note %}<p class="prewrap">{{ task.note }}</p>{% endif %}
+{% if task.status == 'Pending' %}<div class="actions">{% for value in ['Done','Cancelled'] %}<form data-endpoint="/api/tasks/{{ task.id }}" data-method="PATCH" data-version="{{ task.job_version }}">
+<input type="hidden" name="status" value="{{ value }}">
+<button class="secondary">{{ 'Mark done' if value == 'Done' else 'Cancel task' }}</button>
+</form>{% endfor %}
+<form class="inline" data-endpoint="/api/tasks/{{ task.id }}" data-method="PATCH" data-version="{{ task.job_version }}">
+<label>Reassign<select name="assigned_staff_id" required>
+<option value="">Choose active employee</option>{% for member in staff if member.is_active %}<option value="{{ member.id }}">{{ member.display_name }}</option>{% endfor %}</select>
+</label>
+<button class="secondary">Reassign</button>
+</form>
+</div>{% endif %}
+</article>{% else %}<p>No matching tasks.</p>{% endfor %}</div>

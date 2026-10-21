@@ -1,0 +1,50 @@
+.env
+.env.*
+!.env.example
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+.DS_Store
+.playwright-cli/
+output/playwright/
+backups/
+
+# Local implementation prompts; keep developer and schema documentation.
+/Jobmitra_Stage2_Codex_Implementation_Prompt.md
+/Jobmitra_Stage2_JD_Process_Tracker_Codex_Prompt_FINAL.md
+
+# Private source data and cleaned exports (not application fixtures).
+/company-dataset.xlsx
+/outputs/phase-1a/company-dataset-cleaned.xlsx
+
+# Local connection experiments and generated reports; retain reviewed SQL.
+/db-test.py
+/db-test.ipynb
+/outputs/phase-1c/*.json
+/outputs/windows-migration/*.json
+/outputs/stage-2/*.json
+
+# Private runtime storage and local database artifacts.
+/uploads/
+/resumes/
+/private-data/
+/runtime/
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+*.db
+*.db-*
+*.dump
+*.log
+.ipynb_checkpoints/
+
+# Alternate dotenv filenames may also contain credentials.
+*.env
+*.env.*
+!.env.example

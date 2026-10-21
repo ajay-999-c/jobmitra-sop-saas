@@ -1,0 +1,13 @@
+{% extends 'stage2/base.html' %}
+{% block title %}Overview{% endblock %}
+{% block content %}
+<div class="heading">
+<h1>Overview</h1>
+<a class="button" href="/requirements/new">Add JD</a>
+</div>
+<div class="stats">{% for status in ['Active','Draft','On Hold'] %}<a class="card" href="/requirements?status={{ status|urlencode }}">
+<strong>{{ counts.get(status, 0) }}</strong>{{ status }}</a>{% endfor %}</div>
+<h2>Open JDs with overdue or approaching targets</h2>
+<p class="muted">Due within three office calendar days, including today. Deadlines do not close JDs.</p>
+{% include 'stage2/job_rows.html' %}
+{% endblock %}

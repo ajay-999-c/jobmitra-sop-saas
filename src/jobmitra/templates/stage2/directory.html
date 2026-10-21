@@ -1,0 +1,25 @@
+{% extends 'stage2/base.html' %}
+{% block title %}Requirements{% endblock %}
+{% block content %}
+<div class="heading">
+<h1>Requirements</h1>
+<a class="button" href="/requirements/new">Add JD</a>
+</div>
+<form class="filters" action="/requirements" method="get" hx-get="/requirements" hx-target="#jobs-results" hx-swap="outerHTML" hx-push-url="true">
+<label>Company or job title<input name="q" value="{{ filters.q or '' }}" type="search">
+</label>
+<label>Status<select name="status">
+<option value="">All statuses</option>{% for value in ['Draft','Active','On Hold','Closed'] %}<option {{ 'selected' if filters.status == value else '' }}>{{ value }}</option>{% endfor %}</select>
+</label>
+<label>Recruiter<select name="recruiter_id">
+<option value="">All recruiters</option>{% for member in staff %}<option value="{{ member.id }}" {{ 'selected' if member.id|string == filters.recruiter_id|string else '' }}>{{ member.display_name }}{{ ' (inactive)' if not member.is_active else '' }}</option>{% endfor %}</select>
+</label>
+<label>Functional domain<input name="domain" value="{{ filters.domain or '' }}">
+</label>
+<label>Skill<input name="skill" value="{{ filters.skill or '' }}">
+</label>
+<button>Filter</button>
+<a href="/requirements">Clear</a>
+</form>
+{% include 'stage2/job_rows.html' %}
+{% endblock %}

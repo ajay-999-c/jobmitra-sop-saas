@@ -1,0 +1,24 @@
+<section class="process-tracker" aria-labelledby="process-heading">
+<div class="heading">
+<div><h2 id="process-heading">JD work focus</h2>
+<p class="focus-caption">{{ focus_labels.get(job.current_work_focus, 'Focus not set') }}</p></div>
+<details class="focus-control">
+<summary>Change Focus</summary>
+<form data-endpoint="/api/jobs/{{ job.id }}/work-focus" data-method="PATCH">
+<label>Current work focus<select name="current_work_focus">
+<option value="">Clear focus — Focus not set</option>
+{% for code, label in focus_stages %}<option value="{{ code }}" {{ 'selected' if job.current_work_focus == code else '' }}>{{ label }}</option>{% endfor %}
+</select></label>
+<button>Save focus</button>
+</form>
+</details>
+</div>
+<div class="process-scroll" tabindex="0" role="region" aria-label="Seven recruitment work focuses; scroll horizontally on small screens">
+<ol class="process-steps">
+{% for code, label in focus_stages %}<li class="process-step{{ ' is-current' if job.current_work_focus == code else '' }}"{% if job.current_work_focus == code %} aria-current="true"{% endif %}>
+<span class="step-marker" aria-hidden="true">{{ loop.index }}</span><span>{{ label }}</span>
+</li>{% endfor %}
+</ol>
+</div>
+<p class="muted process-help">Manually selected JD work focus, not candidate progress. Candidates can be at different stages simultaneously. Status and target milestone remain independent.</p>
+</section>

@@ -1,0 +1,30 @@
+{% extends 'stage2/base.html' %}
+{% block title %}Create JD{% endblock %}
+{% block content %}
+<h1>Create JD</h1>
+<p>Choose an existing company, enter a title and select <strong>Recording as</strong>. Everything else can be added later.</p>
+{% if not staff %}<p class="notice">Add an employee in the <a href="/staff">Staff Directory</a> first. No employees are seeded automatically.</p>{% endif %}
+<form class="card" data-endpoint="/api/jobs" data-method="POST" data-create-job>
+{% set job = none %}{% include 'stage2/manual_fields.html' %}
+<div class="form-grid">
+<label>Initial status<select name="status">
+<option>Draft</option>
+<option>Active</option>
+<option>On Hold</option>
+</select>
+</label>
+<label>Target date<input type="date" name="target_date">
+</label>
+<label>Target milestone<select name="target_milestone">
+<option value="">No target</option>
+<option>SHORTLIST</option>
+<option>SELECTION</option>
+<option>JOINING</option>
+</select>
+</label>
+</div>
+<p class="muted">Enter the date and milestone together. Missing salary, experience and vacancies stay unknown.</p>
+<button>Create JD</button>
+<a href="/requirements">Cancel</a>
+</form>
+{% endblock %}

@@ -1,0 +1,16 @@
+{% extends 'stage2/base.html' %}
+{% block title %}Tasks{% endblock %}
+{% block content %}<h1>My / Team Tasks</h1>
+<p>Filtering changes what you see. Recording as does not change task ownership.</p>
+<form class="filters" action="/tasks" method="get" hx-get="/tasks" hx-target="#task-results" hx-swap="outerHTML" hx-push-url="true">
+<label>Employee<select name="staff_id">
+<option value="">Whole team</option>{% for member in staff %}<option value="{{ member.id }}" {{ 'selected' if selected_staff|string == member.id|string else '' }}>{{ member.display_name }}{{ ' (inactive)' if not member.is_active else '' }}</option>{% endfor %}</select>
+</label>
+<label>Status<select name="status">
+<option value="">All</option>{% for value in ['Pending','Done','Cancelled'] %}<option {{ 'selected' if selected_status == value else '' }}>{{ value }}</option>{% endfor %}</select>
+</label>
+<button>Filter</button>
+<button type="button" id="my-tasks" class="secondary">View recording employee's tasks</button>
+<a href="/tasks">Clear</a>
+</form>
+{% include 'stage2/task_rows.html' %}{% endblock %}

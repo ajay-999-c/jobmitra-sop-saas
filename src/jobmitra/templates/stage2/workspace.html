@@ -1,0 +1,123 @@
+{% extends 'stage2/base.html' %}
+{% block title %}{{ job.job_title }}{% endblock %}
+{% block content %}
+<div class="heading">
+<div>
+<p>
+<a href="/companies">{{ job.company_name }}</a>
+</p>
+<h1>{{ job.job_title }}</h1>
+</div>
+<div>
+<span class="badge">{{ job.status }}</span> <span class="badge {{ 'overdue' if job.target_state == 'Overdue' else '' }}">{{ job.target_state }}</span>
+<p>{{ job.target_date or 'No target date' }}{% if job.target_milestone %} · {{ job.target_milestone }}{% endif %}</p>
+</div>
+</div>
+{% include 'stage2/process_tracker.html' %}
+{% if job.target_verification %}<p class="notice">{{ job.target_verification }}</p>{% endif %}
+<div class="controls">
+<button type="button" class="secondary" data-tab="criteria" aria-controls="panel-criteria">Edit JD</button>
+<details>
+<summary>Manage Recruiters</summary>
+<form data-endpoint="/api/jobs/{{ job.id }}/recruiters" data-method="PUT" data-recruiters>
+<p>Recruiters are equal collaborators; there is no primary or owner.</p>{% set assigned = job.recruiters|map(attribute='id')|list %}{% for member in staff if member.is_active or member.id|string in assigned %}<label class="checkbox">
+<input type="checkbox" name="staff_ids" value="{{ member.id }}" {{ 'checked' if member.id|string in assigned else '' }}>{{ member.display_name }}{{ ' (inactive; existing assignment)' if not member.is_active else '' }}</label>{% endfor %}<button>Save recruiters</button>
+</form>
+</details>
+<details>
+<summary>Change Target</summary>
+<form data-endpoint="/api/jobs/{{ job.id }}/target" data-method="PATCH">
+<label>Target date<input type="date" name="target_date" value="{{ job.target_date or '' }}">
+</label>
+<label>Milestone<select name="target_milestone">
+<option value="">No target</option>{% for value in ['SHORTLIST','SELECTION','JOINING'] %}<option {{ 'selected' if job.target_milestone == value else '' }}>{{ value }}</option>{% endfor %}</select>
+</label>
+<p class="muted">Changing the target resets any prior staff shortlist confirmation.</p>
+<button>Save target</button>
+</form>
+</details>
+<details>
+<summary>Change Status</summary>
+<form data-endpoint="/api/jobs/{{ job.id }}/status" data-method="PATCH">
+<label>Status<select name="status" data-status-select>{% for value in ['Draft','Active','On Hold','Closed'] %}<option {{ 'selected' if job.status == value else '' }}>{{ value }}</option>{% endfor %}</select>
+</label>
+<label>Closure reason (only when Closed)<textarea name="closure_reason">{{ job.closure_reason or '' }}</textarea>
+</label>
+<button>Save status</button>
+</form>
+</details>
+</div>
+{% if job.target_milestone == 'SHORTLIST' and not job.target_completed_at %}<form data-endpoint="/api/jobs/{{ job.id }}/shortlist-completion" data-method="POST">
+<button class="secondary">Confirm shortlist completed — staff confirmation</button>
+</form>{% endif %}
+<nav class="tabs" aria-label="JD workspace">{% for key,label in [('overview','Overview'),('criteria','Criteria & Skills'),('ats','ATS JSON'),('history','History'),('pipeline','Candidate Pipeline')] %}<button type="button" data-tab="{{ key }}" aria-controls="panel-{{ key }}">{{ label }}</button>{% endfor %}</nav>
+<section id="panel-overview" data-panel="overview">
+<h2>Overview</h2>
+<p class="prewrap">{{ job.raw_requirement or 'No brief added yet.' }}</p>
+<p>Recruiters: {% for member in job.recruiters %}{{ member.display_name }}{{ ', ' if not loop.last else '' }}{% else %}Unassigned{% endfor %}</p>
+<h2>Follow-up tasks</h2>{% include 'stage2/task_rows.html' %}
+<details>
+<summary>Assign Task</summary>
+<form class="card" data-endpoint="/api/jobs/{{ job.id }}/tasks" data-method="POST">
+<label>Task title<input name="title" required>
+</label>
+<label>Note<textarea name="note">
+</textarea>
+</label>
+<div class="form-grid">
+<label>Assign to<select name="assigned_staff_id" required>
+<option value="">Choose active employee</option>{% for member in staff if member.is_active %}<option value="{{ member.id }}">{{ member.display_name }}</option>{% endfor %}</select>
+</label>
+<label>Due date<input type="date" name="due_date">
+</label>
+</div>
+<button>Assign task</button>
+</form>
+</details>
+</section>
+<section id="panel-criteria" data-panel="criteria" hidden>
+<h2>Company-confirmed Criteria & Skills</h2>
+<p>Edits save directly and create history automatically. No change reason is required.</p>
+<details open>
+<summary>Edit JD</summary>
+<form class="card" data-endpoint="/api/jobs/{{ job.id }}" data-method="PATCH" data-diff>{% include 'stage2/manual_fields.html' %}<button>Save JD</button>
+</form>
+</details>
+</section>
+<section id="panel-ats" data-panel="ats" hidden>
+<h2>ATS enrichment <span class="badge">{{ job.ats_status }}</span>
+</h2>
+<p>Search enrichment only. Suggestions never overwrite company-confirmed skills. No AI service is called.</p>
+<form class="card" data-endpoint="/api/jobs/{{ job.id }}/ats-json" data-method="PUT">
+<label>ATS JSON<textarea name="ats" rows="16" data-kind="json" required placeholder='{"schema_version":1,"keywords":[],"suggested_required_skills":[],"suggested_preferred_skills":[],"semantic_summary":"","professional_jd":""}'>{{ job.ats_json|tojson(indent=2) if job.ats_json else '' }}</textarea>
+</label>
+<label class="checkbox">
+<input type="checkbox" name="reviewed" data-kind="checkbox">I have reviewed this enrichment</label>
+<button>Save enrichment</button>
+</form>
+</section>
+<section id="panel-history" data-panel="history" hidden>
+<h2>History</h2>
+<form class="card" data-endpoint="/api/jobs/{{ job.id }}/notes" data-method="POST">
+<label>Add note<textarea name="note" required>
+</textarea>
+</label>
+<button>Add note</button>
+</form>{% for event in history %}<article class="card">
+<h3>{{ event.event_type.replace('_',' ').title() }}</h3>
+<p class="muted">{{ event.occurred_at|local_time(office_timezone) }} · {{ event.actor_display_name or 'Unspecified staff' }} · self-selected/unverified</p>{% if event.event_type == 'WORK_FOCUS_CHANGED' and event.changes and event.changes.fields %}
+{% set change = event.changes.fields.current_work_focus %}
+<p>{{ focus_labels.get(change.before, 'Focus not set') }} → {{ focus_labels.get(change.after, 'Focus not set') }}</p>
+{% endif %}{% if event.note %}<p class="prewrap">{{ event.note }}</p>{% endif %}{% if event.changes and event.changes.fields %}<details>
+<summary>Changed details</summary>
+<pre>{{ event.changes.fields|tojson(indent=2) }}</pre>
+</details>{% endif %}</article>{% endfor %}</section>
+<section id="panel-pipeline" data-panel="pipeline" hidden>
+<h2>Candidate Pipeline — not connected</h2>
+<p>No candidate applications or placements are tracked in Stage 2. A JD can later have different candidates in different stages simultaneously.</p>
+<p class="notice">Selection completion requires distinct, company-confirmed selected candidates covering all known vacancies. Joining is separate. Neither completion can be verified here.</p>
+
+<p>Per-candidate progress and counts will be available after Candidate/Application integration.</p>
+</section>
+<script type="application/json" id="job-data">{{ job_data|tojson }}</script>
+{% endblock %}

@@ -1,0 +1,32 @@
+<div id="jobs-results" aria-live="polite">
+<p class="muted">{{ rows|length }} requirements</p>
+<div class="table-scroll">
+<table>
+<thead>
+<tr>
+<th>Requirement</th>
+<th>Company</th>
+<th>Status</th>
+<th>Recruiters</th>
+<th>Target</th>
+</tr>
+</thead>
+<tbody>
+{% for row in rows %}<tr>
+<td>
+<a href="/requirements/{{ row.id }}">{{ row.job_title }}</a>{% if row.location_text %}<small>{{ row.location_text }}</small>{% endif %}</td>
+<td>{{ row.company_name }}</td>
+<td>
+<span class="badge">{{ row.status }}</span>
+</td>
+<td>{% for recruiter in row.recruiters %}{{ recruiter.display_name }}{% if not recruiter.is_active %} (inactive){% endif %}{% if not loop.last %}, {% endif %}{% else %}<span class="muted">Unassigned</span>{% endfor %}</td>
+<td>
+<span class="badge {{ 'overdue' if row.target_state == 'Overdue' else '' }}">{{ row.target_state }}</span>{% if row.target_date %}<small>{{ row.target_date }} · {{ row.target_milestone }}</small>{% endif %}</td>
+</tr>
+{% else %}<tr>
+<td colspan="5">No matching requirements.</td>
+</tr>{% endfor %}
+</tbody>
+</table>
+</div>
+</div>

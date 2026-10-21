@@ -1,0 +1,1 @@
+"""Jobmitra recruitment backend."""

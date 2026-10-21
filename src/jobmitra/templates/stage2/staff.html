@@ -1,0 +1,22 @@
+{% extends 'stage2/base.html' %}
+{% block title %}Staff{% endblock %}
+{% block content %}
+<h1>Staff Directory</h1>
+<p>Employees are records, not login accounts. Deactivation keeps their assignments, tasks and history.</p>
+{% if duplicate %}<p class="notice" role="status">Another employee has a matching display name. Both records retain separate IDs; confirm you intended to add or rename this person.</p>{% endif %}
+<form class="card inline" data-endpoint="/api/staff" data-method="POST" data-staff>
+<label>New employee name<input name="display_name" required maxlength="200">
+</label>
+<button>Add employee</button>
+</form>
+{% for member in staff %}<section class="card staff-row">
+<form class="inline" data-endpoint="/api/staff/{{ member.id }}" data-method="PATCH" data-staff>
+<label>Employee name<input name="display_name" required value="{{ member.display_name }}">
+</label>
+<button>Rename</button>
+</form>
+<span class="badge">{{ 'Active' if member.is_active else 'Inactive' }}</span>{% if member.is_active %}<form data-endpoint="/api/staff/{{ member.id }}" data-method="PATCH" data-staff>
+<input type="hidden" name="is_active" value="false" data-kind="boolean">
+<button class="secondary">Deactivate</button>
+</form>{% endif %}</section>{% else %}<p>No staff members yet.</p>{% endfor %}
+{% endblock %}

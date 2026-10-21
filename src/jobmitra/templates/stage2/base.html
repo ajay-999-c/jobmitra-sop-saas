@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="htmx-config" content='{"allowEval":false,"includeIndicatorStyles":false,"selfRequestsOnly":true,"historyCacheSize":0}'>
+  <title>{% block title %}Requirements{% endblock %} · Jobmitra</title>
+  <link rel="icon" href="/static/stage2/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/stage2/workflow.css">
+  <script defer src="/static/stage2/vendor/htmx.min.js">
+</script>
+  <script type="module" src="/static/stage2/workflow.mjs">
+</script>
+</head>
+<body>
+<div class="app-shell">
+<aside class="sidebar">
+<a class="brand" href="/overview" aria-label="Jobmitra overview"><span class="brand-mark" aria-hidden="true">JM</span><span>jobmitra<small>REQUIREMENT DESK</small></span></a>
+<p class="workspace-label">Workspace</p>
+<nav aria-label="Main">
+<a href="/overview" {% if request.url.path == '/overview' %}aria-current="page"{% endif %}>Overview</a>
+<a href="/companies">Companies</a>
+<a href="/requirements" {% if request.url.path.startswith('/requirements') %}aria-current="page"{% endif %}>Requirements</a>
+<a href="/staff" {% if request.url.path == '/staff' %}aria-current="page"{% endif %}>Staff</a>
+<a href="/tasks" {% if request.url.path == '/tasks' %}aria-current="page"{% endif %}>Tasks</a>
+</nav>
+</aside>
+<div class="page-shell">
+<header class="site-header">
+<span class="breadcrumb">Workspace / {{ self.title() }}</span>
+<label class="recorder">Recording as<select id="recording-as">
+<option value="">Choose staff member</option>{% for member in staff if member.is_active %}<option value="{{ member.id }}">{{ member.display_name }}</option>{% endfor %}</select>
+</label>
+</header>
+<div class="attribution">Self-selected, unverified attribution — this is not a verified login.</div>
+{% if request.app.state.settings.db_host.startswith('/private/tmp/jobmitra-stage2-') %}<aside class="notice">Isolated test preview — entries here are separate from Windows and are not production records.</aside>{% endif %}
+<main>
+<div id="workflow-error" class="error" role="alert" hidden>
+</div>{% block content %}{% endblock %}</main>
+</div>
+</div>
+</body>
+</html>

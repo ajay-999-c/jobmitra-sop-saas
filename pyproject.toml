@@ -1,0 +1,40 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "jobmitra"
+version = "0.1.0"
+description = "Jobmitra modular recruitment backend — Phase 0"
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi>=0.115,<1",
+  "uvicorn>=0.30,<1",
+  "sqlalchemy>=2.0,<3",
+  "psycopg[binary]>=3.2,<4",
+  "alembic>=1.14,<2",
+  "pydantic-settings>=2.6,<3",
+  "jinja2>=3.1,<4",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<10", "httpx>=0.27,<1", "ruff>=0.9,<1"]
+import = ["openpyxl>=3.1,<4"]
+
+[project.scripts]
+jobmitra-db = "jobmitra.cli:main"
+jobmitra-import-companies = "jobmitra.modules.companies.importer:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/jobmitra"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["integration: opt-in live database tests (SELECT only)"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
