@@ -24,6 +24,10 @@ Desktop.ini
 .idea/
 .vscode/
 /*.code-workspace
+# Editor recovery files can contain copies of local secrets or private data.
+*.swp
+*.swo
+*~
 .playwright-cli/
 output/playwright/
 /outputs/playwright/
@@ -32,9 +36,10 @@ output/playwright/
 /test-results/
 /outputs/test-results/
 backups/
-/*.backup
-/*.dump.gz
-/*.sql.gz
+# Backup formats wherever generated; keep reviewed, uncompressed .sql sources.
+*.backup
+*.dump.gz
+*.sql.gz
 
 # Local implementation prompts; keep developer and schema documentation.
 /Jobmitra_Stage2_Codex_Implementation_Prompt.md
@@ -70,6 +75,7 @@ private-documents/
 modified-resumes/
 candidate-exports/
 /outputs/resumes/
+# Includes DEMO acceptance journals, manifests, reports and cleanup previews.
 /runtime/
 *.sqlite
 *.sqlite-*
