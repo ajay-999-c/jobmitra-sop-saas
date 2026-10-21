@@ -17,6 +17,8 @@ backups/
 # Local implementation prompts; keep developer and schema documentation.
 /Jobmitra_Stage2_Codex_Implementation_Prompt.md
 /Jobmitra_Stage2_JD_Process_Tracker_Codex_Prompt_FINAL.md
+/Jobmitra_Stage3_Candidate_Desk_Codex_Implementation_PROMPT.md
+/Jobmitra_Stage3A_Candidate_Desk_UI_v5_Email (1).html
 
 # Private source data and cleaned exports (not application fixtures).
 /company-dataset.xlsx
@@ -28,6 +30,8 @@ backups/
 /outputs/phase-1c/*.json
 /outputs/windows-migration/*.json
 /outputs/stage-2/*.json
+/docs/analysis/company-dataset-profile.json
+/docs/analysis/company-dataset-profile.ipynb
 
 # Private runtime storage and local database artifacts.
 /uploads/
