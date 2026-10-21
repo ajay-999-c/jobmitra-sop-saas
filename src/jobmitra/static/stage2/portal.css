@@ -1,0 +1,38 @@
+/* Shared portal shell, loaded after feature styles. No permanent sidebar. */
+:root { font: 15px/1.5 system-ui, -apple-system, sans-serif; color: #1c2b3a; background: #f5f7fa; scroll-padding-top: 150px; }
+body { margin: 0; }
+.site-header { position: sticky; top: 0; z-index: 20; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 1.5rem; padding: .7rem 2.5%; background: #fff; border-bottom: 1px solid #e2e8f0; }
+.site-header .brand { display: flex; align-items: center; gap: .6rem; color: #1c2b3a; font-size: 1.5rem; text-decoration: none; }
+.brand-mark { width: 42px; height: 42px; border-radius: 12px; }
+.site-header .global-nav { display: flex; flex-wrap: nowrap; overflow-x: auto; min-width: 0; gap: .3rem; }
+.global-nav a { flex-shrink: 0; padding: .8rem .6rem; color: #52647a; font-weight: 650; text-decoration: none; border-bottom: 3px solid transparent; white-space: nowrap; }
+.global-nav a:hover { color: #dd0000; background: #fff6f6; }
+.global-nav a[aria-current="page"] { color: #dd0000; border-bottom-color: #dd0000; }
+.site-header .recorder { min-width: 0; margin: 0; gap: .5rem; display: flex; align-items: center; font-size: .8rem; }
+.site-header .recorder select { width: 170px; margin: 0; }
+main { width: 100%; max-width: 1500px; min-width: 0; padding: 1.5rem 2.5% 4rem; margin: auto; }
+.breadcrumb { margin: 0 0 1.2rem; color: #64748b; font-size: .85rem; }
+.module-heading { margin: 0 0 .7rem; }
+.desk-nav a[aria-current="page"] { color: #dd0000; border-color: #dd0000; }
+.workspace { height: auto; min-height: 550px; grid-template-columns: 300px minmax(0,1fr); border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; background: white; }
+.workspace .directory { max-height: 75dvh; }
+.workspace .details { min-width: 0; }
+button.primary { background: #dd0000; border-color: #dd0000; }
+.portal-shortcuts { display: flex; flex-wrap: wrap; gap: .6rem; margin: 1rem 0; }
+@media (max-width: 1150px) {
+ .site-header { grid-template-columns: 1fr auto; gap: .3rem 1rem; }
+ .site-header .global-nav { grid-column: 1 / -1; grid-row: 2; }
+ .site-header .recorder { grid-column: 2; grid-row: 1; }
+}
+@media (max-width: 600px) {
+ .site-header { padding: .6rem 1rem; }
+ .site-header .brand { font-size: 1.15rem; gap: .4rem; }
+ .brand-mark { width: 32px; height: 32px; font-size: .85rem; border-radius: 9px; }
+ .site-header .recorder { display: block; font-size: .7rem; }
+ .site-header .recorder select { width: 155px; max-width: 42vw; padding: .35rem; font-size: .8rem; }
+ .global-nav a { padding: .5rem .6rem; font-size: .85rem; }
+ main { padding: 1rem 1rem 3rem; }
+ .workspace { display: block; }
+ .workspace .directory { max-height: 300px; border-right: 0; border-bottom: 1px solid #e2e8f0; }
+ .heading { align-items: flex-start; }
+}

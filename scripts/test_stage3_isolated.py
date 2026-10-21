@@ -13,6 +13,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--generate-migration", action="store_true")
     parser.add_argument("--serve", action="store_true")
+    parser.add_argument("--port", type=int, default=8000, help="One unified test server port")
     parser.add_argument("--pytest-args", nargs=argparse.REMAINDER)
     args = parser.parse_args()
     with (
@@ -48,7 +49,7 @@ def main():
                     "--host",
                     "127.0.0.1",
                     "--port",
-                    "8766",
+                    str(args.port),
                     "--no-access-log",
                 ],
                 cwd=PROJECT,

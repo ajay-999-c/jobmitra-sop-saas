@@ -1,21 +1,12 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Companies · Jobmitra</title>
-  <link rel="icon" href="/static/stage2/favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="{{ url_for('company-static', path='directory.css') }}">
-  <script type="module" src="{{ url_for('company-static', path='directory.mjs') }}"></script>
-</head>
-<body>
-  <header class="page-header">
-    <a class="brand" href="/companies" aria-label="Jobmitra companies"><span class="brand-mark" aria-hidden="true">JM</span>jobmitra</a>
-    <span>Company directory</span>
-    <a href="/overview">Requirements &amp; tasks</a>
-    <button id="add-company" type="button" class="primary">+ Add company</button>
-  </header>
-  <main class="workspace">
+{% extends 'stage2/base.html' %}
+{% block title %}Companies{% endblock %}
+{% block extra_head %}
+<link rel="stylesheet" href="/static/companies/directory.css">
+<script type="module" src="/static/companies/directory.mjs"></script>
+{% endblock %}
+{% block content %}
+<div class="heading"><h1>Companies</h1><button id="add-company" type="button" class="primary">+ Add company</button></div>
+  <div class="workspace">
     <aside class="directory" aria-label="Company directory">
       <div class="directory-tools">
         <label for="company-search">Find a company</label>
@@ -44,6 +35,7 @@
       <form id="company-form" autocomplete="off" hidden>
         <div class="form-heading">
           <div><span class="eyebrow" id="form-mode">COMPANY DETAILS</span><h1 id="form-title">Company</h1></div>
+          <a id="company-jds" hidden href="/requirements">View company JDs</a>
           <button id="reload-details" type="button" class="quiet">Reload details</button>
         </div>
         <fieldset id="company-fields">
@@ -72,7 +64,7 @@
       </form>
       <noscript><p>Enable JavaScript for instant search and company editing.</p></noscript>
     </section>
-  </main>
+  </div>
   <template id="contact-template">
     <div class="contact-card">
       <div class="contact-heading"><h3>Contact</h3><button type="button" data-remove-contact class="quiet danger">Remove</button></div>
@@ -84,5 +76,4 @@
     </div>
   </template>
   <script id="directory-data" type="application/json">{{ companies|tojson }}</script>
-</body>
-</html>
+{% endblock %}

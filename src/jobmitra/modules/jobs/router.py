@@ -2,9 +2,13 @@ from datetime import timedelta
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request
+from sqlalchemy import func, select
+from sqlalchemy.exc import SQLAlchemyError
 
 from jobmitra.core.pages import render
 from jobmitra.core.workflow import Database, WorkflowError, office_today, optional_uuid, same_origin
+from jobmitra.modules.candidates.models import Candidate
+from jobmitra.modules.companies.models import Company
 from jobmitra.modules.companies.repository import directory as company_directory
 from jobmitra.modules.jobs import repository
 from jobmitra.modules.jobs.focus import FOCUS_LABELS, FOCUS_STAGES
@@ -39,9 +43,15 @@ def list_jobs(
     recruiter_id: UUID | None = None,
     domain: str | None = None,
     skill: str | None = None,
+    company_id: UUID | None = None,
 ):
     return jobs(request, session).list_jobs(
-        q=q, status=status, recruiter_id=recruiter_id, domain=domain, skill=skill
+        q=q,
+        status=status,
+        recruiter_id=recruiter_id,
+        domain=domain,
+        skill=skill,
+        company_id=company_id,
     )
 
 
@@ -109,12 +119,34 @@ def shortlist(job_id: UUID, data: RecordedAction, request: Request, session: Dat
 @router.get("/overview", include_in_schema=False)
 def overview(request: Request, session: Database):
     today = office_today(request.app.state.settings.office_timezone)
+    module_counts = []
+    for label, href, model in [
+        ("Companies", "/companies", Company),
+        ("Candidates", "/candidates", Candidate),
+    ]:
+        try:
+            with session.begin_nested():
+                count = session.scalar(select(func.count()).select_from(model))
+        except SQLAlchemyError:
+            session.rollback()
+            count = None
+        module_counts.append((label, href, count))
+    try:
+        with session.begin_nested():
+            counts = repository.status_counts(session)
+            rows = jobs(request, session).list_jobs(through=today + timedelta(days=3))
+        jd_available = True
+    except SQLAlchemyError:
+        session.rollback()
+        counts, rows, jd_available = {}, [], False
     return render(
         request,
         session,
         "overview",
-        counts=repository.status_counts(session),
-        rows=jobs(request, session).list_jobs(through=today + timedelta(days=3)),
+        counts=counts,
+        rows=rows,
+        module_counts=module_counts,
+        jd_available=jd_available,
     )
 
 
@@ -127,13 +159,19 @@ def requirement_directory(
     recruiter_id: str | None = None,
     domain: str | None = None,
     skill: str | None = None,
+    company_id: UUID | None = None,
 ):
     status = status or None
     if status and status not in {"Draft", "Active", "On Hold", "Closed"}:
         raise WorkflowError("Invalid JD status filter.")
     recruiter_id = optional_uuid(recruiter_id)
     rows = jobs(request, session).list_jobs(
-        q=q, status=status, recruiter_id=recruiter_id, domain=domain, skill=skill
+        q=q,
+        status=status,
+        recruiter_id=recruiter_id,
+        domain=domain,
+        skill=skill,
+        company_id=company_id,
     )
     name = "job_rows" if request.headers.get("hx-request") == "true" else "directory"
     return render(
@@ -141,7 +179,14 @@ def requirement_directory(
         session,
         name,
         rows=rows,
-        filters=dict(q=q, status=status, recruiter_id=recruiter_id, domain=domain, skill=skill),
+        filters=dict(
+            q=q,
+            status=status,
+            recruiter_id=recruiter_id,
+            domain=domain,
+            skill=skill,
+            company_id=company_id,
+        ),
     )
 
 

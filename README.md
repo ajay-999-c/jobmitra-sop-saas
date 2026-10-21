@@ -18,10 +18,10 @@ See the [review and commands](docs/stage-2-review.md),
 [full five-table schema](docs/stage-2-schema.md) and
 [implementation map](docs/stage-2-implementation-map.md).
 
-**Pending update (2026-10-21):** the [JD Process Tracker](docs/stage-2-process-tracker-review.md)
-is implemented and isolated-tested. Its new nullable focus field requires revision
-`0003_jd_work_focus`, which has **not** been applied to Windows. Review on port 8765;
-do not restart the updated ORM against Windows before approving/applying that migration.
+**Deployment verified (2026-10-21):** Windows now reports revision
+`0004_candidate_desk`, including `0003_jd_work_focus`. The JD Process Tracker and
+Candidate Desk can use the deployed schema. Private persistent resume storage has
+been configured on this Mac. See the [post-migration verification record](docs/windows-stage3-postdeployment.md).
 
 For review without touching Windows, run `.venv/bin/python scripts/test_stage2_isolated.py`
 or use `.venv/bin/python scripts/test_stage2_isolated.py --serve` for a disposable
@@ -29,17 +29,19 @@ preview at <http://127.0.0.1:8765/requirements>. Requires PostgreSQL 18 server t
 the runner uses a private Unix socket with TCP disabled. Stopping the preview
 discards its data. Any subsequent Windows migration requires separate approval.
 
-## Stage 3 Candidate Desk — pending Windows migration
+## Stage 3 Candidate Desk — deployed schema and private storage
 
 Paperless candidate registration/editing, office visits, candidate-led job searches,
 domain catalog, private versioned PDF/DOCX files and manual ChatGPT/Claude JSON
 history are implemented. See the [implementation and acceptance review](docs/stage-3-implementation-review.md)
 and [exact seven-table schema](docs/stage-3-schema.md).
 
-Revision `0004_candidate_desk` depends on `0003_jd_work_focus`; neither approval nor
-execution of a Windows migration is implied. Review locally with
+Revision `0004_candidate_desk` and its `0003_jd_work_focus` dependency are verified
+on Windows. Subsequent migrations still require separate approval. For an isolated
+review instead of the regular Windows-backed server, run
 `.venv/bin/python scripts/test_stage3_isolated.py --serve` at
-<http://127.0.0.1:8766/candidate-desk>. Its database and private file root are disposable.
+<http://127.0.0.1:8000/>. This serves every module together; its database and private
+file root are disposable. Use `--port 8766` only if port 8000 is already occupied.
 Real documents require an explicitly configured, existing absolute
 `JOBMITRA_DOCUMENT_STORAGE_ROOT`; there is no default or automatic fallback.
 Back up both database and files. Candidate profile edit history beyond timestamp/version
@@ -242,3 +244,18 @@ a future import. Stage 2 does not rerun it.
 
 Observed test outcomes and LAN latency are recorded in
 [Phase 0 validation](docs/phase-0-validation.md).
+
+## Unified office portal
+
+Run one backend for Overview, Companies, JD Tracking, Candidate Desk, Staff and Tasks:
+
+```sh
+.venv/bin/python -m uvicorn jobmitra.main:app --host 127.0.0.1 --port 8000 --no-access-log
+```
+
+Open <http://127.0.0.1:8000/> (redirects to `/overview`). Restart an existing backend
+with this command to load code changes; do not start separate module servers.
+The shared top navigation and self-selected Working as selector are available in
+all modules. The Windows database is verified at Stage 3 revision 0004.
+Unavailable sections retain a navigable setup-pending page; startup never applies
+migrations. See [routes, changed files and verification](docs/unified-portal-review.md).

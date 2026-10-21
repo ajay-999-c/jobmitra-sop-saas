@@ -12,34 +12,29 @@
   <script type="module" src="/static/stage2/workflow.mjs">
 </script>
 {% block extra_head %}{% endblock %}
+<link rel="stylesheet" href="/static/stage2/portal.css">
 </head>
 <body>
-<div class="app-shell">
-<aside class="sidebar">
-<a class="brand" href="/overview" aria-label="Jobmitra overview"><span class="brand-mark" aria-hidden="true">JM</span><span>jobmitra<small>{% block desk_brand %}REQUIREMENT DESK{% endblock %}</small></span></a>
-<p class="workspace-label">Workspace</p>
-<nav aria-label="Main">
-<a href="/overview" {% if request.url.path == '/overview' %}aria-current="page"{% endif %}>Overview</a>
-<a href="/companies">Companies</a>
-<a href="/requirements" {% if request.url.path.startswith('/requirements') %}aria-current="page"{% endif %}>Requirements</a>
-<a href="/candidate-desk" {% if request.url.path.startswith(('/candidate', '/office-visits', '/job-search-requests', '/domains')) %}aria-current="page"{% endif %}>Candidate Desk</a>
-<a href="/staff" {% if request.url.path == '/staff' %}aria-current="page"{% endif %}>Staff</a>
-<a href="/tasks" {% if request.url.path == '/tasks' %}aria-current="page"{% endif %}>Tasks</a>
-</nav>
-</aside>
-<div class="page-shell">
 <header class="site-header">
-<span class="breadcrumb">Workspace / {{ self.title() }}</span>
-<label class="recorder">Recording as<select id="recording-as">
-<option value="">Choose staff member</option>{% for member in staff if member.is_active %}<option value="{{ member.id }}">{{ member.display_name }}</option>{% endfor %}</select>
-</label>
+<a class="brand" href="/overview" aria-label="Jobmitra overview"><span class="brand-mark" aria-hidden="true">JM</span><span>jobmitra</span></a>
+<nav class="global-nav" aria-label="Main">
+{% for href, label, active in [
+('/overview', 'Overview', request.url.path == '/overview'),
+('/companies', 'Companies', request.url.path.startswith('/companies')),
+('/requirements', 'JD Tracking', request.url.path.startswith('/requirements')),
+('/candidate-desk', 'Candidate Desk', request.url.path.startswith(('/candidate', '/office-visits', '/job-search-requests', '/domains'))),
+('/staff', 'Staff', request.url.path == '/staff'),
+('/tasks', 'Tasks', request.url.path == '/tasks')
+] %}<a href="{{ href }}" {% if active %}aria-current="page"{% endif %}>{{ label }}</a>{% endfor %}
+</nav>
+<label class="recorder">Working as<select id="recording-as">
+<option value="">Choose staff member</option>{% for member in staff if member.is_active %}<option value="{{ member.id }}">{{ member.display_name }}</option>{% endfor %}</select></label>
 </header>
 <div class="attribution">Self-selected, unverified attribution — this is not a verified login.</div>
 {% if request.app.state.settings.db_host.startswith('/private/tmp/jobmitra-stage2-') %}<aside class="notice">Isolated test preview — entries here are separate from Windows and are not production records.</aside>{% endif %}
-<main>
+<main id="main-content">
+<p class="breadcrumb">Workspace / {{ self.title() }}</p>
 <div id="workflow-error" class="error" role="alert" hidden>
 </div>{% block content %}{% endblock %}</main>
-</div>
-</div>
 </body>
 </html>

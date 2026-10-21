@@ -1,3 +1,11 @@
+// Keep the current section visible inside the scrollable mobile navigation.
+const globalNav = document.querySelector(".global-nav");
+const activeSection = globalNav?.querySelector('[aria-current="page"]');
+if (activeSection && globalNav.scrollWidth > globalNav.clientWidth) {
+  globalNav.scrollLeft += activeSection.getBoundingClientRect().left
+    - globalNav.getBoundingClientRect().left
+    - (globalNav.clientWidth - activeSection.offsetWidth) / 2;
+}
 const recorder = document.querySelector("#recording-as");
 const errorBox = document.querySelector("#workflow-error");
 const initial = JSON.parse(

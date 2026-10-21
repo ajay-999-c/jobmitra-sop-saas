@@ -6,19 +6,46 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .ruff_cache/
+.mypy_cache/
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+/coverage.xml
 *.egg-info/
 dist/
 build/
 .DS_Store
+._*
+.AppleDouble/
+Thumbs.db
+Desktop.ini
+.idea/
+.vscode/
+/*.code-workspace
 .playwright-cli/
 output/playwright/
+/outputs/playwright/
+/playwright-report/
+/blob-report/
+/test-results/
+/outputs/test-results/
 backups/
+/*.backup
+/*.dump.gz
+/*.sql.gz
 
 # Local implementation prompts; keep developer and schema documentation.
 /Jobmitra_Stage2_Codex_Implementation_Prompt.md
 /Jobmitra_Stage2_JD_Process_Tracker_Codex_Prompt_FINAL.md
 /Jobmitra_Stage3_Candidate_Desk_Codex_Implementation_PROMPT.md
 /Jobmitra_Stage3A_Candidate_Desk_UI_v5_Email (1).html
+/Jobmitra_Unified_Portal_Top_Navigation_Codex_Prompt.md
+# Disposable drafts belong here, not alongside maintained documentation.
+/tmp/
+/temp/
+/.codex/tmp/
 
 # Private source data and cleaned exports (not application fixtures).
 /company-dataset.xlsx
@@ -30,6 +57,8 @@ backups/
 /outputs/phase-1c/*.json
 /outputs/windows-migration/*.json
 /outputs/stage-2/*.json
+/outputs/stage-3/*.json
+/outputs/diagnostics/
 /docs/analysis/company-dataset-profile.json
 /docs/analysis/company-dataset-profile.ipynb
 
@@ -37,6 +66,10 @@ backups/
 /uploads/
 /resumes/
 /private-data/
+private-documents/
+modified-resumes/
+candidate-exports/
+/outputs/resumes/
 /runtime/
 *.sqlite
 *.sqlite-*
@@ -47,6 +80,20 @@ backups/
 *.dump
 *.log
 .ipynb_checkpoints/
+
+# Local secret stores and root-level keys; retain source/test fixtures elsewhere.
+.secrets/
+/secrets/
+/credentials/
+.pgpass
+.pg_service.conf
+/.envrc
+/id_rsa
+/id_ed25519
+/*.key
+/*.pem
+/*.p12
+/*.pfx
 
 # Alternate dotenv filenames may also contain credentials.
 *.env

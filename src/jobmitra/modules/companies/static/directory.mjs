@@ -94,6 +94,8 @@ function appendContact(contact = {}) {
 
 function showForm(company = null) {
   current = company;
+  $("company-jds").hidden = !company;
+  $("company-jds").href = company ? `/requirements?company_id=${encodeURIComponent(company.id)}` : "/requirements";
   form.reset();
   $("contact-list").replaceChildren();
   for (const name of ["company_name", "address_line", "city", "state", "postal_code"]) {
@@ -247,3 +249,6 @@ window.addEventListener("beforeunload", (event) => {
   if (dirty || busy) { event.preventDefault(); event.returnValue = ""; }
 });
 renderList();
+
+const linkedCompany = new URLSearchParams(location.search).get("company_id");
+if (linkedCompany && JSON.parse($("directory-data").textContent).some((item) => item.id === linkedCompany)) openCompany(linkedCompany);

@@ -3,11 +3,16 @@
 {% block content %}
 <div class="heading">
 <h1>Overview</h1>
-<a class="button" href="/requirements/new">Add JD</a>
+
 </div>
-<div class="stats">{% for status in ['Active','Draft','On Hold'] %}<a class="card" href="/requirements?status={{ status|urlencode }}">
+<p class="muted">Company requirements, candidate services and employee follow-ups in one workspace.</p>
+<div class="portal-shortcuts"><a class="button" href="/requirements/new">New JD</a><a class="button" href="/candidates/new">Add Candidate</a><a class="button secondary" href="/candidates/new?walkin=true">Register Walk-in</a><a class="button secondary" href="/companies">View Companies</a></div>
+<div class="stats">{% for label, href, count in module_counts %}<a class="card" href="{{ href }}"><strong>{{ count if count is not none else 'Unavailable' }}</strong>{{ label }}{% if count is none %}<small>Database unavailable or setup pending</small>{% endif %}</a>{% endfor %}</div>
+<h2>JD status</h2>
+{% if jd_available %}<div class="stats">{% for status in ['Active','Draft','On Hold'] %}<a class="card" href="/requirements?status={{ status|urlencode }}">
 <strong>{{ counts.get(status, 0) }}</strong>{{ status }}</a>{% endfor %}</div>
 <h2>Open JDs with overdue or approaching targets</h2>
 <p class="muted">Due within three office calendar days, including today. Deadlines do not close JDs.</p>
 {% include 'stage2/job_rows.html' %}
+{% else %}<p class="notice">JD Tracking is unavailable or its database setup is pending. No migration has been run.</p>{% endif %}
 {% endblock %}

@@ -21,7 +21,7 @@ def test_local_assets_and_invalid_inputs_without_database():
     app = create_app()
     app.dependency_overrides[get_session] = lambda: MagicMock()
     with TestClient(app) as client:
-        assert client.get("/", follow_redirects=False).headers["location"] == "/companies"
+        assert client.get("/", follow_redirects=False).headers["location"] == "/overview"
         for name in ("directory.css", "directory.mjs", "search.mjs"):
             response = client.get(f"/static/companies/{name}")
             assert response.status_code == 200

@@ -6,11 +6,11 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from jobmitra.core.database import get_session
+from jobmitra.core.pages import render
 from jobmitra.modules.companies import repository, service
 from jobmitra.modules.companies.schemas import (
     CompanyDetail,
@@ -20,7 +20,6 @@ from jobmitra.modules.companies.schemas import (
 )
 
 MODULE_DIR = Path(__file__).resolve().parent
-templates = Jinja2Templates(directory=str(MODULE_DIR / "templates"))
 router = APIRouter(tags=["Companies"])
 
 
@@ -73,23 +72,17 @@ def same_origin(request: Request):
 
 @router.get("/", include_in_schema=False)
 def home():
-    return RedirectResponse("/companies", status_code=303, headers={"Cache-Control": "no-store"})
+    return RedirectResponse("/overview", status_code=303, headers={"Cache-Control": "no-store"})
 
 
 @router.get("/companies", response_class=HTMLResponse)
 def company_directory(request: Request, session: Database):
-    return templates.TemplateResponse(
-        request=request,
-        name="companies/directory.html",
-        context={"companies": repository.directory(session)},
-        headers={
-            "Cache-Control": "no-store",
-            "Content-Security-Policy": (
-                "default-src 'self'; script-src 'self'; style-src 'self'; "
-                "connect-src 'self'; img-src 'self' data:; base-uri 'none'; "
-                "frame-ancestors 'none'; form-action 'self'"
-            ),
-        },
+    return render(
+        request,
+        session,
+        "directory",
+        template_group="companies",
+        companies=repository.directory(session),
     )
 
 

@@ -1,5 +1,4 @@
 {% extends 'stage2/base.html' %}
-{% block desk_brand %}CANDIDATE DESK{% endblock %}
 {% block title %}Candidate Desk{% endblock %}
 {% block extra_head %}
 <link rel="stylesheet" href="/static/candidates/desk.css">
@@ -7,12 +6,10 @@
 </script>
 {% endblock %}
 {% block content %}
+<h2 class="module-heading">Candidate Desk</h2>
 <nav class="desk-nav" aria-label="Candidate Desk">
-<a href="/candidate-desk">Today</a>
-<a href="/candidates">Candidates</a>
-<a href="/office-visits">Office Visits</a>
-<a href="/job-search-requests">Job Search Requests</a>
-<a href="/domains">Domain Catalog</a>
-</nav>
+{% for href, label in [('/candidate-desk','Today'),('/candidates','Candidates'),('/office-visits','Office Visits'),('/job-search-requests','Job Search Requests'),('/domains','Domain Catalog')] %}
+<a href="{{ href }}" {% if request.url.path == href or (href == '/candidates' and request.url.path.startswith('/candidates/')) %}aria-current="page"{% endif %}>{{ label }}</a>
+{% endfor %}</nav>
 {% block desk_content %}{% endblock %}
 {% endblock %}

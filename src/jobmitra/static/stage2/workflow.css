@@ -202,11 +202,11 @@ small {
   max-width: 280px;
 }
 .table-scroll {
-  overflow: auto;
+  /* The document owns vertical scrolling; wide tables scroll horizontally. */
+  overflow-x: auto;
   background: #fff;
   border: 1px solid #e2e8f0;
   border-radius: 7px;
-  max-height: 70vh;
 }
 table {
   width: 100%;

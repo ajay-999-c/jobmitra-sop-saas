@@ -1,12 +1,14 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
+from fastapi.exception_handlers import http_exception_handler
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import SQLAlchemyError
+from starlette.exceptions import HTTPException
 
 from jobmitra.core.config import Settings, get_settings
 from jobmitra.core.database import build_engine, check_database
-from jobmitra.core.pages import PACKAGE_DIR
+from jobmitra.core.pages import PACKAGE_DIR, templates
 from jobmitra.modules.candidates.limits import CandidateJSONLimit
 from jobmitra.modules.candidates.router import router as candidates_router
 from jobmitra.modules.companies.router import MODULE_DIR, CompanyAssets
@@ -50,6 +52,25 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(staff_router)
     app.include_router(jobs_router)
     app.include_router(worklog_router)
+
+    @app.exception_handler(HTTPException)
+    async def portal_error(request: Request, error: HTTPException):
+        if (
+            error.status_code == 503
+            and request.method == "GET"
+            and (
+                not request.url.path.startswith(("/api/", "/health/", "/static/"))
+                and "/download" not in request.url.path
+            )
+        ):
+            return templates.TemplateResponse(
+                request=request,
+                name="stage2/unavailable.html",
+                status_code=503,
+                context={"staff": []},
+                headers={"Cache-Control": "no-store"},
+            )
+        return await http_exception_handler(request, error)
 
     @app.get("/health/live", tags=["Health"])
     def live():

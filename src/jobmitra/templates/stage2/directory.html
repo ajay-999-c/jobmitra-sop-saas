@@ -6,6 +6,7 @@
 <a class="button" href="/requirements/new">Add JD</a>
 </div>
 <form class="filters" action="/requirements" method="get" hx-get="/requirements" hx-target="#jobs-results" hx-swap="outerHTML" hx-push-url="true">
+{% if filters.company_id %}<input type="hidden" name="company_id" value="{{ filters.company_id }}"><p><a href="/companies?company_id={{ filters.company_id }}">Back to company</a></p>{% endif %}
 <label>Company or job title<input name="q" value="{{ filters.q or '' }}" type="search">
 </label>
 <label>Status<select name="status">

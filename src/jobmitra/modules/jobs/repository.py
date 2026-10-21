@@ -42,7 +42,15 @@ def active_recruiters(session, job_ids):
 
 
 def directory(
-    session, *, q=None, status=None, recruiter_id=None, domain=None, skill=None, through=None
+    session,
+    *,
+    q=None,
+    status=None,
+    recruiter_id=None,
+    domain=None,
+    skill=None,
+    through=None,
+    company_id=None,
 ):
     columns = (
         "id",
@@ -61,6 +69,8 @@ def directory(
     query = select(*(getattr(JobRequirement, key) for key in columns), Company.company_name).join(
         Company, Company.id == JobRequirement.company_id
     )
+    if company_id:
+        query = query.where(JobRequirement.company_id == company_id)
     if q:
         query = query.where(
             or_(Company.company_name.ilike(f"%{q}%"), JobRequirement.job_title.ilike(f"%{q}%"))
