@@ -1,0 +1,34 @@
+<div id="candidate-results">
+<p class="muted">{{ rows|length }} matching candidates</p>
+<div class="table-scroll">
+<table>
+<thead>
+<tr>
+<th>Candidate</th>
+<th>Role / location</th>
+<th>Source</th>
+<th>Updated</th>
+</tr>
+</thead>
+<tbody>
+{% for row in rows %}
+<tr>
+<td>
+<a href="/candidates/{{ row.id }}">{{ row.full_name }}</a>
+<small>{{ row.mobile }}{% if row.email %} · {{ row.email }}{% endif %}
+</small>
+</td>
+<td>{{ row.role_title or 'Not specified' }}<small>{{ row.current_location or 'Not specified' }}</small>
+</td>
+<td>{{ row.source }}</td>
+<td>{{ row.updated_at|local_time(office_timezone) }}</td>
+</tr>
+{% else %}
+<tr>
+<td colspan="4">No matching profiles. Add a candidate to get started.</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+</div>
+</div>

@@ -1,0 +1,4 @@
+{% extends 'candidates/base.html' %}{% block title %}Register Candidate{% endblock %}{% block desk_content %}
+<h1>{{ 'Register Walk-in' if walkin else 'Add Candidate' }}</h1>
+<button data-open-dialog="candidate-dialog">Open registration form</button>
+{% set auto_open=true %}{% include 'candidates/candidate_form.html' %}{% endblock %}

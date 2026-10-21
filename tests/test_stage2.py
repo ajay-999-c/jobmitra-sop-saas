@@ -18,10 +18,10 @@ from sqlalchemy import event, inspect, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from jobmitra.core.config import Settings
-from jobmitra.core.database import Base, build_engine, get_session
+from jobmitra.core.database import Base, get_session
 from jobmitra.core.workflow import WorkflowError, office_today
 from jobmitra.main import create_app
+from jobmitra.modules.candidates.models import STAGE3_TABLES
 from jobmitra.modules.companies.models import Company, CompanyContact
 from jobmitra.modules.jobs.models import JobRecruiter
 from jobmitra.modules.jobs.service import target_state
@@ -42,50 +42,8 @@ def company_snapshot(connection):
 
 
 @pytest.fixture(scope="module")
-def database():
-    settings = Settings(_env_file=None)
-    socket = Path(settings.db_host)
-    assert str(socket).startswith("/private/tmp/jobmitra-stage2-") and socket.name == "socket"
-    assert settings.db_user == "stage2_test" and settings.db_name == "jobmitra_dev"
-    engine = build_engine(settings)
-    with engine.begin() as connection:
-        assert connection.scalar(text("SHOW listen_addresses")) == ""
-        assert Path(connection.scalar(text("SHOW data_directory"))).parent == socket.parent
-        cfg = Config("alembic.ini")
-        cfg.attributes["connection"] = connection
-        command.upgrade(cfg, "0001_company_management")
-        companies = [uuid4(), uuid4()]
-        contacts = [uuid4(), uuid4()]
-        for number, company_id in enumerate(companies):
-            connection.execute(
-                Company.__table__.insert().values(
-                    id=company_id,
-                    company_name=f"Isolated Company {number}",
-                    company_name_key=f"isolated company {number}",
-                    general_phone_numbers=["000123"],
-                    source_register_ids=[f"TEST-{number}"],
-                    city=None,
-                )
-            )
-            connection.execute(
-                CompanyContact.__table__.insert().values(
-                    id=contacts[number],
-                    company_id=company_id,
-                    contact_name=f"Isolated Contact {number}",
-                    phone_numbers=[],
-                )
-            )
-        before = company_snapshot(connection)
-        old_columns = {
-            name: inspect(connection).get_columns(name)
-            for name in ("companies", "company_contacts")
-        }
-        command.upgrade(cfg, "head")
-        assert company_snapshot(connection) == before
-    try:
-        yield engine, settings, companies, contacts, before, old_columns
-    finally:
-        engine.dispose()
+def database(workflow_database):
+    return workflow_database
 
 
 @pytest.fixture
@@ -151,7 +109,7 @@ ATS = {
 def test_additive_migration_roundtrip_preserves_stage1_and_models(database):
     engine, _, _, _, before, columns = database
     with engine.begin() as connection:
-        assert set(inspect(connection).get_table_names()) == set(STAGE2_TABLES) | {
+        assert set(inspect(connection).get_table_names()) == set(STAGE2_TABLES | STAGE3_TABLES) | {
             "companies",
             "company_contacts",
             "alembic_version",
@@ -183,7 +141,7 @@ def test_additive_migration_roundtrip_preserves_stage1_and_models(database):
         assert company_snapshot(connection) == before
         assert (
             connection.scalar(text("SELECT version_num FROM alembic_version"))
-            == "0003_jd_work_focus"
+            == "0004_candidate_desk"
         )
         assert connection.scalar(text("SELECT count(*) FROM staff_members")) == 0
         connection.execute(text("DROP TABLE unrelated_sentinel"))

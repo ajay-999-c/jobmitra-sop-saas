@@ -1,0 +1,44 @@
+{% set editing = search is defined %}
+<form class="card" data-desk-endpoint="{{ '/api/job-search-requests/' ~ search.id if editing else '/api/candidates/' ~ (candidate.id|string if candidate is defined else '__candidate__') ~ '/job-search' }}" data-method="{{ 'PATCH' if editing else 'POST' }}">
+{% if editing %}
+<input type="hidden" name="version" data-type="number" value="{{ search.version }}">
+{% elif candidate is not defined %}
+<label>Find existing candidate<input type="search" data-candidate-search placeholder="Search name / mobile">
+<select data-candidate-picker required>
+<option value="">Choose profile</option>
+{% for person in people %}
+<option value="{{ person.id }}">{{ person.full_name }} · {{ person.mobile }}</option>
+{% endfor %}
+</select>
+</label>
+{% endif %}
+<div class="form-grid">
+<label>Desired role<input name="desired_role" required value="{{ search.desired_role if editing else '' }}">
+</label>
+<label>Preferred locations<input name="preferred_locations" data-type="array" value="{{ search.preferred_locations|join(', ') if editing else '' }}">
+</label>
+<label>Assigned employee<select name="assigned_staff_id" required>
+<option value="">Choose employee</option>
+{% for member in staff if member.is_active or (editing and member.id==search.assigned_staff_id) %}
+<option value="{{ member.id }}" {{ 'selected' if editing and member.id==search.assigned_staff_id else '' }}>{{ member.display_name }}{{ ' (inactive)' if not member.is_active else '' }}</option>
+{% endfor %}
+</select>
+</label>
+<label>Status<select name="status">
+{% for item in ['Searching','Interviewing','On Hold','Placed','Closed'] %}
+<option {{ 'selected' if editing and search.status==item else '' }}>{{ item }}</option>
+{% endfor %}
+</select>
+</label>
+<label>Next action<input name="next_action" value="{{ search.next_action or '' if editing else '' }}">
+</label>
+<label>Follow-up date<input type="date" name="follow_up_date" value="{{ search.follow_up_date or '' if editing else '' }}">
+</label>
+</div>
+<label>Note<textarea name="note">{{ search.note or '' if editing else '' }}</textarea>
+</label>
+<p class="muted">Candidate-led job search. “Placed” is a staff-reported status, not verified company selection.</p>
+<p class="error" data-form-error hidden role="alert">
+</p>
+<button>{{ 'Save Request' if editing else 'Start Job Search' }}</button>
+</form>

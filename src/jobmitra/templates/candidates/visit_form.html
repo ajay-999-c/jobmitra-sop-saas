@@ -1,0 +1,38 @@
+<form class="card" data-desk-endpoint="/api/candidates/{{ candidate.id if candidate is defined else '__candidate__' }}/visits" data-method="POST">
+{% if candidate is not defined %}
+<label>Find an existing candidate<input type="search" data-candidate-search placeholder="Search name / mobile / email">
+<select data-candidate-picker required>
+<option value="">Choose existing profile</option>
+{% for person in people %}
+<option value="{{ person.id }}">{{ person.full_name }} · {{ person.mobile }}</option>
+{% endfor %}
+</select>
+</label>
+{% endif %}
+<div class="form-grid">
+<label>Visit date & time<input type="datetime-local" name="visited_at" data-type="datetime" required data-now>
+</label>
+<label>Purpose<input name="purpose" required>
+</label>
+<label>Recorded by<select name="recorded_by_staff_id">
+<option value="">Not recorded</option>
+{% for member in staff if member.is_active %}
+<option value="{{ member.id }}">{{ member.display_name }}</option>
+{% endfor %}
+</select>
+</label>
+<label>Authority observation<select name="authority_status">
+{% for item in ['Not recorded','Pending','Signed (reported)','Not signed'] %}
+<option>{{ item }}</option>
+{% endfor %}
+</select>
+</label>
+</div>
+<label>Note<textarea name="note">
+</textarea>
+</label>
+<p class="muted">Signed (reported) is an observation, not proof of a stored signed document.</p>
+<p class="error" data-form-error hidden role="alert">
+</p>
+<button>Record Visit</button>
+</form>

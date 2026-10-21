@@ -29,6 +29,22 @@ preview at <http://127.0.0.1:8765/requirements>. Requires PostgreSQL 18 server t
 the runner uses a private Unix socket with TCP disabled. Stopping the preview
 discards its data. Any subsequent Windows migration requires separate approval.
 
+## Stage 3 Candidate Desk — pending Windows migration
+
+Paperless candidate registration/editing, office visits, candidate-led job searches,
+domain catalog, private versioned PDF/DOCX files and manual ChatGPT/Claude JSON
+history are implemented. See the [implementation and acceptance review](docs/stage-3-implementation-review.md)
+and [exact seven-table schema](docs/stage-3-schema.md).
+
+Revision `0004_candidate_desk` depends on `0003_jd_work_focus`; neither approval nor
+execution of a Windows migration is implied. Review locally with
+`.venv/bin/python scripts/test_stage3_isolated.py --serve` at
+<http://127.0.0.1:8766/candidate-desk>. Its database and private file root are disposable.
+Real documents require an explicitly configured, existing absolute
+`JOBMITRA_DOCUMENT_STORAGE_ROOT`; there is no default or automatic fallback.
+Back up both database and files. Candidate profile edit history beyond timestamp/version
+requires separate approval of the proposed eighth table.
+
 ## macOS setup
 
 From this project directory, use Python 3.12 or newer. With `uv`:

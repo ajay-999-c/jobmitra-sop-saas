@@ -33,7 +33,7 @@ def workflow_session(response: Response, session: Annotated[Session, Depends(get
     except SQLAlchemyError:
         session.rollback()
         raise HTTPException(
-            503, "Database unavailable or Stage 2 migration not yet applied."
+            503, "Database unavailable or required migration not yet applied."
         ) from None
 
 

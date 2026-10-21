@@ -1,0 +1,63 @@
+{% extends 'candidates/base.html' %}{% block title %}{{ candidate.full_name }}{% endblock %}{% block desk_content %}
+<div class="heading">
+<div>
+<p class="eyebrow">Candidate Profile</p>
+<h1>{{ candidate.full_name }}</h1>
+<p>{{ candidate.mobile }}{% if candidate.email %} · {{ candidate.email }}{% endif %}
+</p>
+<small>{{ candidate.id }} · {{ candidate.source }}</small>
+</div>
+<button data-open-dialog="candidate-dialog">Edit Candidate</button>
+</div>
+<nav class="tabs" aria-label="Candidate profile">
+{% for key,label in [('overview','Overview'),('visits','Office Visits'),('searches','Job Search Requests'),('documents','Resumes & Parsed JSON')] %}
+<button type="button" data-tab="{{ key }}" aria-controls="panel-{{ key }}">{{ label }}</button>
+{% endfor %}
+</nav>
+<section id="panel-overview" data-panel="overview">
+<div class="card form-grid">
+{% for key,label in [('role_title','Current / last role'),('qualification','Qualification'),('experience_months','Experience (months)'),('current_location','Current location'),('hometown','Hometown'),('home_state','Home State / UT'),('notice_period_text','Notice / availability'),('last_salary_raw','Last salary wording')] %}
+<div>
+<small>{{ label }}</small>
+<p>{{ candidate|attr(key) if candidate|attr(key) is not none else 'Not specified' }}</p>
+</div>
+{% endfor %}
+<div>
+<small>Work domain / sub-domain</small>
+<p>
+{% for domain in catalog.domains if domain.id==candidate.domain_id %}{{ domain.name }}{{ ' (inactive)' if not domain.is_active else '' }}{% else %}Not specified{% endfor %} / {% for sub in catalog.subdomains if sub.id==candidate.subdomain_id %}{{ sub.name }}{{ ' (inactive)' if not sub.is_active else '' }}{% else %}Not specified{% endfor %}
+</p>
+</div>
+<div>
+<small>Ready to relocate</small>
+<p>{{ 'Yes' if candidate.ready_to_relocate is sameas true else 'No' if candidate.ready_to_relocate is sameas false else 'Not specified' }}</p>
+</div>
+<div>
+<small>Skills</small>
+<p>{{ candidate.skills|join(', ') or 'Not specified' }}</p>
+</div>
+<div>
+<small>Preferred locations</small>
+<p>{{ candidate.preferred_locations|join(', ') or 'Not specified' }}</p>
+</div>
+{% for prefix,label in [('current','Current salary'),('expected','Expected salary')] %}
+<div>
+<small>{{ label }}</small>
+<p>{{ candidate|attr(prefix ~ '_salary_amount') if candidate|attr(prefix ~ '_salary_amount') is not none else 'Not specified' }} · {{ candidate|attr(prefix ~ '_salary_period') }} · {{ candidate|attr(prefix ~ '_salary_basis') }}</p>
+</div>
+{% endfor %}
+</div>
+<p class="muted">Updated {{ candidate.updated_at|local_time(office_timezone) }} · version {{ candidate.version }}. Earlier profile values are not retained in this stage.</p>
+</section>
+<section id="panel-visits" data-panel="visits" hidden>
+<h2>Record repeat visit</h2>
+{% include 'candidates/visit_form.html' %}{% include 'candidates/visit_rows.html' %}
+</section>
+<section id="panel-searches" data-panel="searches" hidden>
+<h2>Start Job Search Request</h2>
+{% include 'candidates/search_form.html' %}{% include 'candidates/search_rows.html' %}
+</section>
+<section id="panel-documents" data-panel="documents" hidden>
+{% include 'candidates/documents.html' %}
+</section>
+{% include 'candidates/candidate_form.html' %}{% endblock %}

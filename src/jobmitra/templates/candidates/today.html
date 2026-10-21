@@ -1,0 +1,27 @@
+{% extends 'candidates/base.html' %}{% block title %}Today · Candidate Desk{% endblock %}{% block desk_content %}
+<div class="heading">
+<div>
+<p class="eyebrow">Paperless recruitment</p>
+<h1>Today</h1>
+<p class="muted">{{ day }} · office timezone {{ office_timezone }}</p>
+</div>
+<div>
+<a class="button" href="/candidates/new?walkin=true">Register Walk-in</a>
+<a class="button secondary" href="/candidates/new">Add Candidate</a>
+</div>
+</div>
+<div class="stats">
+<article class="card">
+<small>Candidate profiles</small>
+<strong>{{ people|length }}</strong>
+</article>
+<article class="card">
+<small>Today's visits</small>
+<strong>{{ visits|length }}</strong>
+</article>
+<article class="card">
+<small>Follow-ups due through today</small>
+<strong>{{ searches|length }}</strong>
+</article>
+</div>
+{% include 'candidates/search_rows.html' %}{% include 'candidates/visit_rows.html' %}{% endblock %}

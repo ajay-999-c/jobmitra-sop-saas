@@ -1,0 +1,57 @@
+{% extends 'candidates/base.html' %}{% block title %}Domain Catalog{% endblock %}{% block desk_content %}
+<p class="eyebrow">Functional work domains</p>
+<h1>Domain Catalog</h1>
+<p class="muted">Work domains are not company industries. Job titles remain free text. No taxonomy has been seeded.</p>
+<div class="form-grid">
+<form class="card" data-desk-endpoint="/api/domains" data-method="POST">
+<h2>Add Domain</h2>
+<label>Name<input name="name" required>
+</label>
+<p class="error" data-form-error hidden>
+</p>
+<button>Add Domain</button>
+</form>
+<form class="card" data-desk-endpoint="/api/subdomains" data-method="POST">
+<h2>Add Sub-domain</h2>
+<label>Parent domain<select name="domain_id" required>
+<option value="">Choose domain</option>
+{% for domain in catalog.domains if domain.is_active %}
+<option value="{{ domain.id }}">{{ domain.name }}</option>
+{% endfor %}
+</select>
+</label>
+<label>Name<input name="name" required>
+</label>
+<p class="error" data-form-error hidden>
+</p>
+<button>Add Sub-domain</button>
+</form>
+</div>
+{% for domain in catalog.domains %}
+<article class="card">
+<h2>{{ domain.name }} <span class="badge">{{ 'Active' if domain.is_active else 'Inactive' }}</span>
+</h2>
+<form class="inline" data-desk-endpoint="/api/domains/{{ domain.id }}" data-method="PATCH">
+<label>Name<input name="name" value="{{ domain.name }}" required>
+</label>
+<label class="checkbox">
+<input type="checkbox" name="is_active" data-type="boolean" {{ 'checked' if domain.is_active else '' }}>Active</label>
+<button>Save Domain</button>
+<p class="error" data-form-error hidden>
+</p>
+</form>
+{% for sub in catalog.subdomains if sub.domain_id==domain.id %}
+<form class="inline" data-desk-endpoint="/api/subdomains/{{ sub.id }}" data-method="PATCH">
+<label>Sub-domain<input name="name" value="{{ sub.name }}" required>
+</label>
+<label class="checkbox">
+<input type="checkbox" name="is_active" data-type="boolean" {{ 'checked' if sub.is_active else '' }}>Active</label>
+<button class="secondary">Save Sub-domain</button>
+<p class="error" data-form-error hidden>
+</p>
+</form>
+{% endfor %}
+</article>
+{% else %}
+<p>No domains yet. Add only approved labels.</p>
+{% endfor %}{% endblock %}

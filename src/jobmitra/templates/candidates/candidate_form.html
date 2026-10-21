@@ -1,0 +1,125 @@
+{% set person = candidate.model_dump(mode='json') if candidate is defined else {} %}
+{% macro input(label, name, type='text', required=false, list_id='') %}
+<label>{{ label }}<input name="{{ name }}" type="{{ type }}" value="{{ person.get(name) if person.get(name) is not none else '' }}" {% if required %}required{% endif %} {% if list_id %}list="{{ list_id }}"{% endif %} {% if type=='number' %}min="0" step="{{ '1' if name=='experience_months' else '0.01' }}"{% endif %}>
+</label>
+{% endmacro %}
+<dialog id="candidate-dialog" aria-labelledby="candidate-form-title" data-auto-open="{{ 'true' if auto_open|default(false) else 'false' }}">
+<header>
+<div>
+<h2 id="candidate-form-title">{{ 'Edit Candidate' if person else 'Register Candidate / Walk-in' }}</h2>
+<p class="muted">Candidate-confirmed facts. Existing profile links stay intact.</p>
+</div>
+<button type="button" class="secondary" data-close-dialog aria-label="Close candidate form">×</button>
+</header>
+<p class="scroll-cue">Scroll for professional details, salary and availability ↓</p>
+<form data-desk-endpoint="{{ '/api/candidates/' ~ person.id if person else '/api/candidates' }}" data-method="{{ 'PATCH' if person else 'POST' }}" data-profile-form data-candidate-id="{{ person.id or '' }}">
+{% if person %}
+<input type="hidden" name="version" data-type="number" value="{{ person.version }}">
+{% endif %}
+<div class="dialog-body" tabindex="0" aria-label="Scrollable candidate fields">
+<h3>Candidate identity</h3>
+<div class="form-grid">
+{{ input('Full name *','full_name',required=true) }}{{ input('Mobile *','mobile','tel',true) }}{{ input('Email (optional)','email','email') }}
+<label>Source *<select name="source" required>
+{% for item in ['Walk-in','Foundit','WhatsApp','Referral','Existing database','Other'] %}
+<option {{ 'selected' if person.get('source', 'Walk-in' if walkin|default(false) else 'Foundit')==item else '' }}>{{ item }}</option>
+{% endfor %}
+</select>
+</label>
+{{ input('Current / last job role','role_title',list_id='previous-roles') }}<datalist id="previous-roles">
+{% for role in roles %}
+<option value="{{ role }}">
+{% endfor %}
+</datalist>
+</div>
+<div data-duplicate-results class="notice" hidden aria-live="polite">
+</div>
+<label class="checkbox">
+<input type="checkbox" name="confirm_duplicate" data-type="boolean">If this mobile already exists, I confirm this is a separate person. Never merge automatically.</label>
+<h3>Professional details & preferences</h3>
+<div class="form-grid">
+<label>Work domain<select name="domain_id" data-domain-select>
+<option value="">Not specified</option>
+{% for domain in catalog.domains if domain.is_active or domain.id|string==person.get('domain_id') %}
+<option value="{{ domain.id }}" {{ 'selected' if domain.id|string==person.get('domain_id') else '' }}>{{ domain.name }}{{ ' (inactive)' if not domain.is_active else '' }}</option>
+{% endfor %}
+</select>
+</label>
+<label>Sub-domain<select name="subdomain_id" data-subdomain-select data-selected="{{ person.get('subdomain_id') or '' }}">
+<option value="">Not specified</option>
+{% for sub in catalog.subdomains if sub.is_active or sub.id|string==person.get('subdomain_id') %}
+<option data-parent="{{ sub.domain_id }}" value="{{ sub.id }}">{{ sub.name }}{{ ' (inactive)' if not sub.is_active else '' }}</option>
+{% endfor %}
+</select>
+</label>
+{{ input('Qualification','qualification') }}{{ input('Experience (months)','experience_months','number') }}
+<label>Skills (comma separated)<input name="skills" data-type="array" value="{{ person.get('skills',[])|join(', ') }}">
+</label>
+{{ input('Current location','current_location') }}
+<label>Preferred work locations (comma separated)<input name="preferred_locations" data-type="array" value="{{ person.get('preferred_locations',[])|join(', ') }}">
+</label>
+<label>Ready to relocate<select name="ready_to_relocate" data-type="nullable-bool">
+<option value="">Not specified</option>
+<option value="true" {{ 'selected' if person.get('ready_to_relocate') is sameas true else '' }}>Yes</option>
+<option value="false" {{ 'selected' if person.get('ready_to_relocate') is sameas false else '' }}>No</option>
+</select>
+</label>
+{{ input('Hometown','hometown') }}
+<label>Home State / Union Territory<select name="home_state">
+<option value="">Not specified</option>
+<optgroup label="States (28)">
+{% for state in states %}
+<option {{ 'selected' if person.get('home_state')==state else '' }}>{{ state }}</option>
+{% endfor %}
+</optgroup>
+<optgroup label="Union Territories (8)">
+{% for state in territories %}
+<option {{ 'selected' if person.get('home_state')==state else '' }}>{{ state }}</option>
+{% endfor %}
+</optgroup>
+</select>
+</label>
+</div>
+<h3>Salary & availability — optional</h3>
+<div class="form-grid">
+{% for prefix,label in [('current','Current'),('expected','Expected')] %}
+{{ input(label ~ ' salary amount (₹)',prefix ~ '_salary_amount','number') }}
+<label>{{ label }} salary period<select name="{{ prefix }}_salary_period">
+{% for item in ['Unknown','Monthly','Annual'] %}
+<option {{ 'selected' if person.get(prefix ~ '_salary_period','Unknown')==item else '' }}>{{ item }}</option>
+{% endfor %}
+</select>
+</label>
+<label>{{ label }} salary basis<select name="{{ prefix }}_salary_basis">
+{% for item in ['Unknown','CTC','Gross','Take-home'] %}
+<option {{ 'selected' if person.get(prefix ~ '_salary_basis','Unknown')==item else '' }}>{{ item }}</option>
+{% endfor %}
+</select>
+</label>
+{% endfor %}
+{{ input('Last salary — original wording','last_salary_raw') }}{{ input('Notice / availability','notice_period_text') }}</div>
+<p class="muted">No salary conversion or inferred relocation. A new Walk-in creates exactly one initial visit.</p>
+{% if not person %}
+<label class="checkbox">
+<input type="checkbox" data-create-search>Candidate explicitly requests job-search assistance</label>
+<div data-initial-search hidden>
+<label>Desired role<input data-search-role>
+</label>
+<label>Assign employee<select data-search-staff>
+<option value="">Choose active employee</option>
+{% for member in staff if member.is_active %}
+<option value="{{ member.id }}">{{ member.display_name }}</option>
+{% endfor %}
+</select>
+</label>
+</div>
+{% endif %}
+<p class="error" data-form-error hidden role="alert">
+</p>
+</div>
+<footer>
+<button type="button" class="secondary" data-close-dialog>Cancel</button>
+<button>Save Candidate</button>
+</footer>
+</form>
+</dialog>

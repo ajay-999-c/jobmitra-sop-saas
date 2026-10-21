@@ -1,0 +1,104 @@
+<h2>Resumes & Parsed JSON</h2>
+<p class="muted">Private immutable PDF/DOCX versions. The highest original-resume version is current. No external AI calls or automatic profile changes.</p>
+<form class="card" data-upload-endpoint="/api/candidates/{{ candidate.id }}/documents">
+<h3>Upload Original / New Version, Modified Resume or Authority</h3>
+<div class="form-grid">
+<label>Document kind<select name="kind">
+<option value="ORIGINAL_RESUME">Original resume / new version</option>
+<option value="MODIFIED_RESUME">Modified (Jobmitra) resume</option>
+<option value="AUTHORITY">Authority document</option>
+</select>
+</label>
+<label>PDF or DOCX<input type="file" name="file" accept=".pdf,.docx" required>
+</label>
+<label>Source original (modified resume only)<select name="source_document_id">
+<option value="">Not applicable</option>
+{% for doc in documents if doc.kind=='ORIGINAL_RESUME' %}
+<option value="{{ doc.id }}">Original v{{ doc.version }} · {{ doc.original_filename }}</option>
+{% endfor %}
+</select>
+</label>
+</div>
+<label class="checkbox">
+<input type="checkbox" name="reviewed">For a modified resume, I reviewed accuracy and candidate authorization. Consultancy contact is labelled explicitly; candidate identity is preserved.</label>
+<p class="muted">Authority uploads do not automatically prove signature authenticity. Uploaded by uses Recording as, when selected.</p>
+<p class="error" data-form-error hidden role="alert">
+</p>
+<button>Upload Document</button>
+</form>
+{% set current_original = documents|selectattr('kind','equalto','ORIGINAL_RESUME')|first %}
+{% for doc in documents %}
+<article class="card">
+<h3>{{ doc.kind.replace('_',' ').title() }} · v{{ doc.version }}{% if current_original and doc.id==current_original.id %} · Current original{% endif %}
+</h3>
+{% if doc.kind=='AUTHORITY' %}
+<small>Authority status: {{ doc.approval_status or 'Unverified' }}; signature authenticity is not verified here.</small>
+{% endif %}
+<p>{{ doc.original_filename }} · {{ doc.size_bytes }} bytes · {{ doc.created_at|local_time(office_timezone) }}</p>
+{% if doc.source_document_id %}
+<small>Derived from original {% for source in documents if source.id==doc.source_document_id %}v{{ source.version }} · {{ source.original_filename }}{% endfor %} · {{ doc.approval_status }}</small>
+{% endif %}
+<a href="/candidates/{{ candidate.id }}/documents/{{ doc.id }}/download">Download {{ doc.kind.replace('_',' ').title() }}</a>
+</article>
+{% else %}
+<p>No documents uploaded.</p>
+{% endfor %}
+<form class="card" data-desk-endpoint="/api/candidates/{{ candidate.id }}/resume-parses" data-method="POST" data-paste-parse>
+<h3>Paste ChatGPT / Claude JSON</h3>
+<div class="form-grid">
+<label>Provider<select name="provider">
+<option>ChatGPT</option>
+<option>Claude</option>
+</select>
+</label>
+<label>Model (if known)<input name="model_label">
+</label>
+<label>Specific original resume version<select name="document_id" required>
+<option value="">Choose original</option>
+{% for doc in documents if doc.kind=='ORIGINAL_RESUME' %}
+<option value="{{ doc.id }}">v{{ doc.version }} · {{ doc.original_filename }}</option>
+{% endfor %}
+</select>
+</label>
+</div>
+<label>JSON object (maximum 256 KiB)<textarea name="parsed_json" data-type="json" rows="10" required spellcheck="false">
+</textarea>
+</label>
+<p class="muted">Object/size checked only. No approved extraction schema exists; candidate facts are never overwritten.</p>
+<p class="error" data-form-error hidden>
+</p>
+<button>Save Parsed JSON</button>
+</form>
+<h3>Parse history · {{ parses|length }}</h3>
+{% for result in parses %}
+<article class="card">
+<h3>{{ result.provider }}{% if result.model_label %} · {{ result.model_label }}{% endif %}
+</h3>
+<p>
+{% for doc in documents if doc.id==result.document_id %}Original v{{ doc.version }} · {{ doc.original_filename }}{% endfor %}
+</p>
+<p>{{ result.created_at|local_time(office_timezone) }} · {{ result.validation_status }} · {{ result.review_status }}</p>
+<small>Storage schema v{{ result.schema_version }}; comprehensive extraction validation pending.</small>
+<details>
+<summary>View preserved JSON</summary>
+<pre>{{ result.parsed_json|tojson(indent=2) }}</pre>
+</details>
+{% if result.review_status=='Unreviewed' %}
+<form data-desk-endpoint="/api/candidates/{{ candidate.id }}/resume-parses/{{ result.id }}" data-method="PATCH" data-review-parse>
+<label>Employee review<select name="review_status">
+<option>Reviewed</option>
+<option>Rejected</option>
+</select>
+</label>
+<p class="muted">Uses Recording as. Review does not promote profile fields or imply schema validation.</p>
+<p class="error" data-form-error hidden>
+</p>
+<button>Record Review</button>
+</form>
+{% else %}
+<small>Reviewed {{ result.reviewed_at|local_time(office_timezone) }} by {% for member in staff if member.id==result.reviewed_by_staff_id %}{{ member.display_name }}{% endfor %} · self-selected/unverified</small>
+{% endif %}
+</article>
+{% else %}
+<p>No parse results saved.</p>
+{% endfor %}

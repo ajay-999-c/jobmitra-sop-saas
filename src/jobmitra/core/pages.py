@@ -12,11 +12,11 @@ templates.env.filters["local_time"] = lambda value, tz: (
 )
 
 
-def render(request, session, name, **context):
+def render(request, session, name, *, template_group="stage2", **context):
     staff = list_staff(session)
     return templates.TemplateResponse(
         request=request,
-        name=f"stage2/{name}.html",
+        name=f"{template_group}/{name}.html",
         context={
             "staff": staff,
             "office_timezone": request.app.state.settings.office_timezone,

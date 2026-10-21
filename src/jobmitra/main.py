@@ -7,6 +7,8 @@ from sqlalchemy.exc import SQLAlchemyError
 from jobmitra.core.config import Settings, get_settings
 from jobmitra.core.database import build_engine, check_database
 from jobmitra.core.pages import PACKAGE_DIR
+from jobmitra.modules.candidates.limits import CandidateJSONLimit
+from jobmitra.modules.candidates.router import router as candidates_router
 from jobmitra.modules.companies.router import MODULE_DIR, CompanyAssets
 from jobmitra.modules.companies.router import router as companies_router
 from jobmitra.modules.jobs.router import router as jobs_router
@@ -26,6 +28,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             app.state.engine.dispose()
 
     app = FastAPI(title="Jobmitra", version="0.1.0", lifespan=lifespan)
+    app.add_middleware(CandidateJSONLimit)
     app.mount(
         "/static/companies",
         CompanyAssets(directory=str(MODULE_DIR / "static")),
@@ -37,6 +40,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         "/static/stage2",
         CompanyAssets(directory=str(PACKAGE_DIR / "static" / "stage2")),
         name="stage2-static",
+    )
+    app.include_router(candidates_router)
+    app.mount(
+        "/static/candidates",
+        CompanyAssets(directory=str(PACKAGE_DIR / "static" / "candidates")),
+        name="candidate-static",
     )
     app.include_router(staff_router)
     app.include_router(jobs_router)

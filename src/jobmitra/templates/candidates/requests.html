@@ -1,0 +1,21 @@
+{% extends 'candidates/base.html' %}{% block title %}Job Search Requests{% endblock %}{% block desk_content %}
+<p class="eyebrow">Candidate-first service</p>
+<h1>Job Search Requests</h1>
+<p class="muted">A separate work queue for people who ask Jobmitra to find a job.</p>
+<details>
+<summary>+ Start Job Search</summary>
+{% include 'candidates/search_form.html' %}
+</details>
+<form class="filters">
+<label>Employee<select name="staff_id">
+<option value="">All employees</option>
+{% for member in staff %}
+<option value="{{ member.id }}">{{ member.display_name }}</option>
+{% endfor %}
+</select>
+</label>
+<label class="checkbox">
+<input type="checkbox" name="due_only" value="true">Due today / overdue</label>
+<button>Filter</button>
+</form>
+{% include 'candidates/search_rows.html' %}{% endblock %}

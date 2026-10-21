@@ -1,4 +1,5 @@
 from functools import lru_cache
+from pathlib import Path
 from typing import Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -25,6 +26,8 @@ class Settings(BaseSettings):
     db_max_overflow: int = Field(default=0, ge=0, le=5)
     db_pool_timeout: int = Field(default=5, ge=1, le=60)
     db_statement_timeout_ms: int = Field(default=5000, ge=1)
+    document_storage_root: Path | None = None
+    document_max_bytes: int = Field(default=12 * 1024 * 1024, ge=1024, le=100 * 1024 * 1024)
     ai_enabled: bool = False
     office_timezone: str = "Asia/Kolkata"
 

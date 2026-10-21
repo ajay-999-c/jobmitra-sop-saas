@@ -1,0 +1,18 @@
+{% extends 'stage2/base.html' %}
+{% block desk_brand %}CANDIDATE DESK{% endblock %}
+{% block title %}Candidate Desk{% endblock %}
+{% block extra_head %}
+<link rel="stylesheet" href="/static/candidates/desk.css">
+<script type="module" src="/static/candidates/desk.mjs">
+</script>
+{% endblock %}
+{% block content %}
+<nav class="desk-nav" aria-label="Candidate Desk">
+<a href="/candidate-desk">Today</a>
+<a href="/candidates">Candidates</a>
+<a href="/office-visits">Office Visits</a>
+<a href="/job-search-requests">Job Search Requests</a>
+<a href="/domains">Domain Catalog</a>
+</nav>
+{% block desk_content %}{% endblock %}
+{% endblock %}

@@ -1,0 +1,14 @@
+<h2>Visits · {{ visits|length }}</h2>
+{% for visit in visits %}
+<article class="card">
+<a href="/candidates/{{ visit.candidate_id }}#visits">
+{% if people is defined %}{% for person in people if person.id==visit.candidate_id %}{{ person.full_name }}{% endfor %}{% else %}Candidate visit{% endif %}
+</a>
+<h3>{{ visit.purpose }}</h3>
+<p>{{ visit.visited_at|local_time(office_timezone) }} · {{ visit.authority_status }}</p>
+<p class="prewrap">{{ visit.note or '' }}</p>
+<small>Recorded by {% for member in staff if member.id==visit.recorded_by_staff_id %}{{ member.display_name }}{% else %}Not recorded{% endfor %} · self-selected/unverified</small>
+</article>
+{% else %}
+<p class="muted">No visits recorded for this view.</p>
+{% endfor %}

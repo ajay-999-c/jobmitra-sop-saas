@@ -1,0 +1,19 @@
+{% extends 'candidates/base.html' %}{% block title %}Office Visits{% endblock %}{% block desk_content %}
+<div class="heading">
+<div>
+<p class="eyebrow">Paperless register</p>
+<h1>Office Visits</h1>
+</div>
+<a class="button" href="/candidates/new?walkin=true">Register New Walk-in</a>
+</div>
+<details>
+<summary>Record a repeat visit</summary>
+{% include 'candidates/visit_form.html' %}
+</details>
+<form class="filters">
+<label>Visit day<input type="date" name="day" value="{{ day or '' }}">
+</label>
+<button>Filter</button>
+<a href="/office-visits">All visits</a>
+</form>
+{% include 'candidates/visit_rows.html' %}{% endblock %}

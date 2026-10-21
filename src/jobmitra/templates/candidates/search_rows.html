@@ -1,0 +1,25 @@
+<h2>Job Search Requests · {{ searches|length }}</h2>
+{% for search in searches %}
+<article class="card">
+<div class="heading">
+<h3>
+<a href="/candidates/{{ search.candidate_id }}#searches">{{ search.desired_role }}</a>
+</h3>
+<span class="badge {{ 'overdue' if search.is_overdue else '' }}">{{ 'Overdue · ' if search.is_overdue else '' }}{{ search.status }}</span>
+</div>
+{% if people is defined %}
+<p>
+{% for person in people if person.id==search.candidate_id %}{{ person.full_name }}{% endfor %}
+</p>
+{% endif %}
+<p>{{ search.next_action or 'No next action recorded' }} · {{ search.follow_up_date or 'No follow-up date' }}</p>
+<small>Assigned to {% for member in staff if member.id==search.assigned_staff_id %}{{ member.display_name }}{{ ' (inactive)' if not member.is_active else '' }}{% endfor %}
+</small>
+<details>
+<summary>Update Request</summary>
+{% include 'candidates/search_form.html' %}
+</details>
+</article>
+{% else %}
+<p class="muted">No requests in this view.</p>
+{% endfor %}

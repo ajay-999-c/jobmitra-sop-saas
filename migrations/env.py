@@ -4,6 +4,7 @@ from alembic import context
 
 from jobmitra.core.config import get_settings
 from jobmitra.core.database import Base, build_engine
+from jobmitra.modules.candidates.models import STAGE3_TABLES
 from jobmitra.modules.companies.models import COMPANY_TABLES
 from jobmitra.modules.stage2 import STAGE2_TABLES
 
@@ -15,7 +16,7 @@ target_metadata = Base.metadata
 
 def include_name(name, type_, parent_names):
     # Never compare unmanaged tables, including extension-owned relations.
-    return type_ != "table" or name in COMPANY_TABLES | STAGE2_TABLES
+    return type_ != "table" or name in COMPANY_TABLES | STAGE2_TABLES | STAGE3_TABLES
 
 
 def run_migrations_offline():
