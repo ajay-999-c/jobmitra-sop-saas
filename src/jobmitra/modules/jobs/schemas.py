@@ -1,3 +1,4 @@
+import re
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Annotated, Literal
@@ -39,10 +40,24 @@ class OptionalCriteria(InputModel):
     salary_currency: str | None = None
     vacancies: Positive | None = None
     qualification: str | None = None
+    general_skills: list[str] | None = None
     required_skills: list[str] | None = None
     preferred_skills: list[str] | None = None
     specific_skill: str | None = None
     specific_skill_min_months: Nonnegative | None = None
+
+    @field_validator("general_skills", mode="before")
+    @classmethod
+    def normalize_general_skills(cls, value):
+        if value is None:
+            return None
+        if isinstance(value, str):
+            value = [value]
+        if not isinstance(value, list) or any(not isinstance(item, str) for item in value):
+            raise ValueError("Skills must be text or a list of text values")
+        return skills(
+            [part for item in value for part in re.split(r"[,\r\n]", item) if part.strip()]
+        )
 
     @field_validator("required_skills", "preferred_skills", mode="before")
     @classmethod
@@ -70,6 +85,7 @@ class ManualCriteria(OptionalCriteria):
     job_title: str = Field(min_length=1, max_length=300)
     salary_period: SalaryPeriod = "Unknown"
     salary_basis: SalaryBasis = "Unknown"
+    general_skills: list[str] = Field(default_factory=list)
     required_skills: list[str] = Field(default_factory=list)
     preferred_skills: list[str] = Field(default_factory=list)
 
@@ -85,6 +101,7 @@ class ManualCriteria(OptionalCriteria):
 
 
 class JobCreate(ManualCriteria):
+    salary_currency: str | None = "INR"
     actor_staff_id: UUID
     status: Status = "Draft"
     target_date: date | None = None

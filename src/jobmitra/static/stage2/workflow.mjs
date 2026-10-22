@@ -50,13 +50,16 @@ function valueOf(input) {
   const raw = input.value.trim();
   if (input.dataset.kind === "checkbox") return input.checked;
   if (input.dataset.kind === "boolean") return raw === "true";
-  if (input.dataset.kind === "skills")
-    return raw
-      ? raw
-          .split(/[,\n]/)
-          .map((value) => value.trim())
-          .filter(Boolean)
-      : [];
+  if (input.dataset.kind === "skills") {
+    const seen = new Set();
+    return raw.split(/[,\r\n]/).map((value) => value.trim().replace(/\s+/g, " "))
+      .filter((value) => {
+        const key = value.toLowerCase();
+        if (!value || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+  }
   if (input.dataset.kind === "integer") return raw === "" ? null : Number(raw);
   if (input.dataset.kind === "json") return JSON.parse(raw);
   if (input.dataset.kind === "datetime")
@@ -70,6 +73,22 @@ function localDatetime(iso) {
 document.querySelectorAll("[data-kind=datetime]").forEach((input) => {
   if (initial?.[input.name]) input.value = localDatetime(initial[input.name]);
 });
+const salaryPeriod = document.querySelector('[name="salary_period"]');
+if (salaryPeriod && !salaryPeriod.disabled) {
+  let previous = salaryPeriod.value;
+  salaryPeriod.addEventListener("change", () => {
+    if (["Monthly", "Annual"].includes(previous)
+        && ["Monthly", "Annual"].includes(salaryPeriod.value)
+        && salaryPeriod.value !== previous) {
+      const factor = salaryPeriod.value === "Annual" ? 12 : 1 / 12;
+      for (const name of ["salary_min", "salary_max"]) {
+        const input = salaryPeriod.form.elements[name];
+        if (input?.value) input.value = (Number(input.value) * factor).toFixed(2);
+      }
+    }
+    previous = salaryPeriod.value;
+  });
+}
 const baselines = new WeakMap();
 document
   .querySelectorAll("form[data-diff] [name]")

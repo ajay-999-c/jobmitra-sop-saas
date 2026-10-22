@@ -546,3 +546,8 @@ button.secondary:hover {
 .controls details form, .focus-control form { border-top: 1px solid #e2e8f0; padding: .8rem 1rem; max-width: 540px; }
 .focus-control { max-width: 100%; }
 .controls summary:hover, .focus-control summary:hover { background: #f8fafc; border-radius: 8px; }
+
+.skills-field { grid-column: 1 / -1; }
+.salary-input { display: flex; align-items: center; gap: 0.6rem; }
+.salary-input > span { color: #dd0000; font-size: 1.25rem; }
+.salary-input input { min-width: 0; flex: 1; }

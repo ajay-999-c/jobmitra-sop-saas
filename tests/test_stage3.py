@@ -640,6 +640,7 @@ def test_stage3_migration_additive_preserves_existing_data(database):
                 ]
                 for name in names
             } == columns
+            command.upgrade(cfg, "head")
             assert (
                 compare_metadata(
                     MigrationContext.configure(

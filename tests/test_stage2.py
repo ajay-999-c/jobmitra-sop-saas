@@ -141,7 +141,7 @@ def test_additive_migration_roundtrip_preserves_stage1_and_models(database):
         assert company_snapshot(connection) == before
         assert (
             connection.scalar(text("SELECT version_num FROM alembic_version"))
-            == "0004_candidate_desk"
+            == "0005_jd_general_skills"
         )
         assert connection.scalar(text("SELECT count(*) FROM staff_members")) == 0
         connection.execute(text("DROP TABLE unrelated_sentinel"))
@@ -193,7 +193,6 @@ def test_quick_jd_unknown_optional_fields_and_active_without_ai(ui):
         for key in (
             "salary_min",
             "salary_max",
-            "salary_currency",
             "vacancies",
             "experience_min_months",
             "experience_max_months",
@@ -204,6 +203,8 @@ def test_quick_jd_unknown_optional_fields_and_active_without_ai(ui):
         )
     )
     assert jd["required_skills"] == jd["preferred_skills"] == jd["recruiters"] == []
+    assert jd["salary_currency"] == "INR"
+    assert jd["general_skills"] == []
     assert jd["ats_status"] == "Not Added"
 
 
@@ -848,5 +849,109 @@ def test_work_focus_migration_preserves_populated_stage2(database):
                 c["name"] for c in inspect(connection).get_columns("job_requirements")
             }
             command.upgrade(cfg, "head")
+        finally:
+            transaction.rollback()
+
+
+def test_general_skills_preserve_confirmed_criteria_and_ats(ui):
+    client, _, companies, _ = ui
+    actor = staff(client)
+    jd = job(
+        client,
+        companies[0],
+        actor,
+        required_skills=["SQL"],
+        preferred_skills=["Excel"],
+        specific_skill="Payroll",
+        specific_skill_min_months=18,
+        salary_currency="USD",
+        salary_min="1000",
+        salary_max="2000",
+        salary_period="Monthly",
+        qualification="BCom",
+        raw_requirement="Company confirmed brief",
+    )
+    assert action(client, jd, actor, "/ats-json", "PUT", ats=ATS, reviewed=False).status_code == 200
+    before = client.get(f"/api/jobs/{jd['id']}").json()
+    result = action(
+        client, jd, actor, general_skills=" Power   BI, Excel\nPOWER BI, ,\n Excel\r\nPython "
+    )
+    assert result.status_code == 200, result.text
+    after = result.json()
+    assert after["general_skills"] == ["Power BI", "Excel", "Python"]
+    for key in before.keys() - {"general_skills", "version", "updated_at", "ats_status"}:
+        assert after[key] == before[key], key
+    assert after["ats_status"] == "Stale"
+    assert action(client, jd, actor, general_skills=" , \n ").json()["general_skills"] == []
+    html = client.get(f"/requirements/{jd['id']}").text
+    assert 'name="salary_currency"' not in html
+    assert 'name="required_skills"' not in html
+    assert 'name="specific_skill"' not in html
+    assert "Previously confirmed requirements" in html
+    assert "salary editing is unavailable" in html
+    assert "Payroll" in html and "18 months" in html
+
+
+def test_general_skills_creation_and_salary_edit(ui):
+    client, _, companies, _ = ui
+    actor = staff(client)
+    jd = job(
+        client,
+        companies[0],
+        actor,
+        general_skills=[" Excel, SQL ", "excel", " \n"],
+        salary_min="25000",
+        salary_max="50000",
+        salary_period="Monthly",
+    )
+    assert jd["general_skills"] == ["Excel", "SQL"]
+    assert jd["required_skills"] == jd["preferred_skills"] == []
+    assert jd["specific_skill"] is None and jd["salary_currency"] == "INR"
+    updated = action(
+        client, jd, actor, salary_period="Annual", salary_min="300000", salary_max="600000"
+    ).json()
+    assert updated["salary_period"] == "Annual"
+    assert float(updated["salary_min"]) == 300000
+    assert updated["general_skills"] == jd["general_skills"]
+    assert action(client, jd, actor, general_skills=[None]).status_code == 422
+    html = client.get("/requirements/new").text
+    assert "Skills (Optional)" in html and "₹" in html
+    assert 'name="salary_currency"' not in html
+
+
+def test_general_skills_migration_preserves_existing_rows(database):
+    engine, _, companies, _, _, _ = database
+    with engine.connect() as connection:
+        transaction = connection.begin()
+        try:
+            cfg = Config("alembic.ini")
+            cfg.attributes["connection"] = connection
+            command.downgrade(cfg, "0004_candidate_desk")
+            actor, jd = uuid4(), uuid4()
+            connection.execute(
+                text("INSERT INTO staff_members (id,display_name) VALUES (:id,'Migration test')"),
+                {"id": actor},
+            )
+            connection.execute(
+                text("""INSERT INTO job_requirements
+                (id,company_id,created_by_staff_id,job_title,required_skills,preferred_skills,
+                 specific_skill,specific_skill_min_months,salary_currency,salary_min)
+                VALUES (:id,:company,:actor,'Legacy',ARRAY['SQL'],ARRAY['Excel'],
+                        'Payroll',18,'USD',1000)"""),
+                {"id": jd, "company": companies[0], "actor": actor},
+            )
+            before = dict(
+                connection.execute(text("SELECT * FROM job_requirements WHERE id=:id"), {"id": jd})
+                .mappings()
+                .one()
+            )
+            command.upgrade(cfg, "head")
+            after = dict(
+                connection.execute(text("SELECT * FROM job_requirements WHERE id=:id"), {"id": jd})
+                .mappings()
+                .one()
+            )
+            assert after.pop("general_skills") == []
+            assert after == before
         finally:
             transaction.rollback()

@@ -19,20 +19,37 @@
 <details {% if job %}open{% endif %}>
 <summary>Criteria and skills (optional)</summary>
 <div class="form-grid">
-<label>Required skills — comma or newline separated<textarea name="required_skills" data-kind="skills" rows="3">{{ job.required_skills|join('\n') if job else '' }}</textarea>
+<label class="skills-field">Skills (Optional)<textarea name="general_skills" data-kind="skills" rows="3" aria-describedby="skills-help">{{ job.general_skills|join('\n') if job else '' }}</textarea>
+<span id="skills-help" class="muted">Separate skills with commas or new lines. These are not mandatory requirements.</span>
 </label>
-<label>Preferred skills — comma or newline separated<textarea name="preferred_skills" data-kind="skills" rows="3">{{ job.preferred_skills|join('\n') if job else '' }}</textarea>
-</label>
+{% if job and (job.required_skills or job.preferred_skills or job.specific_skill or job.specific_skill_min_months is not none) %}
+<div class="notice skills-field">
+<strong>Previously confirmed requirements</strong>
+{% if job.required_skills %}<p>Required: {{ job.required_skills|join(', ') }}</p>{% endif %}
+{% if job.preferred_skills %}<p>Preferred: {{ job.preferred_skills|join(', ') }}</p>{% endif %}
+{% if job.specific_skill or job.specific_skill_min_months is not none %}<p>Specific skill: {{ job.specific_skill or 'Not specified' }}{% if job.specific_skill_min_months is not none %} · {{ job.specific_skill_min_months }} months{% endif %}</p>{% endif %}
+<span>These requirements are preserved when you save.</span>
+</div>
+{% endif %}
 {{ field('domain_key','Functional JD domain (no catalog yet)') }}{{ field('subdomain_key','Functional subdomain') }}
 {{ field('work_mode','Work mode') }}{{ field('qualification','Qualification') }}
 {{ field('experience_min_months','Minimum experience (months)','integer','number') }}{{ field('experience_max_months','Maximum experience (months)','integer','number') }}
-{{ field('salary_min','Minimum salary','decimal','number') }}{{ field('salary_max','Maximum salary','decimal','number') }}
-<label>Salary period<select name="salary_period">{% for value in ['Unknown','Monthly','Annual'] %}<option {{ 'selected' if job and job.salary_period == value else '' }}>{{ value }}</option>{% endfor %}</select>
+{% set legacy_salary = job and (job.salary_currency or '')|upper != 'INR' %}
+{% if legacy_salary %}
+<div class="notice skills-field">Existing salary: {{ job.salary_currency or 'Currency not recorded' }} {{ job.salary_min if job.salary_min is not none else '—' }} – {{ job.salary_max if job.salary_max is not none else '—' }} · {{ job.salary_period }}. Preserved as recorded; salary editing is unavailable in this INR form.</div>
+{% else %}
+{% for name, label in [('salary_min','Minimum salary'),('salary_max','Maximum salary')] %}
+<label>{{ label }}<span class="salary-input"><span aria-hidden="true">₹</span><input aria-label="{{ label }} (INR)" name="{{ name }}" type="number" data-kind="decimal" min="0" step="0.01" value="{{ job[name] if job and job[name] is not none else '' }}"></span></label>
+{% endfor %}
+{% endif %}
+<label>Salary period<select name="salary_period" {{ 'disabled' if legacy_salary else '' }}>
+{% if job and job.salary_period == 'Unknown' %}<option selected>Unknown</option>{% endif %}
+{% for value in ['Monthly','Annual'] %}<option {{ 'selected' if job and job.salary_period == value else '' }}>{{ value }}</option>{% endfor %}</select>
+<span class="muted">{% if not legacy_salary %}Amounts are in INR. Changing Monthly / Annual converts entered amounts (×12 / ÷12).{% endif %}</span>
 </label>
 <label>Salary basis<select name="salary_basis">{% for value in ['Unknown','CTC','Gross','Take-home'] %}<option {{ 'selected' if job and job.salary_basis == value else '' }}>{{ value }}</option>{% endfor %}</select>
 </label>
-{{ field('salary_currency','Salary currency') }}{{ field('vacancies','Vacancies (leave blank if unknown)','integer','number') }}
-{{ field('specific_skill','Specific skill') }}{{ field('specific_skill_min_months','Specific skill experience (months)','integer','number') }}
+{{ field('vacancies','Vacancies (leave blank if unknown)','integer','number') }}
 {{ field('received_at',"Received at (device timezone)",'datetime','datetime-local') }}
 </div>
 </details>

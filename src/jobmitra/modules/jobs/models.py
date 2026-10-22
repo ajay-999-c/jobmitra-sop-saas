@@ -82,6 +82,9 @@ class JobRequirement(Base):
             "ats_schema_version=1 AND ats_status IN ('Draft','Reviewed','Stale'))",
             name="ck_job_ats_state",
         ),
+        CheckConstraint(
+            "array_position(general_skills,NULL) IS NULL", name="ck_job_general_skills_no_nulls"
+        ),
         Index("ix_job_company_status", "company_id", "status"),
         Index("ix_job_status", "status"),
         Index("ix_job_target", "target_date", postgresql_where=text("target_date IS NOT NULL")),
@@ -112,6 +115,9 @@ class JobRequirement(Base):
     salary_currency: Mapped[str | None] = mapped_column(Text)
     vacancies: Mapped[int | None] = mapped_column(Integer)
     qualification: Mapped[str | None] = mapped_column(Text)
+    general_skills: Mapped[list[str]] = mapped_column(
+        ARRAY(Text), default=list, server_default=text("'{}'::text[]")
+    )
     required_skills: Mapped[list[str]] = mapped_column(
         ARRAY(Text), default=list, server_default=text("'{}'::text[]")
     )
