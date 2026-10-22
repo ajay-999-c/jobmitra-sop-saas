@@ -1,0 +1,31 @@
+<div class="skills-field" data-catalog-picker>
+<p class="muted">Functional work domain, not employer industry. Job role stays free text.</p>
+<div class="form-grid">
+<div data-search-picker>
+<label>Search domains<input type="search" data-picker-search placeholder="Filter domains"></label>
+<label>Work domain<select name="domain_id" data-domain-select>
+<option value="">Not specified</option>
+{% for domain in catalog.domains if domain.is_active or domain.id|string==person.get('domain_id') %}
+<option value="{{ domain.id }}" {{ 'selected' if domain.id|string==person.get('domain_id') else '' }}>{{ domain.name }}{{ ' (inactive)' if not domain.is_active else '' }}</option>
+{% endfor %}</select></label>
+</div>
+<div data-search-picker>
+<label>Search sub-domains<input type="search" data-picker-search placeholder="Filter sub-domains"></label>
+<label>Sub-domain<select name="subdomain_id" data-subdomain-select data-selected="{{ person.get('subdomain_id') or '' }}">
+<option value="">Not specified</option>
+{% for sub in catalog.subdomains if sub.is_active or sub.id|string==person.get('subdomain_id') %}
+<option data-parent="{{ sub.domain_id }}" value="{{ sub.id }}">{{ sub.name }}{{ ' (inactive)' if not sub.is_active else '' }}</option>
+{% endfor %}</select></label>
+</div>
+</div>
+<details><summary>Add New Domain / Sub-domain</summary>
+<label>New approved label<input data-catalog-name maxlength="300"></label>
+<div class="controls">
+<button type="button" class="secondary" data-add-catalog="domain">Add New Domain</button>
+<button type="button" class="secondary" data-add-catalog="subdomain">Add New Sub-domain</button>
+<button type="button" class="secondary" data-refresh-catalog>Refresh catalog</button>
+<a href="/domains" target="_blank" rel="noopener">Manage catalog</a>
+</div>
+<p data-catalog-status role="status" aria-live="polite">A sub-domain requires its parent domain.</p>
+</details>
+</div>

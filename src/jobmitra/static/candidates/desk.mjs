@@ -53,25 +53,6 @@ document.querySelectorAll("[data-now]").forEach((input) => {
     .toISOString()
     .slice(0, 16);
 });
-const domain = document.querySelector("[data-domain-select]"),
-  sub = document.querySelector("[data-subdomain-select]");
-if (domain && sub) {
-  const options = [...sub.options]
-    .slice(1)
-    .map((option) => option.cloneNode(true));
-  const sync = (initial) => {
-    const selected = initial ? sub.dataset.selected : "";
-    sub.replaceChildren(
-      new Option("Not specified", ""),
-      ...options
-        .filter((o) => o.dataset.parent === domain.value)
-        .map((o) => o.cloneNode(true)),
-    );
-    sub.value = selected;
-  };
-  domain.addEventListener("change", () => sync(false));
-  sync(true);
-}
 document
   .querySelector("[data-create-search]")
   ?.addEventListener("change", (event) => {

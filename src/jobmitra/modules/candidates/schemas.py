@@ -70,7 +70,7 @@ class CandidateFields(InputModel):
         value = value.strip()
         if not re.fullmatch(r"[^\s@]+@[^\s@.]+(?:\.[^\s@.]+)+", value):
             raise ValueError("Enter a valid email address or leave it empty")
-        return value
+        return value.lower()
 
     @field_validator("mobile")
     @classmethod

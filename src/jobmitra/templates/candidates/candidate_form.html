@@ -38,20 +38,7 @@
 <input type="checkbox" name="confirm_duplicate" data-type="boolean">If this mobile already exists, I confirm this is a separate person. Never merge automatically.</label>
 <h3>Professional details & preferences</h3>
 <div class="form-grid">
-<label>Work domain<select name="domain_id" data-domain-select>
-<option value="">Not specified</option>
-{% for domain in catalog.domains if domain.is_active or domain.id|string==person.get('domain_id') %}
-<option value="{{ domain.id }}" {{ 'selected' if domain.id|string==person.get('domain_id') else '' }}>{{ domain.name }}{{ ' (inactive)' if not domain.is_active else '' }}</option>
-{% endfor %}
-</select>
-</label>
-<label>Sub-domain<select name="subdomain_id" data-subdomain-select data-selected="{{ person.get('subdomain_id') or '' }}">
-<option value="">Not specified</option>
-{% for sub in catalog.subdomains if sub.is_active or sub.id|string==person.get('subdomain_id') %}
-<option data-parent="{{ sub.domain_id }}" value="{{ sub.id }}">{{ sub.name }}{{ ' (inactive)' if not sub.is_active else '' }}</option>
-{% endfor %}
-</select>
-</label>
+{% include 'candidates/catalog_fields.html' %}
 {{ input('Qualification','qualification') }}{{ input('Experience (months)','experience_months','number') }}
 <label>Skills (comma separated)<input name="skills" data-type="array" value="{{ person.get('skills',[])|join(', ') }}">
 </label>

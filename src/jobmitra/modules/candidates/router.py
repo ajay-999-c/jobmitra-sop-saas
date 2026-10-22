@@ -16,6 +16,14 @@ from jobmitra.core.workflow import Database, WorkflowError, office_today, option
 from . import repository as repo
 from .constants import STATES, UNION_TERRITORIES, DocumentKind
 from .documents import CandidateDocumentService
+from .foundit import (
+    FounditCandidatePreview,
+    FounditCreate,
+    FounditPaste,
+    FounditPatch,
+    confirmed_identity,
+    parse_foundit_text,
+)
 from .models import WorkDomain, WorkSubdomain
 from .schemas import (
     CandidateCreate,
@@ -61,13 +69,59 @@ def candidates(session: Database, q: str | None = None):
 
 
 @router.get("/api/candidates/duplicates", response_model=list[CandidateRead])
-def duplicates(session: Database, mobile: str, exclude_id: UUID | None = None):
-    return CandidateService(session).find_possible_duplicates(mobile, exclude_id)
+def duplicates(
+    session: Database,
+    mobile: str | None = None,
+    exclude_id: UUID | None = None,
+    email: str | None = None,
+):
+    return CandidateService(session).find_possible_duplicates(mobile, exclude_id, email)
 
 
 @router.post("/api/candidates", response_model=CandidateRead, status_code=201, dependencies=WRITE)
 def create_candidate(data: CandidateCreate, session: Database):
     return CandidateService(session).create_candidate(data)
+
+
+@router.post(
+    "/api/candidates/foundit/preview", response_model=FounditCandidatePreview, dependencies=WRITE
+)
+def foundit_preview(data: FounditPaste):
+    return parse_foundit_text(data.raw)
+
+
+def check_foundit_identity(data):
+    try:
+        confirmed_identity(data)
+    except ValueError as error:
+        raise WorkflowError(str(error)) from None
+
+
+@router.post(
+    "/api/candidates/foundit/confirm",
+    response_model=CandidateRead,
+    status_code=201,
+    dependencies=WRITE,
+)
+def foundit_create(data: FounditCreate, session: Database):
+    check_foundit_identity(data)
+    candidate = CandidateCreate.model_validate(data.model_dump(exclude={"confirmed"}))
+    return CandidateService(session).create_candidate(candidate, strict_contacts=True)
+
+
+@router.patch(
+    "/api/candidates/foundit/{candidate_id}/confirm",
+    response_model=CandidateRead,
+    dependencies=WRITE,
+)
+def foundit_update(candidate_id: UUID, data: FounditPatch, session: Database):
+    check_foundit_identity(data)
+    change = CandidatePatch.model_validate(
+        data.model_dump(exclude={"confirmed", "recorded_by_staff_id"}, exclude_unset=True)
+    )
+    return CandidateService(session).update_candidate(
+        candidate_id, change, strict_contacts=True, actor=data.recorded_by_staff_id
+    )
 
 
 @router.get("/api/candidates/{candidate_id}", response_model=CandidateRead)
@@ -265,6 +319,11 @@ def directory(request: Request, session: Database, q: str | None = None):
 @router.get("/candidates/new", include_in_schema=False)
 def new_candidate(request: Request, session: Database, walkin: bool = False):
     return page(request, session, "new", walkin=walkin, **form_context(session))
+
+
+@router.get("/candidates/foundit-import", include_in_schema=False)
+def foundit_import(request: Request, session: Database):
+    return page(request, session, "foundit", **form_context(session))
 
 
 @router.get("/candidates/{candidate_id}", include_in_schema=False)

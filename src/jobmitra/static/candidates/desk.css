@@ -118,3 +118,21 @@ dialog footer {
     grid-template-columns: 1fr;
   }
 }
+
+.foundit-layout { display: grid; grid-template-columns: minmax(260px, .8fr) minmax(0, 1.6fr); gap: 1.2rem; align-items: start; }
+.foundit-layout > *, .review-field { min-width: 0; }
+.foundit-layout fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+.foundit-layout .form-grid { gap: 1rem; }
+.foundit-layout textarea { width: 100%; }
+.foundit-layout [data-existing], #foundit-evidence p, #foundit-results { overflow-wrap: anywhere; white-space: pre-wrap; }
+.foundit-layout details { margin-block: 1rem; }
+.review-field { border-bottom: 1px solid #e2e8f0; padding-bottom: .5rem; }
+#foundit-status { border-left: 3px solid #dd0000; padding: .7rem; background: #fff5f5; }
+#foundit-results article { padding: .7rem 0; border-bottom: 1px solid #e2e8f0; }
+@media(max-width: 900px) { .foundit-layout { grid-template-columns: 1fr; } }
+
+.foundit-section { grid-column: 1 / -1; margin: 1rem 0 0; border-bottom: 2px solid #dd0000; padding-bottom: .5rem; }
+.foundit-warning { color: #854d0e; background: #fff7df; padding: .5rem; border-radius: .4rem; }
+#foundit-extra section { border: 1px solid #dce1e8; padding: .8rem; margin-block: .8rem; border-radius: .5rem; }
+#foundit-extra label { text-transform: none; }
+.foundit-layout > .card { min-width: 0; }

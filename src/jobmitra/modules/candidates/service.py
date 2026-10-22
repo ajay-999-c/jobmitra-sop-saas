@@ -74,14 +74,16 @@ class CandidateService:
     def __init__(self, session):
         self.session = session
 
-    def create_candidate(self, data):
+    def create_candidate(self, data, *, strict_contacts=False):
         with self.session.begin():
             key = mobile_key(data.mobile)
-            repo.lock_mobile(self.session, key)
-            if repo.duplicates(self.session, key) and not data.confirm_duplicate:
+            repo.lock_contacts(self.session, key, data.email)
+            if repo.contact_matches(self.session, key, data.email) and (
+                strict_contacts or not data.confirm_duplicate
+            ):
                 raise WorkflowError(
                     (
-                        "Possible existing mobile. Open the profile or explicitly confirm "
+                        "Possible existing mobile/email. Open the profile or explicitly confirm "
                         "a separate person."
                     ),
                     409,
@@ -107,11 +109,13 @@ class CandidateService:
             self.session.flush()
             return CandidateRead.model_validate(candidate)
 
-    def update_candidate(self, identity, data):
+    def update_candidate(self, identity, data, *, strict_contacts=False, actor=None):
         with self.session.begin():
             # Mobile lock first, matching create lock order.
-            if data.mobile:
-                repo.lock_mobile(self.session, mobile_key(data.mobile))
+            repo.lock_contacts(
+                self.session, mobile_key(data.mobile) if data.mobile else None, data.email
+            )
+            validate_staff(self.session, actor)
             row = required(self.session, Candidate, identity, True)
             version_check(row, data.version)
             fields = data.model_fields_set - {"version", "confirm_duplicate"}
@@ -120,12 +124,12 @@ class CandidateService:
             profile = validated(CandidateProfile, values)
             key = mobile_key(profile.mobile)
             if (
-                key != row.mobile_normalized
-                and repo.duplicates(self.session, key, row.id)
-                and not data.confirm_duplicate
+                (strict_contacts or key != row.mobile_normalized or profile.email != row.email)
+                and repo.contact_matches(self.session, key, profile.email, row.id)
+                and (strict_contacts or not data.confirm_duplicate)
             ):
                 raise WorkflowError(
-                    "Possible existing mobile. Confirm a separate person before saving.", 409
+                    "Possible existing mobile/email. Review matching profiles before saving.", 409
                 )
             profile_catalog(self.session, profile, row)
             if any(getattr(row, field) != getattr(profile, field) for field in fields):
@@ -139,14 +143,14 @@ class CandidateService:
     def search_candidates(self, query=None):
         return [CandidateRead.model_validate(row) for row in repo.candidates(self.session, query)]
 
-    def find_possible_duplicates(self, mobile, exclude_id=None):
+    def find_possible_duplicates(self, mobile=None, exclude_id=None, email=None):
         try:
-            key = mobile_key(mobile)
+            key = mobile_key(mobile) if mobile else None
         except ValueError:
-            return []
+            key = None
         return [
             CandidateRead.model_validate(row)
-            for row in repo.duplicates(self.session, key, exclude_id)
+            for row in repo.contact_matches(self.session, key, email, exclude_id)
         ]
 
     def get_candidate_detail(self, identity):

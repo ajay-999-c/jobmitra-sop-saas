@@ -130,3 +130,42 @@ def parses(session, candidate_id):
         .where(CandidateDocument.candidate_id == candidate_id)
         .order_by(ResumeParseResult.created_at.desc(), ResumeParseResult.id)
     ).all()
+
+
+def contact_mobile_key(value):
+    # Existing stored keys remain untouched. Compare common Indian dial-code variants.
+    if value.startswith("0091") and len(value) == 14:
+        value = value[4:]
+    elif value.startswith("91") and len(value) == 12:
+        value = value[2:]
+    return value
+
+
+def contact_matches(session, mobile=None, email=None, exclude_id=None):
+    clauses = []
+    if mobile:
+        canonical = contact_mobile_key(mobile)
+        variants = {mobile, canonical}
+        if len(canonical) == 10 and canonical[0] in "6789":
+            variants.update({"91" + canonical, "0091" + canonical})
+        clauses.append(Candidate.mobile_normalized.in_(variants))
+    if email:
+        clauses.append(func.lower(func.btrim(Candidate.email)) == email.strip().lower())
+    if not clauses:
+        return []
+    stmt = select(Candidate).where(or_(*clauses))
+    if exclude_id:
+        stmt = stmt.where(Candidate.id != exclude_id)
+    return session.scalars(stmt.order_by(Candidate.full_name, Candidate.id)).all()
+
+
+def lock_contacts(session, mobile=None, email=None):
+    keys = []
+    if mobile:
+        keys.append("candidate-mobile:" + contact_mobile_key(mobile))
+    if email:
+        keys.append("candidate-email:" + email.strip().lower())
+    for key in sorted(keys):
+        session.execute(
+            text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"), {"key": key}
+        )
