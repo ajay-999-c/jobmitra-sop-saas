@@ -9,6 +9,7 @@ from starlette.exceptions import HTTPException
 from jobmitra.core.config import Settings, get_settings
 from jobmitra.core.database import build_engine, check_database
 from jobmitra.core.pages import PACKAGE_DIR, templates
+from jobmitra.modules.alter_resumes.router import router as alter_resumes_router
 from jobmitra.modules.candidates.limits import CandidateJSONLimit
 from jobmitra.modules.candidates.router import router as candidates_router
 from jobmitra.modules.companies.router import MODULE_DIR, CompanyAssets
@@ -48,6 +49,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         "/static/candidates",
         CompanyAssets(directory=str(PACKAGE_DIR / "static" / "candidates")),
         name="candidate-static",
+    )
+    app.include_router(alter_resumes_router)
+    app.mount(
+        "/static/alter-resumes",
+        CompanyAssets(directory=str(PACKAGE_DIR / "static" / "alter_resumes")),
+        name="alter-resumes-static",
     )
     app.include_router(staff_router)
     app.include_router(jobs_router)

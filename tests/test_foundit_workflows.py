@@ -39,7 +39,7 @@ def test_parse_is_zero_write_and_static_routes(desk):
     html = client.get("/candidates/foundit-import")
     assert html.status_code == 200
     assert "Foundit WhatsApp Paste" in html.text
-    assert "Save Reviewed Changes" in html.text
+    assert "Save Candidate" in html.text
     assert "data-catalog-picker" in html.text
 
 
@@ -82,7 +82,7 @@ def test_confirm_create_repeat_duplicate_email_phone_and_selective_update(desk):
     )
     assert (
         client.post(
-            "/api/candidates/foundit/confirm", json={**payload, "confirm_duplicate": True}
+            "/api/candidates/foundit/confirm", json={**payload, "initial_job_search": {}}
         ).status_code
         == 422
     )

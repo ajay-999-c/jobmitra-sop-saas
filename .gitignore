@@ -109,3 +109,10 @@ candidate-exports/
 # Local Foundit implementation references; not release sources.
 /Jobmitra_Existing_Company_Domain_Foundit_Codex_Prompt.md
 /Jobmitra_Foundit_Import_and_Catalog_UI_v1.html
+
+# Local tool caches and temporary recovery artifacts.
+/.cache/
+/.uv-cache/
+.hypothesis/
+*.tmp
+*.bak

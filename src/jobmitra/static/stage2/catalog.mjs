@@ -37,7 +37,7 @@ document.querySelectorAll('[data-catalog-picker]').forEach(box => {
     });
     sync(oldSub);
   }
-  box.querySelector('[data-refresh-catalog]').addEventListener('click', async () => {
+  box.querySelector('[data-refresh-catalog]')?.addEventListener('click', async () => {
     try { await refresh(); status.textContent = 'Catalog refreshed.'; } catch(e) { status.textContent=e.message; }
   });
   box.querySelectorAll('[data-add-catalog]').forEach(button => button.addEventListener('click', async () => {

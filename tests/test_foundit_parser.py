@@ -182,3 +182,55 @@ def test_labelled_contact_does_not_swallow_unlabelled_footer_contact():
     assert result.fields.email == "mixed@example.com"
     assert result.fields.mobile == "+91 98765 43210"
     assert result.preview_only["industry"] == "Retail"
+
+
+QUICK_ENTRY_SAMPLE = (
+    "Synthetic Parser Candidate\n"
+    "LinkedIn\n"
+    "Enriched\n"
+    "2y 4m\n"
+    "₹ 3.5 Lac\n"
+    "Indore\n"
+    "Current:\n"
+    "lean engineerexample consultingJan 2023 to Jun 2023 - 5m\n"
+    "Past:\n"
+    "steering committee memberexample teamSep 2019 to Aug 2021\n"
+    "Skills:\n"
+    "Mechanical Maintenance /Quality Engineer, Mechanical Engineer, Design EngineerAll skills\n"
+    "Pref. location:\n"
+    "India, Indore, Pune, Delhi, Noida.\n"
+    "Education:\n"
+    "Bachelor Of Technology (B.Tech/B.E)- Mechanical, "
+    "Example Institute of Technology, Indore, 2023\n"
+    "Current industry:\n"
+    "Others\n"
+    "Past industry:\n"
+    "Others\n"
+    "+91-9000000001\n"
+    "candidate@example.com\n"
+)
+
+
+def test_quick_entry_exact_sample_and_ended_current_job():
+    result = parse_foundit_text(QUICK_ENTRY_SAMPLE)
+    assert result.fields.full_name == "Synthetic Parser Candidate"
+    assert result.fields.mobile == "+91-9000000001"
+    assert result.fields.email == "candidate@example.com"
+    assert result.fields.experience_months == 28
+    assert result.fields.current_salary_amount == Decimal("350000")
+    assert result.fields.current_salary_period == "Unknown"
+    assert result.fields.current_location == "Indore"
+    assert result.fields.domain_id is result.fields.subdomain_id is None
+    assert result.fields.role_title is None  # lower-case glued words have no safe boundary
+    assert result.fields.preferred_locations == ["India", "Indore", "Pune", "Delhi", "Noida"]
+    assert result.fields.skills[-1] == "Design Engineer"
+    current, past = result.employment_history
+    assert current.end == "Jun 2023"
+    assert "Employment status is uncertain" in current.warning
+    assert current.employer == "" and current.role == ""
+    assert past.end == "Aug 2021"
+    assert (
+        result.preview_only["institution"]
+        == "Example Institute of Technology, Indore"
+    )
+    assert result.preview_only["education_year"] == "2023"

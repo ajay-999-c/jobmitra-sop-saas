@@ -3,7 +3,8 @@
 body { margin: 0; }
 .site-header { position: sticky; top: 0; z-index: 20; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 1.5rem; padding: .7rem 2.5%; background: #fff; border-bottom: 1px solid #e2e8f0; }
 .site-header .brand { display: flex; align-items: center; gap: .6rem; color: #1c2b3a; font-size: 1.5rem; text-decoration: none; }
-.brand-mark { width: 42px; height: 42px; border-radius: 12px; }
+.site-header .brand { min-width: 0; }
+.site-header .brand-logo { display: block; width: 210px; max-width: 100%; height: auto; }
 .site-header .global-nav { display: flex; flex-wrap: nowrap; overflow-x: auto; min-width: 0; gap: .3rem; }
 .global-nav a { flex-shrink: 0; padding: .8rem .6rem; color: #52647a; font-weight: 650; text-decoration: none; border-bottom: 3px solid transparent; white-space: nowrap; }
 .global-nav a:hover { color: #dd0000; background: #fff6f6; }
@@ -27,7 +28,7 @@ button.primary { background: #dd0000; border-color: #dd0000; }
 @media (max-width: 600px) {
  .site-header { padding: .6rem 1rem; }
  .site-header .brand { font-size: 1.15rem; gap: .4rem; }
- .brand-mark { width: 32px; height: 32px; font-size: .85rem; border-radius: 9px; }
+ .site-header .brand-logo { width: clamp(105px, 36vw, 150px); }
  .site-header .recorder { display: block; font-size: .7rem; }
  .site-header .recorder select { width: 155px; max-width: 42vw; padding: .35rem; font-size: .8rem; }
  .global-nav a { padding: .5rem .6rem; font-size: .85rem; }

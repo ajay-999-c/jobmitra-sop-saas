@@ -1,60 +1,66 @@
 {% extends 'candidates/base.html' %}
 {% block title %}Foundit WhatsApp Paste{% endblock %}
+{% macro review_field(name, label, kind='text') %}
+<div class="review-field" data-review-field="{{ name }}">
+<label for="foundit-{{ name }}">{{ label }}</label>
+{% if kind in ['period','boolean'] %}
+<select id="foundit-{{ name }}" name="{{ name }}" data-value-kind="{{ kind }}" aria-describedby="error-{{ name }}">
+{% if kind == 'period' %}<option>Unknown</option><option>Monthly</option><option>Annual</option>
+{% else %}<option value="">Unknown</option><option value="true">Yes</option><option value="false">No</option>{% endif %}</select>
+{% elif kind == 'array' %}<textarea id="foundit-{{ name }}" name="{{ name }}" rows="2" data-value-kind="{{ kind }}" aria-describedby="error-{{ name }}"></textarea>
+{% else %}<input id="foundit-{{ name }}" name="{{ name }}" type="{{ 'number' if kind == 'money' else kind }}" {% if name in ['full_name','mobile'] %}required{% endif %} {% if kind in ['number','money'] %}min="0" step="{{ '0.01' if kind == 'money' else '1' }}"{% endif %} data-value-kind="{{ kind }}" aria-describedby="error-{{ name }}">{% endif %}
+<p class="error" id="error-{{ name }}" data-field-error hidden></p>
+<p class="muted" data-existing hidden></p>
+<label class="checkbox" data-accept-label hidden><input type="checkbox" data-accept="{{ name }}">Update this field</label>
+</div>
+{% endmacro %}
 {% block desk_content %}
 <script type="module" src="/static/candidates/foundit.mjs"></script>
 <h1>Foundit WhatsApp Paste</h1>
-<p class="muted">Manual paste → Review extracted details → Confirm candidate. No scraping or automatic profile updates.</p>
-<div class="foundit-layout">
+<p class="muted">Paste → Parse → Edit → Save Candidate</p>
+<div class="foundit-layout foundit-quick">
 <section class="card">
-<h2>1. Paste candidate details</h2>
-<label>Foundit details forwarded through WhatsApp<textarea id="foundit-raw" rows="16" maxlength="50000" spellcheck="false" placeholder="Paste one candidate profile here"></textarea></label>
+<h2>Paste profile</h2>
+<label>Foundit details forwarded through WhatsApp<textarea id="foundit-raw" rows="10" maxlength="50000" spellcheck="false" placeholder="Paste one candidate profile here"></textarea></label>
 <div class="controls"><button type="button" class="primary" id="foundit-parse">Parse Details</button><button type="button" class="secondary" id="foundit-clear">Clear draft</button></div>
-<p class="muted">Text stays in this page and the in-memory preview request. It is not retained as candidate evidence or sent to external AI services.</p>
-<p class="notice">Industry, employment history, institution/year and source text remain in this draft only. Download the reviewed draft to retain them until database storage is approved.</p>
 </section>
 <section class="card">
-<h2>2. Review parsed fields</h2>
-<p id="foundit-status" role="status" aria-live="polite">Nothing saved. Paste text to begin.</p>
-<form id="foundit-review">
+<h2>Review candidate</h2>
+<form id="foundit-review" novalidate>
 <fieldset id="foundit-fields" disabled>
-<div id="foundit-review-fields" class="form-grid">
-{% for name,label,kind in [
-('full_name','Full name *','text'),('mobile','Mobile *','tel'),('email','Email','email'),
-('role_title','Current job role / designation','text'),('experience_months','Total experience (months)','number'),('current_location','Current city','text'),
-('current_salary_amount','Current salary (₹ INR)','money'),('current_salary_period','Salary period','period'),('last_salary_raw','Salary original wording','text'),('notice_period_text','Notice / availability','text'),
-('skills','Skills','array'),('qualification','Qualification and specialization (full wording)','text'),('preferred_locations','Preferred locations','array'),('ready_to_relocate','Ready to relocate','boolean')
-] %}
-{% if name in ['full_name','role_title','current_salary_amount','skills'] %}<h3 class="foundit-section">{{ {'full_name':'Personal Details','role_title':'Professional Details','current_salary_amount':'Salary and Availability','skills':'Skills, Education and Location'}[name] }}</h3>{% endif %}
-
-<div class="review-field" data-review-field="{{ name }}">
-<label>{{ label }}{% if kind == 'boolean' %}<select name="{{ name }}" data-value-kind="boolean"><option value="">Unknown</option><option value="true">Yes</option><option value="false">No</option></select>
-{% elif kind == 'period' %}<select name="{{ name }}" data-value-kind="{{ kind }}"><option>Unknown</option><option>Monthly</option><option>Annual</option></select>
-{% elif kind == 'array' %}<textarea name="{{ name }}" rows="3" data-value-kind="{{ kind }}"></textarea>
-{% else %}<input name="{{ name }}" type="{{ 'number' if kind == 'money' else kind }}" {% if kind in ['number','money'] %}min="0" step="{{ '0.01' if kind=='money' else '1' }}"{% endif %} data-value-kind="{{ kind }}">{% endif %}</label>
-<p class="foundit-warning" data-warning hidden></p>
-<p class="muted" data-existing hidden></p>
-<label class="checkbox" data-accept-label hidden><input type="checkbox" data-accept="{{ name }}">Apply this field to the linked candidate</label>
+<div class="form-grid">
+{{ review_field('full_name','Full Name *') }}
+{{ review_field('mobile','Mobile Number *','tel') }}
+{{ review_field('email','Email','email') }}
+{{ review_field('experience_months','Total Experience (months)','number') }}
+{{ review_field('current_salary_amount','Salary Amount (₹ INR)','money') }}
+{{ review_field('current_salary_period','Salary Period','period') }}
+{{ review_field('role_title','Current Job Role') }}
+{{ review_field('current_location','Current Location') }}
+{{ review_field('skills','Skills','array') }}
+{{ review_field('preferred_locations','Preferred Locations','array') }}
+{{ review_field('qualification','Qualification') }}
+<div id="foundit-notice" hidden>{{ review_field('notice_period_text','Notice / Joining Availability') }}</div>
 </div>
-{% if name == "current_location" %}<div id="foundit-industry" class="review-field"></div><div class="foundit-section">{% set person = {} %}{% include 'candidates/catalog_fields.html' %}
+<details id="foundit-additional"><summary>Additional Parsed Details</summary>
+{% set person = {} %}{% set catalog_management = false %}{% include 'candidates/catalog_fields.html' %}
+<p class="error" id="foundit-domain-error" hidden></p>
 <p class="muted" id="foundit-existing-domain" hidden></p>
-<label class="checkbox" id="foundit-accept-domain" hidden><input type="checkbox" data-accept="domain_id">Apply domain and sub-domain together</label>
-</div>{% endif %}
-{% if name == "qualification" %}<div id="foundit-education" class="review-field"></div>{% endif %}
-{% endfor %}
-</div>
-<details><summary>Source evidence & uncertainties</summary><div id="foundit-evidence"></div></details>
-<h3>Employment History</h3><p class="muted">Draft only — these fields are included in the download, not the candidate profile.</p><div id="foundit-extra"></div><button type="button" class="secondary" id="foundit-download">Download reviewed draft</button>
-<h2>3. Match and confirm</h2>
-<div class="controls"><button type="button" class="secondary" id="foundit-matches">Check phone / email duplicates</button></div>
-<label>Find an existing candidate by name or contact<input type="search" id="foundit-search"></label>
-<button type="button" class="secondary" id="foundit-find">Find existing candidate</button>
+<label class="checkbox" id="foundit-accept-domain" hidden><input type="checkbox" data-accept="domain_id">Update domain and sub-domain together</label>
+{{ review_field('last_salary_raw','Original salary wording') }}
+{{ review_field('ready_to_relocate','Ready to relocate','boolean') }}
+<p class="muted">Industry, employment history, institution/year and original source below are draft-only. Download the draft to retain them; Save Candidate stores the profile fields above.</p>
+<div id="foundit-industry"></div><div id="foundit-education"></div><div id="foundit-extra"></div>
+<details><summary>Original source and parsing uncertainties</summary><pre id="foundit-source"></pre><div id="foundit-evidence"></div></details>
+</details>
 <div id="foundit-results" aria-live="polite"></div>
-<p id="foundit-linked">No candidate linked.</p>
-<label class="checkbox"><input type="checkbox" id="foundit-confirm">I verified the identity, contact details, and values I am saving. Uncertain values have been reviewed.</label>
-<p class="muted">Source for new profiles: Foundit. No office visit, consent or job-search request is created. After linking, only checked fields are saved. Use Save Reviewed Changes for each confirmed update.</p>
-<div class="controls"><button type="submit" class="primary" id="foundit-save">Create New Candidate</button><a id="foundit-profile" hidden>Open saved candidate</a></div>
-</fieldset>
+<p id="foundit-linked" hidden></p>
+<div class="foundit-save-bar">
+<p id="foundit-status" role="status" aria-live="polite">Paste text to begin. Nothing saved.</p>
 <p class="error" id="foundit-error" role="alert" hidden></p>
+<div class="controls"><button type="submit" class="primary" id="foundit-save">Save Candidate</button><a id="foundit-profile" hidden>Open Candidate Profile</a><button type="button" class="secondary" id="foundit-download">Download Reviewed Draft</button></div>
+</div>
+</fieldset>
 </form>
 </section>
 </div>

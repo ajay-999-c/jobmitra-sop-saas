@@ -17,7 +17,7 @@
 </head>
 <body>
 <header class="site-header">
-<a class="brand" href="/overview" aria-label="Jobmitra overview"><span class="brand-mark" aria-hidden="true">JM</span><span>jobmitra</span></a>
+<a class="brand" href="/overview" aria-label="Jobmitra overview"><img class="brand-logo" src="/static/stage2/jobmitra-logo.jpeg" alt="Jobmitra.com — Your online Job friend" width="854" height="349"></a>
 <nav class="global-nav" aria-label="Main">
 {% for href, label, active in [
 ('/overview', 'Overview', request.url.path == '/overview'),
@@ -25,6 +25,7 @@
 ('/requirements', 'JD Tracking', request.url.path.startswith('/requirements')),
 ('/candidate-desk', 'Candidate Desk', request.url.path.startswith(('/candidate', '/office-visits', '/job-search-requests', '/domains'))),
 ('/staff', 'Staff', request.url.path == '/staff'),
+('/alter-resumes', 'Alter Resumes', request.url.path == '/alter-resumes'),
 ('/tasks', 'Tasks', request.url.path == '/tasks')
 ] %}<a href="{{ href }}" {% if active %}aria-current="page"{% endif %}>{{ label }}</a>{% endfor %}
 </nav>

@@ -136,3 +136,14 @@ dialog footer {
 #foundit-extra section { border: 1px solid #dce1e8; padding: .8rem; margin-block: .8rem; border-radius: .5rem; }
 #foundit-extra label { text-transform: none; }
 .foundit-layout > .card { min-width: 0; }
+
+/* Foundit quick entry keeps the save action within reach on narrow screens. */
+.foundit-quick .review-field { border: 0; padding-bottom: 0; }
+.foundit-quick .form-grid { gap: .65rem 1rem; }
+.foundit-quick #foundit-source { white-space: pre-wrap; overflow-wrap: anywhere; }
+.foundit-quick [aria-invalid=true] { border-color: #dd0000; }
+.foundit-save-bar { position: sticky; bottom: 0; z-index: 2; background: white; border-top: 1px solid #e2e8f0; padding: .65rem 0; }
+.foundit-save-bar #foundit-status { margin: 0 0 .5rem; }
+.foundit-save-bar .controls { flex-wrap: wrap; }
+.foundit-quick #foundit-additional { margin: 1rem 0; }
+.foundit-quick #foundit-additional > summary { color: #21334a; font-weight: 600; cursor: pointer; }

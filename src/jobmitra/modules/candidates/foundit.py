@@ -5,7 +5,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Literal
 from uuid import UUID
 
-from pydantic import Field, ValidationError
+from pydantic import Field, StrictBool, ValidationError
 
 from jobmitra.core.validation import InputModel, Positive, skills
 
@@ -45,15 +45,16 @@ class FounditCandidatePreview(InputModel):
 
 
 class FounditCreate(CandidateProfile):
+    confirm_duplicate: StrictBool = False
     source: Literal["Foundit"] = "Foundit"
     confirmed: Literal[True]
-    recorded_by_staff_id: UUID
+    recorded_by_staff_id: UUID | None = None
 
 
 class FounditPatch(CandidateFields):
     version: Positive
     confirmed: Literal[True]
-    recorded_by_staff_id: UUID
+    recorded_by_staff_id: UUID | None = None
     # This intake cannot manufacture a walk-in, visit or search request.
     source: Literal["Foundit"] | None = None
 
@@ -115,7 +116,7 @@ def parse_foundit_text(raw: str) -> FounditCandidatePreview:
         line
         for line in text.splitlines()
         if not PLACEHOLDER.fullmatch(line.strip())
-        and line.strip().casefold() not in {"linkedin", "newly added", "all skills"}
+        and line.strip().casefold() not in {"linkedin", "newly added", "all skills", "enriched"}
     )
     matches = list(LABEL_PATTERN.finditer(text))
     chunks: dict[str, list[str]] = {}
@@ -317,6 +318,18 @@ def parse_foundit_text(raw: str) -> FounditCandidatePreview:
                     "Possible city following availability; confirm context.",
                 )
 
+    if "current_location" not in values and "current_location" not in chunks:
+        # Foundit summary layout: salary, optional availability, then city.
+        for i, line in enumerate(lines[:-1]):
+            if salary and line == salary:
+                city = lines[i + 1]
+                if re.fullmatch(r"[^\W\d_][^\d@₹:]{1,99}", city) and not re.search(
+                    r"joiner|notice|available|skills", city, re.I
+                ):
+                    values["current_location"] = city.rstrip(".")
+                    note("current_location", city, "Possible city after salary; confirm location.")
+                break
+
     for field in ("skills", "preferred_locations"):
         entries = chunks.get(field, [])
         if entries:
@@ -405,6 +418,15 @@ def parse_foundit_text(raw: str) -> FounditCandidatePreview:
                         end=end,
                         industry=single(industry_key) or "",
                         raw=original,
+                        warning=(
+                            "Source says Current, but gives an end date. Employment status is "
+                            "uncertain; confirm the current role. "
+                            if kind == "Current"
+                            and end
+                            and end.casefold() not in {"present", "current"}
+                            else ""
+                        )
+                        + "Review role/employer boundaries before accepting.",
                     )
                 )
     for key in ("past_industry", "institution", "education_year"):
@@ -427,7 +449,7 @@ def parse_foundit_text(raw: str) -> FounditCandidatePreview:
     education_parts = [part.strip() for part in education.split(",")]
     if len(education_parts) >= 3 and re.fullmatch(r"(?:19|20)\d{2}", education_parts[-1]):
         preview_only.setdefault("education_year", education_parts[-1])
-        preview_only.setdefault("institution", education_parts[-2])
+        preview_only.setdefault("institution", ", ".join(education_parts[1:-1]))
         note(
             "qualification",
             education,

@@ -124,7 +124,7 @@ class CandidateService:
             profile = validated(CandidateProfile, values)
             key = mobile_key(profile.mobile)
             if (
-                (strict_contacts or key != row.mobile_normalized or profile.email != row.email)
+                (key != row.mobile_normalized or profile.email != row.email)
                 and repo.contact_matches(self.session, key, profile.email, row.id)
                 and (strict_contacts or not data.confirm_duplicate)
             ):

@@ -106,7 +106,9 @@ def check_foundit_identity(data):
 def foundit_create(data: FounditCreate, session: Database):
     check_foundit_identity(data)
     candidate = CandidateCreate.model_validate(data.model_dump(exclude={"confirmed"}))
-    return CandidateService(session).create_candidate(candidate, strict_contacts=True)
+    return CandidateService(session).create_candidate(
+        candidate, strict_contacts=not data.confirm_duplicate
+    )
 
 
 @router.patch(
