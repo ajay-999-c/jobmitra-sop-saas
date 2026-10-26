@@ -26,7 +26,8 @@
 ('/candidate-desk', 'Candidate Desk', request.url.path.startswith(('/candidate', '/office-visits', '/job-search-requests', '/domains'))),
 ('/staff', 'Staff', request.url.path == '/staff'),
 ('/alter-resumes', 'Alter Resumes', request.url.path == '/alter-resumes'),
-('/tasks', 'Tasks', request.url.path == '/tasks')
+('/tasks', 'Tasks', request.url.path == '/tasks'),
+('/email', 'Email', request.url.path.startswith('/email'))
 ] %}<a href="{{ href }}" {% if active %}aria-current="page"{% endif %}>{{ label }}</a>{% endfor %}
 </nav>
 <label class="recorder">Working as<select id="recording-as">

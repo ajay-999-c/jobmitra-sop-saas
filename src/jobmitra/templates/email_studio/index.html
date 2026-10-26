@@ -1,0 +1,21 @@
+{% extends 'stage2/base.html' %}
+{% block title %}Email{% endblock %}
+{% block content %}
+<section class="email-home" aria-labelledby="email-heading">
+<h1 id="email-heading">Email Studio</h1>
+<p>Choose the email you want to prepare.</p>
+<div class="email-choices">
+<a class="email-choice" href="/email/updates">
+<h2>Candidate Updates</h2>
+<p>Prepare interview, selection, joining and other recruitment updates for candidates.</p>
+<span>Open Candidate Updates →</span>
+</a>
+<a class="email-choice" href="/email/submission">
+<h2>Candidate Submission</h2>
+<p>Prepare shortlisted candidate profiles to share with hiring companies.</p>
+<span>Open Candidate Submission →</span>
+</a>
+</div>
+<p>Enter details manually, review the email and send it yourself. These tools do not save details or send emails automatically.</p>
+</section>
+{% endblock %}
