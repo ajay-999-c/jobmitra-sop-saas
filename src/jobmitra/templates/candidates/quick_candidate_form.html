@@ -1,0 +1,29 @@
+<dialog id="candidate-dialog" aria-labelledby="candidate-form-title" data-auto-open="{{ 'true' if auto_open|default(false) else 'false' }}">
+<header><div><h2 id="candidate-form-title">Add Candidate</h2><p class="muted">Enter the essentials. Add further details from the profile later.</p></div><button type="button" class="secondary" data-close-dialog aria-label="Close candidate form">×</button></header>
+<form data-desk-endpoint="/api/candidates" data-method="POST" data-profile-form data-quick-candidate>
+<div class="dialog-body" tabindex="0" aria-label="Candidate fields">
+<div class="form-grid quick-candidate-grid">
+<label>Full Name *<input name="full_name" required maxlength="300" autocomplete="name"></label>
+<label>Mobile Number *<input name="mobile" type="tel" required maxlength="40" autocomplete="tel"></label>
+<label>Email (optional)<input name="email" type="email" maxlength="254" autocomplete="email"></label>
+<label>Current / Last Job<input name="role_title" maxlength="300"></label>
+<label>Total Experience (whole months)<input name="experience_months" type="number" min="0" step="1"><small>For example, 2 years 6 months = 30 months.</small></label>
+{% for prefix, label in [('current','Current'),('expected','Expected')] %}
+<label>{{ label }} CTC (₹)<input name="{{ prefix }}_salary_amount" type="number" min="0" step="0.01" aria-label="{{ label }} CTC amount in rupees"><select name="{{ prefix }}_salary_period" aria-label="{{ label }} CTC period"><option value="">Choose period if amount entered</option><option value="Monthly">Monthly (₹ / month)</option><option value="Annual">Annual (₹ / year, not lakhs)</option></select></label>
+{% endfor %}
+<label>Notice Period<input name="notice_period_text" placeholder="e.g. 30 days or Immediate"></label>
+<label>Current Location<input name="current_location"></label>
+<label>Candidate Source<select name="source">
+{% for item in ['Walk-in','Foundit','Email','WhatsApp','Naukri','Referral','Other'] %}
+<option value="{{ item }}" {% if item in ['Email','Naukri'] %}disabled{% endif %} {{ 'selected' if item=='Other' else '' }}>{{ item }}{{ ' (not available yet)' if item in ['Email','Naukri'] else '' }}</option>
+{% endfor %}
+</select></label>
+</div>
+<p class="muted">Walk-in source alone does not record an Office Visit. Email and Naukri are not available yet.</p>
+<div data-duplicate-results class="notice" hidden aria-live="polite"></div>
+<details><summary>Register a separate person with matching contact details</summary><label class="checkbox"><input type="checkbox" name="confirm_duplicate" data-type="boolean">I confirm this is a separate person. Never merge automatically.</label></details>
+<p class="error" data-form-error hidden role="alert"></p>
+</div>
+<footer><button type="button" class="secondary" data-close-dialog>Cancel</button><button type="submit">Save Candidate</button></footer>
+</form>
+</dialog>

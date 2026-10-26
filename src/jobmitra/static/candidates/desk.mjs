@@ -65,13 +65,13 @@ document
 let duplicateTimer,
   duplicateSerial = 0;
 const mobile = document.querySelector("[data-profile-form] [name=mobile]");
-mobile?.addEventListener("input", () => {
+function checkDuplicates() {
   clearTimeout(duplicateTimer);
   const serial = ++duplicateSerial;
   duplicateTimer = setTimeout(async () => {
     const form = mobile.form,
       box = form.querySelector("[data-duplicate-results]");
-    const query = new URLSearchParams({ mobile: mobile.value });
+    const query = new URLSearchParams({ mobile: mobile.value, email: form.elements.email?.value || "" });
     if (form.dataset.candidateId)
       query.set("exclude_id", form.dataset.candidateId);
     try {
@@ -103,7 +103,9 @@ mobile?.addEventListener("input", () => {
       }
     }
   }, 250);
-});
+}
+mobile?.addEventListener("input", checkDuplicates);
+mobile?.form.elements.email?.addEventListener("input", checkDuplicates);
 document.querySelectorAll("[data-candidate-search]").forEach((input) =>
   input.addEventListener("input", () => {
     const select = input.parentElement.querySelector("[data-candidate-picker]");
@@ -188,6 +190,15 @@ document.addEventListener("submit", async (event) => {
           };
         }
       }
+      if (form.hasAttribute("data-quick-candidate")) {
+        body.record_initial_visit = false;
+        for (const prefix of ["current", "expected"]) {
+          if (body[prefix + "_salary_amount"] !== null && !body[prefix + "_salary_period"])
+            throw Error("Choose monthly or annual for each CTC amount.");
+          body[prefix + "_salary_period"] ||= "Unknown";
+          body[prefix + "_salary_basis"] = body[prefix + "_salary_amount"] === null ? "Unknown" : "CTC";
+        }
+      }
       if (form.hasAttribute("data-paste-parse"))
         body.pasted_by_staff_id = recorder.value || null;
       if (form.hasAttribute("data-review-parse")) {
@@ -209,7 +220,17 @@ document.addEventListener("submit", async (event) => {
         }),
       );
     }
-    if (form.hasAttribute("data-profile-form"))
+    if (form.hasAttribute("data-quick-candidate")) {
+      const success = document.createElement("p");
+      success.className = "notice";
+      success.setAttribute("role", "status");
+      success.append("Candidate saved successfully. ");
+      const link = document.createElement("a");
+      link.href = "/candidates/" + result.id;
+      link.textContent = "Open candidate profile";
+      success.append(link);
+      form.replaceWith(success);
+    } else if (form.hasAttribute("data-profile-form"))
       location.href = "/candidates/" + result.id;
     else location.reload();
   } catch (e) {

@@ -563,7 +563,10 @@ def test_ui_pages_forms_email_states_and_local_assets(desk):
         response = client.get(url)
         assert response.status_code == 200, (url, response.text)
         assert response.headers["cache-control"] == "no-store"
-    page = client.get("/candidates/new").text
+    quick = client.get("/candidates/new").text
+    assert 'name="email"' in quick and "data-quick-candidate" in quick
+    assert 'name="qualification"' not in quick and 'name="domain_id"' not in quick
+    page = client.get("/candidates/" + c["id"]).text
     for marker in (
         'name="email"',
         'name="qualification"',

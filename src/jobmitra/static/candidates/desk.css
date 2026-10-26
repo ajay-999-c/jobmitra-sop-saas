@@ -147,3 +147,10 @@ dialog footer {
 .foundit-save-bar .controls { flex-wrap: wrap; }
 .foundit-quick #foundit-additional { margin: 1rem 0; }
 .foundit-quick #foundit-additional > summary { color: #21334a; font-weight: 600; cursor: pointer; }
+
+.quick-candidate-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .65rem 1rem; }
+.quick-candidate-grid small { display: block; font-size: .75rem; color: #68798d; }
+.quick-candidate-grid select { margin-top: .25rem; }
+@media (max-width: 600px) { .quick-candidate-grid { grid-template-columns: 1fr; } }
+.quick-candidate-grid > label { margin: 0; }
+.quick-candidate-grid input, .quick-candidate-grid select { margin-bottom: 0; }

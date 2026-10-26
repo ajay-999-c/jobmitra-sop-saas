@@ -1,3 +1,6 @@
+{% if candidate is not defined and not walkin|default(false) %}
+{% include 'candidates/quick_candidate_form.html' %}
+{% else %}
 {% set person = candidate.model_dump(mode='json') if candidate is defined else {} %}
 {% macro input(label, name, type='text', required=false, list_id='') %}
 <label>{{ label }}<input name="{{ name }}" type="{{ type }}" value="{{ person.get(name) if person.get(name) is not none else '' }}" {% if required %}required{% endif %} {% if list_id %}list="{{ list_id }}"{% endif %} {% if type=='number' %}min="0" step="{{ '1' if name=='experience_months' else '0.01' }}"{% endif %}>
@@ -110,3 +113,5 @@
 </footer>
 </form>
 </dialog>
+
+{% endif %}

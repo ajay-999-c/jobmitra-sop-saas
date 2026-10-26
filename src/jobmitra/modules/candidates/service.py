@@ -94,7 +94,7 @@ class CandidateService:
             candidate = Candidate(**values, mobile_normalized=key)
             self.session.add(candidate)
             self.session.flush()
-            if data.source == "Walk-in":
+            if data.source == "Walk-in" and data.record_initial_visit:
                 self.session.add(
                     CandidateVisit(
                         candidate_id=candidate.id,

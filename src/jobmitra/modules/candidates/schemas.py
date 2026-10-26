@@ -120,6 +120,9 @@ class JobSearchRequestCreate(InputModel):
 
 
 class CandidateCreate(CandidateProfile):
+    # Legacy/API and explicit Walk-in registration retain their existing behavior.
+    # Quick manual entry explicitly disables automatic visit creation.
+    record_initial_visit: bool = True
     confirm_duplicate: bool = False
     recorded_by_staff_id: UUID | None = None
     initial_job_search: JobSearchRequestCreate | None = None
