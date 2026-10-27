@@ -154,3 +154,13 @@ dialog footer {
 @media (max-width: 600px) { .quick-candidate-grid { grid-template-columns: 1fr; } }
 .quick-candidate-grid > label { margin: 0; }
 .quick-candidate-grid input, .quick-candidate-grid select { margin-bottom: 0; }
+
+[data-resume-history] pre {
+  max-width: 100%;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+[data-resume-history] p,
+[data-resume-filename] {
+  overflow-wrap: anywhere;
+}

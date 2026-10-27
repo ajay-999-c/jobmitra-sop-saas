@@ -104,6 +104,7 @@
 </label>
 </div>
 {% endif %}
+{% if candidate is not defined %}{% include 'candidates/resume_input.html' %}{% endif %}
 <p class="error" data-form-error hidden role="alert">
 </p>
 </div>

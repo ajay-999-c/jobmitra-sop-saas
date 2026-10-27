@@ -1,0 +1,12 @@
+<section class="card" data-resume-panel data-candidate-id="{{ candidate.id }}">
+<h2>Resume</h2>
+<p>Original Resume · Parsed Resume · Version History</p>
+<p>View original resumes or upload a new version. Existing documents and manually saved parse history remain below.</p>
+<button type="button" data-load-resumes>Refresh resumes</button>
+<p class="error" data-resume-error role="alert" hidden></p>
+<div data-resume-history aria-live="polite"></div>
+<form data-new-resume hidden>
+{% include 'candidates/resume_input.html' %}
+<button type="submit">Upload Resume / New Version</button>
+</form>
+</section>

@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 from jobmitra.core.database import Base, get_session
 from jobmitra.core.workflow import WorkflowError, office_today
 from jobmitra.main import create_app
-from jobmitra.modules.candidates.models import STAGE3_TABLES
+from jobmitra.modules.candidates.models import CANDIDATE_RESUME_TABLES, STAGE3_TABLES
 from jobmitra.modules.companies.models import Company, CompanyContact
 from jobmitra.modules.jobs.models import JobRecruiter
 from jobmitra.modules.jobs.service import target_state
@@ -109,7 +109,9 @@ ATS = {
 def test_additive_migration_roundtrip_preserves_stage1_and_models(database):
     engine, _, _, _, before, columns = database
     with engine.begin() as connection:
-        assert set(inspect(connection).get_table_names()) == set(STAGE2_TABLES | STAGE3_TABLES) | {
+        assert set(inspect(connection).get_table_names()) == set(
+            STAGE2_TABLES | STAGE3_TABLES | CANDIDATE_RESUME_TABLES
+        ) | {
             "companies",
             "company_contacts",
             "alembic_version",
@@ -141,7 +143,7 @@ def test_additive_migration_roundtrip_preserves_stage1_and_models(database):
         assert company_snapshot(connection) == before
         assert (
             connection.scalar(text("SELECT version_num FROM alembic_version"))
-            == "0005_jd_general_skills"
+            == "0007_candidate_resumes"
         )
         assert connection.scalar(text("SELECT count(*) FROM staff_members")) == 0
         connection.execute(text("DROP TABLE unrelated_sentinel"))
@@ -945,7 +947,7 @@ def test_general_skills_migration_preserves_existing_rows(database):
                 .mappings()
                 .one()
             )
-            command.upgrade(cfg, "head")
+            command.upgrade(cfg, "0005_jd_general_skills")
             after = dict(
                 connection.execute(text("SELECT * FROM job_requirements WHERE id=:id"), {"id": jd})
                 .mappings()

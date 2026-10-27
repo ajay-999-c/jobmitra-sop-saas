@@ -3,9 +3,10 @@
 </label>
 {%- endmacro %}
 <div class="form-grid">
+<div data-search-picker><label>Search existing companies<input type="search" data-picker-search placeholder="Type to filter companies" aria-controls="company-select"></label>
 <label>Company *<select name="company_id" required id="company-select">
 <option value="">Choose existing company</option>{% for company in companies %}<option value="{{ company.id }}" {{ 'selected' if job and company.id|string == job.company_id|string else '' }}>{{ company.company_name }}</option>{% endfor %}</select>
-</label>
+</label><a href="/companies" target="_blank" rel="noopener">Company missing? Open Company Directory</a></div>
 <label>Job title *<input name="job_title" required maxlength="300" value="{{ job.job_title if job else '' }}">
 </label>
 <label>Company contact (optional)<select name="company_contact_id" id="company-contact" data-initial="{{ job.company_contact_id if job and job.company_contact_id else '' }}">
@@ -31,7 +32,9 @@
 <span>These requirements are preserved when you save.</span>
 </div>
 {% endif %}
-{{ field('domain_key','Functional JD domain (no catalog yet)') }}{{ field('subdomain_key','Functional subdomain') }}
+{% set person = job.model_dump(mode='json') if job else {} %}
+{% include 'candidates/catalog_fields.html' %}
+{% if job and (job.domain_key or job.subdomain_key) %}<p class="notice">Previously recorded classification: {{ job.domain_key or '—' }} / {{ job.subdomain_key or '—' }}. Preserved separately; select a catalog entry only after review.</p>{% endif %}
 {{ field('work_mode','Work mode') }}{{ field('qualification','Qualification') }}
 {{ field('experience_min_months','Minimum experience (months)','integer','number') }}{{ field('experience_max_months','Maximum experience (months)','integer','number') }}
 {% set legacy_salary = job and (job.salary_currency or '')|upper != 'INR' %}

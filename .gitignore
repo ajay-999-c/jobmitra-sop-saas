@@ -116,3 +116,10 @@ candidate-exports/
 .hypothesis/
 *.tmp
 *.bak
+
+# Unused local design references; the simplified Email Studio HTML is an application resource.
+/Jobmitra_Email_Studio_Technical_Interview.html
+/Jobmitra_Resume_Studio_v2.1.html
+# Empty local architecture scratchpad; maintained architecture docs live under docs/.
+/new_architecture.md
+venv/

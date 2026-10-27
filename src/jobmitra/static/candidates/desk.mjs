@@ -1,3 +1,4 @@
+import { selectedResume, uploadResume } from "./resumes.mjs";
 const recorder = document.querySelector("#recording-as");
 function error(form, message) {
   const el = form.querySelector("[data-form-error]");
@@ -137,6 +138,7 @@ document.addEventListener("submit", async (event) => {
   buttons.forEach((b) => (b.disabled = true));
   form.querySelector("[data-form-error]").hidden = true;
   try {
+    const resume = selectedResume(form);
     let endpoint = form.dataset.deskEndpoint,
       body = {},
       result;
@@ -220,11 +222,20 @@ document.addEventListener("submit", async (event) => {
         }),
       );
     }
-    if (form.hasAttribute("data-quick-candidate")) {
+    let resumeMessage = "";
+    if (resume) {
+      try {
+        await uploadResume(result.id, resume);
+        resumeMessage = "Original resume uploaded. ";
+      } catch (uploadError) {
+        resumeMessage = "Candidate saved, but resume upload failed: " + uploadError.message + " Upload again from the profile; do not register again. ";
+      }
+    }
+    if (form.hasAttribute("data-quick-candidate") || resume) {
       const success = document.createElement("p");
       success.className = "notice";
       success.setAttribute("role", "status");
-      success.append("Candidate saved successfully. ");
+      success.append("Candidate saved successfully. " + resumeMessage);
       const link = document.createElement("a");
       link.href = "/candidates/" + result.id;
       link.textContent = "Open candidate profile";

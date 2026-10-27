@@ -8,6 +8,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from jobmitra.core.pages import render
 from jobmitra.core.workflow import Database, WorkflowError, office_today, optional_uuid, same_origin
 from jobmitra.modules.candidates.models import Candidate
+from jobmitra.modules.candidates.service import DomainCatalogService
 from jobmitra.modules.companies.models import Company
 from jobmitra.modules.companies.repository import directory as company_directory
 from jobmitra.modules.jobs import repository
@@ -192,7 +193,13 @@ def requirement_directory(
 
 @router.get("/requirements/new", include_in_schema=False)
 def new_requirement(request: Request, session: Database):
-    return render(request, session, "new", companies=company_directory(session))
+    return render(
+        request,
+        session,
+        "new",
+        companies=company_directory(session),
+        catalog=DomainCatalogService(session).list_active_catalog(False),
+    )
 
 
 @router.get("/requirements/{job_id}", include_in_schema=False)
@@ -208,6 +215,7 @@ def workspace(job_id: UUID, request: Request, session: Database):
         job=job,
         job_data=job.model_dump(mode="json"),
         companies=company_directory(session),
+        catalog=DomainCatalogService(session).list_active_catalog(False),
         history=ActivityService(session).get_job_history(job_id),
         tasks=TaskService(session, tz).list_my_tasks(job_id=job_id),
     )

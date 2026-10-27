@@ -27,6 +27,8 @@ class OptionalCriteria(InputModel):
     job_title: str | None = Field(default=None, min_length=1, max_length=300)
     raw_requirement: str | None = None
     received_at: AwareDatetime | None = None
+    domain_id: UUID | None = None
+    subdomain_id: UUID | None = None
     domain_key: str | None = None
     subdomain_key: str | None = None
     location_text: str | None = None

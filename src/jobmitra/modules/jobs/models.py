@@ -7,6 +7,7 @@ from sqlalchemy import (
     Date,
     DateTime,
     ForeignKey,
+    ForeignKeyConstraint,
     Index,
     Integer,
     Numeric,
@@ -26,6 +27,15 @@ from jobmitra.modules.jobs.focus import FOCUS_CHECK
 class JobRequirement(Base):
     __tablename__ = "job_requirements"
     __table_args__ = (
+        ForeignKeyConstraint(
+            ["subdomain_id", "domain_id"],
+            ["work_subdomains.id", "work_subdomains.domain_id"],
+            name="fk_job_subdomain_parent",
+            ondelete="RESTRICT",
+        ),
+        CheckConstraint(
+            "subdomain_id IS NULL OR domain_id IS NOT NULL", name="ck_job_subdomain_domain"
+        ),
         CheckConstraint(FOCUS_CHECK, name="ck_job_work_focus"),
         CheckConstraint("length(btrim(job_title)) > 0", name="ck_job_title_nonblank"),
         CheckConstraint("status IN ('Draft','Active','On Hold','Closed')", name="ck_job_status"),
@@ -102,6 +112,10 @@ class JobRequirement(Base):
     job_title: Mapped[str] = mapped_column(Text)
     raw_requirement: Mapped[str | None] = mapped_column(Text)
     received_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    domain_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("work_domains.id", name="fk_job_domain", ondelete="RESTRICT")
+    )
+    subdomain_id: Mapped[UUID | None] = mapped_column(Uuid)
     domain_key: Mapped[str | None] = mapped_column(Text)
     subdomain_key: Mapped[str | None] = mapped_column(Text)
     location_text: Mapped[str | None] = mapped_column(Text)

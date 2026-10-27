@@ -103,7 +103,7 @@ cd /Users/mac/Documents/jobmitra/sop-pipeline
 ```
 
 It uses Windows PostgreSQL and the persistent Mac directory above. Settings load
-`.env` from the current working directory and are cached per process; restart the
+the project-root `.env` independently of the current working directory and are cached per process; restart the
 backend after future changes. Shell environment values override `.env`.
 
 One read-only startup smoke pass returned HTTP 200 for all nine checked routes:

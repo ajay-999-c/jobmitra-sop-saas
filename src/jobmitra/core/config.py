@@ -7,10 +7,12 @@ from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy import URL
 
+PROJECT_ENV_FILE = Path(__file__).resolve().parents[3] / ".env"
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_prefix="JOBMITRA_", env_file=".env", env_file_encoding="utf-8", extra="ignore"
+        env_prefix="JOBMITRA_", env_file=PROJECT_ENV_FILE, env_file_encoding="utf-8", extra="ignore"
     )
 
     db_host: str
@@ -28,6 +30,7 @@ class Settings(BaseSettings):
     db_statement_timeout_ms: int = Field(default=5000, ge=1)
     document_storage_root: Path | None = None
     document_max_bytes: int = Field(default=12 * 1024 * 1024, ge=1024, le=100 * 1024 * 1024)
+    resume_max_bytes: int = Field(default=10 * 1024 * 1024, ge=1024, le=100 * 1024 * 1024)
     ai_enabled: bool = False
     office_timezone: str = "Asia/Kolkata"
 

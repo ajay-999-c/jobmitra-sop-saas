@@ -1,5 +1,8 @@
 """Persistent Candidate Desk routes. File bytes never enter SQL or static assets."""
 
+import json
+import logging
+import os
 from datetime import date
 from tempfile import SpooledTemporaryFile
 from typing import Annotated
@@ -50,6 +53,7 @@ from .service import (
     VisitService,
 )
 from .storage import LocalDocumentStorage
+from .storage_diagnostics import storage_report
 
 router = APIRouter(tags=["Candidate Desk"])
 WRITE = [Depends(same_origin)]
@@ -57,6 +61,17 @@ WRITE = [Depends(same_origin)]
 
 def storage(request):
     settings = request.app.state.settings
+    if os.environ.get("JOBMITRA_STORAGE_DIAGNOSTICS") == "1":
+        # Temporary opt-in: capture THIS worker's cached settings, never an HTTP response.
+        # Diagnostics must not change storage initialization behaviour if inspection fails.
+        try:
+            logging.getLogger(__name__).warning(
+                "jobmitra_storage_diagnostic %s", json.dumps(storage_report(settings))
+            )
+        except Exception as error:
+            logging.getLogger(__name__).warning(
+                "jobmitra_storage_diagnostic_failed %s", type(error).__name__
+            )
     try:
         return LocalDocumentStorage(settings.document_storage_root, settings.document_max_bytes)
     except OSError:

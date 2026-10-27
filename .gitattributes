@@ -1,0 +1,2 @@
+# Preserve the supplied Email Studio HTML verbatim, including its blank-line spacing.
+Jobmitra_Email_Studio_Technical_Interview_Simplified.html -text whitespace=-blank-at-eol

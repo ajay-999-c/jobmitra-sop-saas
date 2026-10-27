@@ -70,3 +70,41 @@ def test_landing_page_and_single_navbar_link(client):
     for route in ["/companies", "/requirements", "/candidate-desk"]:
         assert f'href="{route}"' in shell
     assert 'id="recording-as"' in shell
+
+
+def test_updated_greeting_source_and_existing_actions(client):
+    assert UPDATES_FILE.name == "Jobmitra_Email_Studio_Technical_Interview_Simplified.html"
+    html = client.get("/email/updates").text
+    for identity in (
+        "candidateName",
+        "companyName",
+        "interviewMeetingLink",
+        "technicalMeetingLink",
+        "technicalMeetingId",
+        "technicalPasscode",
+        "f2fVenue",
+        "joiningDate",
+        "copySubjectBtn",
+        "copyEmailBtn",
+        "downloadBtn",
+        "sampleBtn",
+        "clearBtn",
+    ):
+        assert f'id="{identity}"' in html
+    assert 'value="technical_interview"' in html
+
+
+def test_simplified_technical_interview_contract(client):
+    html = client.get("/email/updates").text
+    assert (
+        "const TECHNICAL_REQUIRED = ['candidateName','jobPosition',"
+        "'technicalDate','technicalTime'];"
+        in html
+    )
+    assert 'id="technicalPlatform"' not in html
+    technical = html.split("case 'technical_interview':", 1)[1].split("case 'f2f_company':", 1)[0]
+    assert "${company}" not in technical
+    assert "Meeting platform" not in technical
+    assert "cleared" not in technical.lower()
+    for field in ("technicalMeetingLink", "technicalMeetingId", "technicalPasscode"):
+        assert field in technical

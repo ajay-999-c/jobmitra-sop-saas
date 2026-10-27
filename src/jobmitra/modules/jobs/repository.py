@@ -1,5 +1,6 @@
 from sqlalchemy import func, or_, select
 
+from jobmitra.modules.candidates.models import WorkDomain
 from jobmitra.modules.companies.models import Company, CompanyContact
 from jobmitra.modules.jobs.models import JobRecruiter, JobRequirement
 from jobmitra.modules.staff.models import StaffMember
@@ -88,7 +89,11 @@ def directory(
             .exists()
         )
     if domain:
-        query = query.where(JobRequirement.domain_key.ilike(f"%{domain}%"))
+        query = query.outerjoin(WorkDomain, WorkDomain.id == JobRequirement.domain_id).where(
+            or_(
+                JobRequirement.domain_key.ilike(f"%{domain}%"), WorkDomain.name.ilike(f"%{domain}%")
+            )
+        )
     if skill:
         query = query.where(
             or_(

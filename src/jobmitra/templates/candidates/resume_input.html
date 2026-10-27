@@ -1,0 +1,5 @@
+<div class="card" data-optional-resume>
+<label>Upload Resume (optional)<input type="file" data-resume-file accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" data-max-bytes="{{ request.app.state.settings.resume_max_bytes }}"></label>
+<p><span data-resume-filename>No resume selected</span> <button type="button" class="secondary" data-remove-resume hidden>Remove</button></p>
+<small>PDF or DOCX, maximum {{ (request.app.state.settings.resume_max_bytes / 1048576)|round(1) }} MB. Registration also works without a resume.</small>
+</div>

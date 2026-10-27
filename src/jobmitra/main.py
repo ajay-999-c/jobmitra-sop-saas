@@ -11,6 +11,7 @@ from jobmitra.core.database import build_engine, check_database
 from jobmitra.core.pages import PACKAGE_DIR, templates
 from jobmitra.modules.alter_resumes.router import router as alter_resumes_router
 from jobmitra.modules.candidates.limits import CandidateJSONLimit
+from jobmitra.modules.candidates.resumes import router as resumes_router
 from jobmitra.modules.candidates.router import router as candidates_router
 from jobmitra.modules.companies.router import MODULE_DIR, CompanyAssets
 from jobmitra.modules.companies.router import router as companies_router
@@ -46,6 +47,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         name="stage2-static",
     )
     app.include_router(candidates_router)
+    app.include_router(resumes_router)
     app.mount(
         "/static/candidates",
         CompanyAssets(directory=str(PACKAGE_DIR / "static" / "candidates")),

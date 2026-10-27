@@ -59,7 +59,9 @@ chmod 600 .env
 
 Edit `.env` locally to supply the password. The current example targets Windows
 PostgreSQL at `192.168.1.51:5432`, database `jobmitra_dev`, user `jobmitra_app`.
-Environment variables override `.env`; `.env` is resolved from the working directory.
+Environment variables override `.env`; `.env` is resolved from the project root relative
+to the configuration module, independently of the process working directory.
+Use the editable checkout installation described below, including on Windows/NSSM.
 Credentials must never be committed, pasted into URLs or printed in logs.
 `uv.lock` pins the tested dependency set.
 

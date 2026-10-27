@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from pydantic import ValidationError
 
 from jobmitra.core.workflow import WorkflowError, office_today
+from jobmitra.modules.candidates.service import profile_catalog
 from jobmitra.modules.jobs import repository
 from jobmitra.modules.jobs.models import JobRecruiter, JobRequirement
 from jobmitra.modules.jobs.schemas import JobRead, ManualCriteria, StatusPatch
@@ -103,6 +104,7 @@ class JobRequirementService:
         with self.session.begin():
             actor = require_active(self.session, [data.actor_staff_id])[data.actor_staff_id]
             validate_company(self.session, data)
+            profile_catalog(self.session, data)
             values = data.model_dump(exclude={"actor_staff_id", "closure_reason"})
             job = JobRequirement(**values, created_by_staff_id=actor.id)
             if data.status == "Closed":
@@ -134,6 +136,7 @@ class JobRequirementService:
                     "Invalid JD criteria: check required fields, ranges and missing values."
                 ) from None
             validate_company(self.session, validated)
+            profile_catalog(self.session, validated, job)
             changes = changes_for(job, {key: getattr(validated, key) for key in requested})
             if changes and job.ats_json is not None:
                 changes.update(changes_for(job, {"ats_status": "Stale"}))

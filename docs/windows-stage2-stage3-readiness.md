@@ -93,8 +93,8 @@ without investigating the lock. See [PostgreSQL ALTER TABLE](https://www.postgre
 
 ## FastAPI and private files
 
-- Settings load `.env` relative to the process working directory. Start from the
-  repository root. Shell `JOBMITRA_*` settings take precedence; none were present
+- Current settings load the project-root `.env` independently of the process working
+  directory. Shell `JOBMITRA_*` settings take precedence; none were present
   in the inspection process. No inherited PG overrides were present either.
 - Target is correct; password is nonempty and wrapped in SecretStr. URL.create
   handles password punctuation. No password or connection URL was printed.

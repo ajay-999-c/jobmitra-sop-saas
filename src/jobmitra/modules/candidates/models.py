@@ -335,3 +335,47 @@ STAGE3_MODELS = (
     ResumeParseResult,
 )
 STAGE3_TABLES = frozenset(model.__tablename__ for model in STAGE3_MODELS)
+
+
+class CandidateResume(Base):
+    """Immutable original bytes with independent, nullable future parser output."""
+
+    __tablename__ = "candidate_resumes"
+    __table_args__ = (
+        UniqueConstraint("storage_key", name="uq_candidate_resume_storage"),
+        Index(
+            "uq_candidate_resume_active",
+            "candidate_id",
+            unique=True,
+            postgresql_where=text("is_active"),
+        ),
+        Index("ix_candidate_resume_history", "candidate_id", "uploaded_at"),
+        CheckConstraint(
+            "file_size > 0 AND file_hash ~ '^[0-9a-f]{64}$'", name="ck_candidate_resume_integrity"
+        ),
+        CheckConstraint(
+            "parsing_status IN ('not_parsed','processing','parsed','failed')",
+            name="ck_candidate_resume_parsing",
+        ),
+    )
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    candidate_id: Mapped[UUID] = mapped_column(ForeignKey("candidates.id", ondelete="RESTRICT"))
+    original_filename: Mapped[str] = mapped_column(Text)
+    storage_key: Mapped[str] = mapped_column(Text)
+    mime_type: Mapped[str] = mapped_column(Text)
+    file_size: Mapped[int] = mapped_column(Integer)
+    file_hash: Mapped[str] = mapped_column(Text)
+    extracted_text: Mapped[str | None] = mapped_column(Text)
+    parsed_json: Mapped[dict | None] = mapped_column(JSONB(none_as_null=True))
+    parsing_status: Mapped[str] = mapped_column(Text, server_default="not_parsed")
+    parsing_error: Mapped[str | None] = mapped_column(Text)
+    is_active: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
+    uploaded_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+CANDIDATE_RESUME_TABLES = frozenset({"candidate_resumes"})
