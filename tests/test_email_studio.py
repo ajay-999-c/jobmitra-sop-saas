@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 from jobmitra.core.config import Settings
 from jobmitra.core.pages import templates
 from jobmitra.main import create_app
-from jobmitra.modules.email_studio.router import SUBMISSION_FILE, UPDATES_FILE
+from jobmitra.modules.email_studio.router import PROPOSAL_FILE, SUBMISSION_FILE, UPDATES_FILE
 
 
 @pytest.fixture
@@ -42,7 +42,12 @@ def client(monkeypatch):
 
 
 @pytest.mark.parametrize(
-    "route,path", [("/email/updates", UPDATES_FILE), ("/email/submission", SUBMISSION_FILE)]
+    "route,path",
+    [
+        ("/email/updates", UPDATES_FILE),
+        ("/email/submission", SUBMISSION_FILE),
+        ("/email/proposal", PROPOSAL_FILE),
+    ],
 )
 def test_original_bytes_unchanged_and_get_only(client, route, path):
     original = path.read_bytes()
@@ -61,6 +66,10 @@ def test_landing_page_and_single_navbar_link(client):
     assert response.status_code == 200
     assert 'href="/email/updates"' in response.text
     assert 'href="/email/submission"' in response.text
+    assert "Recruitment Email Studio" in response.text
+    assert response.text.count('class="email-choice"') == 3
+    assert 'href="/email/proposal"' in response.text
+    assert "Open Company Proposals" in response.text
     assert "Candidate Updates" in response.text
     assert "Candidate Submission" in response.text
     shell = client.get("/test-shell").text
@@ -98,8 +107,7 @@ def test_simplified_technical_interview_contract(client):
     html = client.get("/email/updates").text
     assert (
         "const TECHNICAL_REQUIRED = ['candidateName','jobPosition',"
-        "'technicalDate','technicalTime'];"
-        in html
+        "'technicalDate','technicalTime'];" in html
     )
     assert 'id="technicalPlatform"' not in html
     technical = html.split("case 'technical_interview':", 1)[1].split("case 'f2f_company':", 1)[0]

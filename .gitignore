@@ -102,6 +102,9 @@ candidate-exports/
 /*.pfx
 
 # Alternate dotenv filenames may also contain credentials.
+# Protect the local misspelled dotenv filename used during development.
+.enmv
+.envrc.*
 *.env
 *.env.*
 !.env.example
