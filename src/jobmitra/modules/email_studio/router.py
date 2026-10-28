@@ -10,7 +10,7 @@ from jobmitra.core.pages import templates
 router = APIRouter(tags=["Email"])
 PROJECT_ROOT = Path(__file__).resolve().parents[4]
 UPDATES_FILE = PROJECT_ROOT / "Jobmitra_Email_Studio_Technical_Interview_Simplified.html"
-PROPOSAL_FILE = PROJECT_ROOT / "Jobmitra_Company_Proposal_No_Approval_Box (1).html"
+PROPOSAL_FILE = PROJECT_ROOT / "Jobmitra_Company_Proposal_Final.html"
 SUBMISSION_FILE = PROJECT_ROOT / "Jobmitra_candidate_submission_final (1).html"
 
 

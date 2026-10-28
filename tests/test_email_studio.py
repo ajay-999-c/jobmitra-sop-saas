@@ -116,3 +116,15 @@ def test_simplified_technical_interview_contract(client):
     assert "cleared" not in technical.lower()
     for field in ("technicalMeetingLink", "technicalMeetingId", "technicalPasscode"):
         assert field in technical
+
+
+def test_final_company_proposal_contract(client):
+    assert PROPOSAL_FILE.name == "Jobmitra_Company_Proposal_Final.html"
+    html = client.get("/email/proposal").text
+    assert "RECRUITMENT SERVICES" in html
+    assert "Proposal &amp; Terms of Engagement" in html
+    assert "For your review and approval" in html
+    assert "Jobmitra.com | Recruitment Services Proposal & Terms of Engagement" in html
+    assert "Approval requested" not in html
+    for identity in ("clientName", "downloadProposal", "copySubject", "copyEmail", "emailBody"):
+        assert f'id="{identity}"' in html
