@@ -10,10 +10,11 @@
 <a class="button secondary" href="/candidates/new">Add Candidate</a>
 </div>
 </div>
+{% include 'candidates/lookup.html' %}
 <div class="stats">
 <article class="card">
 <small>Candidate profiles</small>
-<strong>{{ people|length }}</strong>
+<strong>{{ candidate_count }}</strong>
 </article>
 <article class="card">
 <small>Today's visits</small>

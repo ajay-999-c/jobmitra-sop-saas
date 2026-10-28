@@ -9,7 +9,7 @@ from typing import Annotated
 from urllib.parse import unquote
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, Request
+from fastapi import APIRouter, Depends, Header, Query, Request
 from fastapi.responses import FileResponse
 from starlette.concurrency import run_in_threadpool
 
@@ -79,8 +79,13 @@ def storage(request):
 
 
 @router.get("/api/candidates", response_model=list[CandidateRead])
-def candidates(session: Database, q: str | None = None):
-    return CandidateService(session).search_candidates(q)
+def candidates(
+    session: Database,
+    q: str | None = None,
+    limit: int = Query(default=20, ge=1, le=20),
+    offset: int = Query(default=0, ge=0),
+):
+    return CandidateService(session).search_candidates(q, limit=limit, offset=offset)
 
 
 @router.get("/api/candidates/duplicates", response_model=list[CandidateRead])
@@ -327,10 +332,24 @@ def form_context(session):
 
 
 @router.get("/candidates", include_in_schema=False)
-def directory(request: Request, session: Database, q: str | None = None):
-    rows = CandidateService(session).search_candidates(q)
+def directory(
+    request: Request,
+    session: Database,
+    q: str | None = None,
+    offset: int = Query(default=0, ge=0),
+):
+    rows = CandidateService(session).search_candidates(q, limit=21, offset=offset)
     name = "candidate_rows" if request.headers.get("hx-request") == "true" else "directory"
-    return page(request, session, name, rows=rows, q=q or "", **form_context(session))
+    return page(
+        request,
+        session,
+        name,
+        rows=rows[:20],
+        q=q or "",
+        offset=offset,
+        has_more=len(rows) > 20,
+        **(form_context(session) if name == "directory" else {}),
+    )
 
 
 @router.get("/candidates/new", include_in_schema=False)
@@ -375,7 +394,7 @@ def today(request: Request, session: Database):
         searches=JobSearchService(
             session, request.app.state.settings.office_timezone
         ).list_due_requests(due_only=True),
-        people=CandidateService(session).search_candidates(),
+        candidate_count=repo.candidate_count(session),
     )
 
 

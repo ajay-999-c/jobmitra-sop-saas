@@ -1,0 +1,13 @@
+<section data-candidate-lookup aria-label="Find candidates">
+<form class="filters" action="/candidates" method="get">
+<label>Search candidates by name or mobile
+<input type="search" name="q" value="{{ q|default('') }}" placeholder="Name or at least 4 mobile digits" autocomplete="off" aria-describedby="candidate-search-help">
+</label>
+<button class="secondary" type="submit">Search</button>
+</form>
+<p id="candidate-search-help" class="muted">Partial names and mobile numbers accepted, including +91, spaces and hyphens.</p>
+<p data-lookup-status role="status" aria-live="polite"></p>
+<div data-lookup-results aria-label="Candidate search results">
+{% if rows is defined %}{% include 'candidates/candidate_rows.html' %}{% endif %}
+</div>
+</section>

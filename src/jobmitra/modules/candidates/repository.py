@@ -1,9 +1,10 @@
 """Read/lock queries only; transactions belong to services."""
 
+import re
 from datetime import datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import func, or_, select, text
+from sqlalchemy import case, false, func, or_, select, text
 
 from .models import (
     Candidate,
@@ -23,21 +24,48 @@ def find(session, model, identity, lock=False):
     return session.scalar(query)
 
 
-def candidates(session, query=None):
+def candidates(session, query=None, *, limit=None, offset=0):
     stmt = select(Candidate)
+    order = []
+    query = (query or "").strip()
     if query:
-        escaped = query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-        pattern = f"%{escaped}%"
-        stmt = stmt.where(
-            or_(
-                Candidate.full_name.ilike(pattern),
-                Candidate.mobile.ilike(pattern),
-                Candidate.mobile_normalized.ilike(pattern),
-                Candidate.email.ilike(pattern),
-                Candidate.role_title.ilike(pattern),
+        # Phone-like input only: letters must not turn a name into a phone search.
+        if re.fullmatch(r"[+0-9\s().-]+", query):
+            digits = re.sub(r"[^0-9]", "", query)
+            if query.startswith("+91"):
+                digits = digits[2:]
+            elif digits.startswith("0091"):
+                digits = digits[4:]
+            elif len(digits) == 12 and digits.startswith("91"):
+                digits = digits[2:]
+            if len(digits) < 4:
+                stmt = stmt.where(false())
+            else:
+                variants = {digits}
+                if len(digits) == 10:
+                    variants.update({"91" + digits, "0091" + digits})
+                exact = Candidate.mobile_normalized.in_(variants)
+                stmt = stmt.where(Candidate.mobile_normalized.contains(digits))
+                order.append(case((exact, 0), else_=1))
+        else:
+            # Literal substring search; SQLAlchemy binds values, including wildcards.
+            escaped = query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            pattern = f"%{escaped}%"
+            stmt = stmt.where(
+                or_(
+                    Candidate.full_name.ilike(pattern, escape="\\"),
+                    Candidate.email.ilike(pattern, escape="\\"),
+                    Candidate.role_title.ilike(pattern, escape="\\"),
+                )
             )
-        )
-    return session.scalars(stmt.order_by(func.lower(Candidate.full_name), Candidate.id)).all()
+    stmt = stmt.order_by(*order, func.lower(Candidate.full_name), Candidate.id)
+    if limit is not None:
+        stmt = stmt.limit(limit).offset(offset)
+    return session.scalars(stmt).all()
+
+
+def candidate_count(session):
+    return session.scalar(select(func.count()).select_from(Candidate))
 
 
 def duplicates(session, mobile, exclude_id=None):

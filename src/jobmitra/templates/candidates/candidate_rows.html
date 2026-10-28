@@ -1,5 +1,5 @@
 <div id="candidate-results">
-<p class="muted">{{ rows|length }} matching candidates</p>
+<p class="muted">{{ rows|length }} candidates on this page{% if has_more %} · More results available{% endif %}</p>
 <div class="table-scroll">
 <table>
 <thead>
@@ -25,10 +25,14 @@
 </tr>
 {% else %}
 <tr>
-<td colspan="4">No matching profiles. Add a candidate to get started.</td>
+<td colspan="4">No matching candidates. Try another name or at least 4 mobile digits.</td>
 </tr>
 {% endfor %}
 </tbody>
 </table>
 </div>
+<nav aria-label="Candidate result pages">
+{% if offset %}<a data-search-page href="/candidates?q={{ q|urlencode }}&amp;offset={{ [offset - 20, 0]|max }}">Previous</a>{% endif %}
+{% if has_more %}<a data-search-page href="/candidates?q={{ q|urlencode }}&amp;offset={{ offset + 20 }}">Next 20</a>{% endif %}
+</nav>
 </div>

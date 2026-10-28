@@ -7,10 +7,5 @@
 </div>
 <button data-open-dialog="candidate-dialog">+ Add Candidate</button>
 </div>
-<form class="filters" action="/candidates" hx-get="/candidates" hx-target="#candidate-results" hx-trigger="input changed delay:250ms, submit">
-<label>Search name, mobile, email or role<input type="search" name="q" value="{{ q }}" placeholder="Search candidates" autocomplete="off">
-</label>
-<button class="secondary">Search</button>
-</form>
-{% include 'candidates/candidate_rows.html' %}{% include 'candidates/candidate_form.html' %}
+{% include 'candidates/lookup.html' %}{% include 'candidates/candidate_form.html' %}
 {% endblock %}

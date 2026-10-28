@@ -140,8 +140,11 @@ class CandidateService:
             self.session.flush()
             return CandidateRead.model_validate(row)
 
-    def search_candidates(self, query=None):
-        return [CandidateRead.model_validate(row) for row in repo.candidates(self.session, query)]
+    def search_candidates(self, query=None, *, limit=None, offset=0):
+        return [
+            CandidateRead.model_validate(row)
+            for row in repo.candidates(self.session, query, limit=limit, offset=offset)
+        ]
 
     def find_possible_duplicates(self, mobile=None, exclude_id=None, email=None):
         try:
