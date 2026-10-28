@@ -4,7 +4,7 @@
 <section class="intro"><div><h1>Share candidate profiles with hiring companies.</h1><p>Add 1, 5, 10 or more candidates and prepare a professional Jobmitra-branded email.</p></div><span class="status" id="readyBadge">Preview mode · complete required details</span></section>
 <main class="layout"><aside class="pane"><div class="pane-title"><div class="step">Step 01 · Build shortlist</div><h2>Company &amp; recruiter details</h2><p>Fields marked * are required before copying the email.</p></div><div class="body-pad">
 <div class="field"><label for="companyName">Hiring company <span class="star">*</span></label><input id="companyName" type="text" maxlength="150" placeholder="e.g. ABC Technologies" autocomplete="off"></div>
-<div class="field"><label for="emailJobTitle">Job title (email heading)</label><input id="emailJobTitle" type="text" maxlength="140" placeholder="e.g. Senior QA Automation Engineer" autocomplete="off"><div class="helper">Optional: highlights the hiring position in the email heading and subject. Candidate job titles below remain unchanged.</div></div>
+<div class="field"><label for="emailJobTitle">Job role for this submission <span class="star">*</span></label><input id="emailJobTitle" type="text" maxlength="140" placeholder="e.g. Senior QA Automation Engineer" autocomplete="off"><div class="helper">Enter the shared role once, e.g. QA Automation. All candidates below are submitted for this role.</div></div>
 <div class="field"><label for="contactPerson">Email salutation / Contact person</label><input id="contactPerson" type="text" maxlength="120" placeholder="e.g. Mr. Mehta / Hiring Team" autocomplete="off"></div>
 <div class="pair"><div class="field"><label for="recruiterName">Recruiter name</label><input id="recruiterName" type="text" maxlength="100" value="Team Jobmitra" placeholder="Team Jobmitra"></div><div class="field"><label for="recruiterPhone">Contact number</label><input id="recruiterPhone" type="tel" maxlength="40" placeholder="Optional"></div></div>
 <div class="field"><label for="additionalNote">Additional message (optional)</label><textarea id="additionalNote" maxlength="800" placeholder="e.g. Please let us know which candidates can be scheduled for interviews."></textarea></div>
@@ -19,18 +19,18 @@ const WEBSITE_URL='https://www.jobmitra.com/';
 const $=id=>document.getElementById(id);
 const escapeHtml=v=>String(v??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 const inputVal=id=>$(id).value.trim();
-const fields=['name','title','experience','notice','ctc'];
+const fields=['name','expectedCtc','experience','notice','ctc'];
 let nextId=1,candidates=[],toastTimer=0;
-const newCandidate=()=>({id:nextId++,name:'',title:'',experience:'',notice:'',ctc:''});
+const newCandidate=()=>({id:nextId++,name:'',expectedCtc:'',experience:'',notice:'',ctc:''});
 function toast(message,error=false){clearTimeout(toastTimer);const t=$('toast');t.textContent=message;t.style.background=error?'#ba1730':'#192a37';t.classList.add('on');toastTimer=setTimeout(()=>t.classList.remove('on'),4800)}
 function renderCandidateForms(){
  $('countHint').textContent=`${candidates.length} candidate${candidates.length===1?'':'s'} added. Add or remove profiles as needed.`;
  $('candidateForms').innerHTML=candidates.map((c,i)=>`<section class="candidate-card" data-id="${c.id}">
  <div class="candidate-head"><div><span class="candidate-index">${i+1}</span><strong>Candidate ${i+1}</strong></div><button class="btn danger" type="button" data-remove="${c.id}" ${candidates.length===1?'disabled':''}>Remove</button></div>
  <div class="candidate-fields">
- <div class="pair"><div class="field"><label for="cand-${c.id}-name">Candidate name <span class="star">*</span></label><input id="cand-${c.id}-name" data-id="${c.id}" data-field="name" type="text" autocomplete="off" maxlength="120" placeholder="Full name" value="${escapeHtml(c.name)}"></div><div class="field"><label for="cand-${c.id}-title">Job title <span class="star">*</span></label><input id="cand-${c.id}-title" data-id="${c.id}" data-field="title" type="text" autocomplete="off" maxlength="140" placeholder="e.g. Accountant" value="${escapeHtml(c.title)}"></div></div>
+ <div class="pair"><div class="field"><label for="cand-${c.id}-name">Candidate name <span class="star">*</span></label><input id="cand-${c.id}-name" data-id="${c.id}" data-field="name" type="text" autocomplete="off" maxlength="120" placeholder="Full name" value="${escapeHtml(c.name)}"></div><div class="field"><label for="cand-${c.id}-expectedCtc">Expected CTC (optional)</label><input id="cand-${c.id}-expectedCtc" data-id="${c.id}" data-field="expectedCtc" type="text" autocomplete="off" maxlength="75" placeholder="e.g. ₹7 LPA or ₹60,000/month" value="${escapeHtml(c.expectedCtc)}"></div></div>
  <div class="pair"><div class="field"><label for="cand-${c.id}-experience">Experience <span class="star">*</span></label><input id="cand-${c.id}-experience" data-id="${c.id}" data-field="experience" type="text" maxlength="65" placeholder="e.g. 3 yrs 6 mos" value="${escapeHtml(c.experience)}"></div><div class="field"><label for="cand-${c.id}-notice">Notice period <span class="star">*</span></label><input id="cand-${c.id}-notice" data-id="${c.id}" data-field="notice" type="text" maxlength="75" placeholder="e.g. Immediate / 30 days" value="${escapeHtml(c.notice)}"></div></div>
- <div class="field"><label for="cand-${c.id}-ctc">Current CTC (optional)</label><input id="cand-${c.id}-ctc" data-id="${c.id}" data-field="ctc" type="text" maxlength="75" placeholder="e.g. ₹5.5 LPA" value="${escapeHtml(c.ctc)}"></div>
+ <div class="field"><label for="cand-${c.id}-ctc">Current CTC (optional)</label><input id="cand-${c.id}-ctc" data-id="${c.id}" data-field="ctc" type="text" maxlength="75" placeholder="e.g. ₹5.5 LPA or ₹45,000/month" value="${escapeHtml(c.ctc)}"></div>
  </div></section>`).join('');
 }
 function addCandidates(count){for(let i=0;i<count;i++)candidates.push(newCandidate());renderCandidateForms();build()}
@@ -38,12 +38,12 @@ function fillTo(target){if(candidates.length>=target){toast(`Already ${candidate
 function candidateTableRows(){
  const hasCTC=candidates.some(c=>c.ctc.trim());
  const th=(s,w)=>`<th width="${w}" align="left" style="background-color:#dd0000;color:#fff;font-family:Arial,sans-serif;font-size:11px;font-weight:bold;padding:12px 10px;line-height:1.4;border-right:1px solid #e75656;vertical-align:top;">${s}</th>`;
- const head=`<tr>${th('CANDIDATE &amp; POSITION',hasCTC?'42%':'47%')}${th('EXPERIENCE',hasCTC?'18%':'25%')}${hasCTC?th('CURRENT CTC','18%'):''}${th('NOTICE PERIOD',hasCTC?'22%':'28%')}</tr>`;
+ const head=`<tr>${th('CANDIDATE',hasCTC?'30%':'35%')}${th('EXPERIENCE',hasCTC?'17%':'20%')}${hasCTC?th('CURRENT CTC','15%'):''}${th('EXPECTED CTC',hasCTC?'18%':'22%')}${th('NOTICE PERIOD',hasCTC?'20%':'23%')}</tr>`;
  const rows=candidates.map((c,i)=>{const bg=i%2?'#fff':'#fff8f8';const cell=value=>`<td style="border-bottom:1px solid #e8edf1;vertical-align:top;padding:13px 10px;background-color:${bg};font-family:Arial,sans-serif;font-size:12px;line-height:1.6;color:#384757;overflow-wrap:break-word;">${value}</td>`;
- return `<tr>${cell(`<strong style="color:#1d2c38;font-size:12px;">${i+1}. ${escapeHtml(c.name.trim()||'[Candidate Name]')}</strong><div style="margin-top:3px;color:#667585;font-size:11px;">${escapeHtml(c.title.trim()||'[Job Title]')}</div>`)}${cell(escapeHtml(c.experience.trim()||'—'))}${hasCTC?cell(escapeHtml(c.ctc.trim()||'—')):''}${cell(escapeHtml(c.notice.trim()||'—'))}</tr>`}).join('');
+ return `<tr>${cell(`<strong style="color:#1d2c38;font-size:12px;">${i+1}. ${escapeHtml(c.name.trim()||'[Candidate Name]')}</strong>`)}${cell(escapeHtml(c.experience.trim()||'—'))}${hasCTC?cell(escapeHtml(c.ctc.trim()||'—')):''}${cell(escapeHtml(c.expectedCtc.trim()||'—'))}${cell(escapeHtml(c.notice.trim()||'—'))}</tr>`}).join('');
  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;table-layout:fixed;width:100%;border:1px solid #e3e8ed;">${head}${rows}</table>`;
 }
-function getSubject(){const jobTitle=inputVal('emailJobTitle');const roles=[...new Set(candidates.map(c=>c.title.trim()).filter(Boolean).map(x=>x.toLowerCase()))];const singleRole=roles.length===1&&candidates.every(c=>c.title.trim());const title=jobTitle||(singleRole?candidates[0].title.trim():`${candidates.length} Candidate Profile${candidates.length===1?'':'s'}`);return `Candidate Profiles for Review | ${title} | Jobmitra`}
+function getSubject(){const title=inputVal('emailJobTitle')||'[Job Role]';return `Candidate Profiles for Review | ${title} | Jobmitra`}
 function getEmailHTML(){
  const person=escapeHtml(inputVal('contactPerson')||'Hiring Team');
  const jobTitle=inputVal('emailJobTitle');
@@ -64,14 +64,49 @@ function getEmailHTML(){
  <tr><td bgcolor="#f7f8fa" style="background:#f7f8fa;border-top:1px solid #e9ecef;padding:16px 34px;"><p style="font-family:Arial,sans-serif;font-size:10px;color:#7f8994;line-height:1.65;margin:0;">The above candidates have been shortlisted and recommended by Jobmitra for the hiring company's independent evaluation. No hiring decision is implied by this submission.</p><p style="font-family:Arial,sans-serif;font-size:10px;color:#9da6af;margin:8px 0 0;">Jobmitra · Your online job friend · Indore, Madhya Pradesh</p></td></tr>
  </table></td></tr></table>`;
 }
-function build(){ $('subjectText').textContent=getSubject();$('emailBody').innerHTML=getEmailHTML();const complete=!!inputVal('companyName')&&candidates.every(c=>c.name.trim()&&c.title.trim()&&c.experience.trim()&&c.notice.trim());$('readyBadge').textContent=complete?'Ready to copy · verify before sending':'Preview mode · complete required details'}
-function validate(){const comp=$('companyName');comp.classList.toggle('error-field',!inputVal('companyName'));if(!inputVal('companyName')){comp.focus();toast('Please enter the hiring company name.',true);return false}for(let i=0;i<candidates.length;i++){const c=candidates[i];for(const key of ['name','title','experience','notice']){const el=$(`cand-${c.id}-${key}`);el.classList.toggle('error-field',!c[key].trim());if(!c[key].trim()){el.scrollIntoView({block:'center',behavior:'smooth'});el.focus({preventScroll:true});toast(`Candidate ${i+1}: please enter ${key==='title'?'job title':key==='notice'?'notice period':key}.`,true);return false}}}return true}
-function legacyRichCopy(node){const sel=window.getSelection(),old=[];for(let i=0;i<sel.rangeCount;i++)old.push(sel.getRangeAt(i));const range=document.createRange();range.selectNode(node);sel.removeAllRanges();sel.addRange(range);let ok=false;try{ok=document.execCommand('copy')}catch(_){}sel.removeAllRanges();for(const r of old)sel.addRange(r);return ok}
-async function copyEmail(){if(!validate())return;const node=$('emailBody').firstElementChild;if(legacyRichCopy(node)){toast('Formatted email copied. Paste it into Gmail.');return}try{if(!navigator.clipboard?.write||!window.ClipboardItem)throw Error('Clipboard not available');await navigator.clipboard.write([new ClipboardItem({'text/html':new Blob([node.outerHTML],{type:'text/html'}),'text/plain':new Blob([$('emailBody').innerText],{type:'text/plain'})})]);toast('Formatted email copied. Paste it into Gmail.')}catch(_){toast('Copy unavailable. Select the email preview and press Ctrl+C instead.',true)}}
+function build(){ $('subjectText').textContent=getSubject();$('emailBody').innerHTML=getEmailHTML();const complete=!!inputVal('companyName')&&!!inputVal('emailJobTitle')&&candidates.every(c=>c.name.trim()&&c.experience.trim()&&c.notice.trim());$('readyBadge').textContent=complete?'Ready to copy · verify before sending':'Preview mode · complete required details'}
+function validate(){const comp=$('companyName');comp.classList.toggle('error-field',!inputVal('companyName'));if(!inputVal('companyName')){comp.focus();toast('Please enter the hiring company name.',true);return false}const role=$('emailJobTitle');role.classList.toggle('error-field',!inputVal('emailJobTitle'));if(!inputVal('emailJobTitle')){role.focus();toast('Please enter the shared job role for this submission.',true);return false}for(let i=0;i<candidates.length;i++){const c=candidates[i];for(const key of ['name','experience','notice']){const el=$(`cand-${c.id}-${key}`);el.classList.toggle('error-field',!c[key].trim());if(!c[key].trim()){el.scrollIntoView({block:'center',behavior:'smooth'});el.focus({preventScroll:true});toast(`Candidate ${i+1}: please enter ${key==='notice'?'notice period':key}.`,true);return false}}}return true}
+function legacyRichCopy(node){
+  // Supply both clipboard formats explicitly: never copy a focused input or stale subject.
+  let copied=false;
+  const onCopy=event=>{
+    if(!event.clipboardData)return;
+    event.clipboardData.setData('text/html',node.outerHTML);
+    event.clipboardData.setData('text/plain',node.innerText);
+    event.preventDefault();
+    copied=true;
+  };
+  const sel=window.getSelection(),old=[];
+  for(let i=0;i<sel.rangeCount;i++)old.push(sel.getRangeAt(i));
+  const range=document.createRange();range.selectNode(node);
+  sel.removeAllRanges();sel.addRange(range);
+  document.addEventListener('copy',onCopy,true);
+  try{return document.execCommand('copy')&&copied;}
+  catch(_){return false;}
+  finally{
+    document.removeEventListener('copy',onCopy,true);
+    sel.removeAllRanges();for(const r of old)sel.addRange(r);
+  }
+}
+async function copyEmail(){
+  if(!validate())return;
+  const node=$('emailBody').firstElementChild;
+  try{
+    if(!navigator.clipboard?.write||!window.ClipboardItem)throw Error('Clipboard not available');
+    await navigator.clipboard.write([new ClipboardItem({
+      'text/html':new Blob([node.outerHTML],{type:'text/html'}),
+      'text/plain':new Blob([node.innerText],{type:'text/plain'})
+    })]);
+    toast('Formatted email copied. Paste it into Gmail.');
+  }catch(_){
+    if(legacyRichCopy(node))toast('Formatted email copied. Paste it into Gmail.');
+    else toast('Copy unavailable. Select the email preview and press Ctrl+C instead.',true);
+  }
+}
 async function copySubject(){if(!validate())return;const subject=getSubject();try{if(navigator.clipboard?.writeText){await navigator.clipboard.writeText(subject);toast('Subject copied.');return}}catch(_){}const t=document.createElement('textarea');t.value=subject;t.style.cssText='position:fixed;opacity:0';document.body.appendChild(t);t.select();const ok=document.execCommand('copy');t.remove();toast(ok?'Subject copied.':'Copy failed. Select the subject manually.',!ok)}
 function downloadHTML(){if(!validate())return;const html='<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>'+escapeHtml(getSubject())+'</title></head><body style="margin:0;background:#f4f5f7">'+getEmailHTML()+'</body></html>';const url=URL.createObjectURL(new Blob([html],{type:'text/html;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download='Jobmitra_Candidate_Submission_'+candidates.length+'_Profiles.html';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),10000);toast('Email HTML downloaded.')}
 function resetAll(showMessage=true){['companyName','emailJobTitle','contactPerson','recruiterPhone','additionalNote'].forEach(k=>{$(k).value='';$(k).classList.remove('error-field')});$('recruiterName').value='Team Jobmitra';nextId=1;candidates=[newCandidate()];renderCandidateForms();build();if(showMessage)toast('All fields cleared. Ready for the next company.')}
-function demo(){resetAll(false);$('companyName').value='ABC Technologies';$('contactPerson').value='Hiring Team';candidates[0]=Object.assign(candidates[0],{name:'Aarav Sharma',title:'Sales Executive',experience:'3 years',notice:'Immediate',ctc:'₹4.2 LPA'});candidates.push(Object.assign(newCandidate(),{name:'Neha Verma',title:'Accountant',experience:'2 years 6 months',notice:'30 days',ctc:''}));candidates.push(Object.assign(newCandidate(),{name:'Riya Patel',title:'HR Executive',experience:'4 years',notice:'15 days',ctc:'₹5 LPA'}));renderCandidateForms();build();toast('Sample candidate details loaded. Replace these fictional details before sending.')}
+function demo(){resetAll(false);$('companyName').value='ABC Technologies';$('contactPerson').value='Hiring Team';$('emailJobTitle').value='QA Automation Engineer';candidates[0]=Object.assign(candidates[0],{name:'Aarav Sharma',expectedCtc:'₹6 LPA',experience:'3 years',notice:'Immediate',ctc:'₹4.2 LPA'});candidates.push(Object.assign(newCandidate(),{name:'Neha Verma',expectedCtc:'₹5 LPA',experience:'2 years 6 months',notice:'30 days',ctc:''}));candidates.push(Object.assign(newCandidate(),{name:'Riya Patel',expectedCtc:'₹7 LPA',experience:'4 years',notice:'15 days',ctc:'₹5 LPA'}));renderCandidateForms();build();toast('Sample candidate details loaded. Replace these fictional details before sending.')}
 $('topLogo').src=LOGO_DATA_URL;
 $('addOne').addEventListener('click',()=>addCandidates(1));
 $('fillFive').addEventListener('click',()=>fillTo(5));
