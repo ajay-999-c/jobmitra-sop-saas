@@ -82,7 +82,7 @@ def test_landing_page_and_single_navbar_link(client):
 
 
 def test_updated_greeting_source_and_existing_actions(client):
-    assert UPDATES_FILE.name == "Jobmitra_Email_Studio_Technical_Interview_Simplified.html"
+    assert UPDATES_FILE.name == "Jobmitra_Email_Studio_Final_Management_Confirmed.html"
     html = client.get("/email/updates").text
     for identity in (
         "candidateName",
