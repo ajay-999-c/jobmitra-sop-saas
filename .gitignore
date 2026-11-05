@@ -68,6 +68,7 @@ backups/
 /docs/analysis/company-dataset-profile.ipynb
 
 # Private runtime storage and local database artifacts.
+/private/
 /uploads/
 /resumes/
 /private-data/
@@ -120,9 +121,12 @@ candidate-exports/
 *.tmp
 *.bak
 
-# Unused local design references; the simplified Email Studio HTML is an application resource.
+# Unused local design references; finalized Email Studio HTML is an application resource.
 /Jobmitra_Email_Studio_Technical_Interview.html
 /Jobmitra_Resume_Studio_v2.1.html
 # Empty local architecture scratchpad; maintained architecture docs live under docs/.
 /new_architecture.md
 venv/
+
+# Keep the finalized Candidate Updates page in GitHub/deployment source.
+!/Jobmitra_Email_Studio_Final_Management_Confirmed.html
