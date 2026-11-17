@@ -1,0 +1,48 @@
+{% extends "stage2/base.html" %}
+{% block title %}Resume Processing{% endblock %}
+{% block extra_head %}
+<link rel="stylesheet" href="/static/stage2/resume-processing.css">
+<script type="module" src="/static/stage2/resume-processing.mjs"></script>
+{% endblock %}
+{% block content %}
+<div class="heading"><div><p class="rp-eyebrow">JOBMITRA · RESUME WORKSPACE</p><h1>Resume Processing</h1>
+<p class="muted">Register, process, review and create a professional ATS resume.</p></div>
+<span class="rp-pill">Local demo</span></div>
+<p class="notice">Candidate records in this workspace are separate from Candidate Desk. One resume is processed at a time.</p>
+<p id="rp-error" class="error" role="alert" hidden></p>
+<div class="rp-layout">
+<section class="card rp-register"><p class="rp-eyebrow">01 · REGISTER &amp; UPLOAD</p><h2>Candidate details</h2>
+<form id="rp-form">
+<label>Existing local candidate (optional)<select id="rp-existing"><option value="">Register a new candidate</option></select></label>
+<p class="muted small">Select an existing record only after confirming identity. Matching names alone never merge candidates.</p>
+<label>Candidate Full Name <span class="rp-required">*</span><input id="rp-name" name="full_name" required minlength="2" maxlength="120" autocomplete="off"></label>
+<label>Mobile Number<input id="rp-mobile" name="mobile" type="tel" maxlength="30" placeholder="Indian mobile, with or without +91" autocomplete="off"></label>
+<label>Email Address<input id="rp-email" name="email" type="email" maxlength="254" autocomplete="off"></label>
+<label>Current City / Location<input id="rp-location" name="location" maxlength="120" placeholder="City / state only" autocomplete="off"></label>
+<label>Resume File <span class="rp-required">*</span><input id="rp-file" name="resume" type="file" accept=".pdf,.docx" required></label>
+<p class="muted small">PDF or DOCX · maximum {{ (request.app.state.settings.resume_max_bytes / 1048576)|round(1) }} MB. Originals and previous versions are retained privately.</p>
+<label class="rp-check"><input id="rp-consent" type="checkbox" required><span>I confirm that the candidate has authorized Jobmitra to store and process this resume and send eligible sanitized resume content to Groq. I have verified this candidate’s identity and authority under Jobmitra policy.</span></label>
+<p class="muted small">Masking covers candidate names, email, phone and personal URLs. Sanitized input may still contain DOB or addresses and is not fully anonymized. These findings and name mismatches show warnings; failed required masking or integrity checks stop processing.</p>
+<button class="btn" id="rp-upload" type="submit">Upload &amp; Register</button>
+</form></section>
+<div>
+<section class="card"><p class="rp-eyebrow">02 · PROCESS</p><div class="heading"><h2>Processing status</h2><button type="button" class="btn secondary small" id="rp-refresh">Refresh</button></div>
+<label>Recent resumes<select id="rp-recent"><option value="">Choose a registered resume</option></select></label>
+<div id="rp-progress" aria-live="polite"><p class="muted">Upload a resume to begin, or select a recent resume.</p></div>
+<div class="actions rp-actions"><button id="rp-process" class="btn" type="button" disabled>Process Resume</button>
+<a id="rp-original" target="_blank" rel="noopener" hidden>View original resume</a></div>
+<p class="muted small">Text extraction and masking run locally. Only eligible sanitized text is submitted for parsing. The status is saved and survives page refresh.</p>
+</section>
+<section class="card" id="rp-review-panel" hidden><p class="rp-eyebrow">03 · REVIEW &amp; FINALIZE</p><h2>Professional-data review</h2>
+<p class="notice">Compare every fact with the original resume. Schema validation does not establish factual accuracy.</p>
+<div id="rp-professional"></div>
+<label class="rp-check"><input id="rp-facts" type="checkbox"><span>I have checked the candidate identity, title, employers, dates, skills, education and achievements against the original resume for this version.</span></label>
+<div class="actions rp-actions"><button id="rp-approve" class="btn" type="button">Approve reviewed version</button><button id="rp-reject" class="btn secondary" type="button">Needs correction</button></div>
+<p id="rp-review-note" class="muted" role="status"></p>
+</section>
+<section class="card" id="rp-export-panel" hidden><p class="rp-eyebrow">04 · JOBMITRA ATS RESUME</p><h2>Create &amp; download</h2>
+<p class="muted">The approved professional data and local candidate name are used. Personal contacts and residential addresses are excluded.</p>
+<button id="rp-generate" class="btn" type="button">Generate ATS Resumes</button>
+<div id="rp-downloads" class="rp-downloads"></div></section>
+</div></div>
+{% endblock %}

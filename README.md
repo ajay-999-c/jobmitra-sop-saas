@@ -1,5 +1,10 @@
 # Jobmitra — Company Management and JD Tracking
 
+The opt-in [Resume Processing demo](docs/resume-processing.md) adds a localhost-only
+`/resume-processing` workspace backed by the existing processor SQLite database and
+separate Python environment. Setup, Windows commands, offline tests and the manual
+upload/review/ATS-download flow are documented there; no PostgreSQL migration is required.
+
 Lightweight modular monolith for Python 3.12+, FastAPI, PostgreSQL, SQLAlchemy 2,
 psycopg 3, Alembic and Pydantic Settings. Jinja2 and locally bundled HTMX provide
 the lightweight UI. Phase 1A provides two Company

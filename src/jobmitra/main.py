@@ -17,6 +17,8 @@ from jobmitra.modules.companies.router import MODULE_DIR, CompanyAssets
 from jobmitra.modules.companies.router import router as companies_router
 from jobmitra.modules.email_studio.router import router as email_studio_router
 from jobmitra.modules.jobs.router import router as jobs_router
+from jobmitra.modules.resume_processing.router import ResumeBodyLimit
+from jobmitra.modules.resume_processing.router import router as resume_processing_router
 from jobmitra.modules.staff.router import router as staff_router
 from jobmitra.modules.worklog.router import router as worklog_router
 
@@ -34,6 +36,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(title="Jobmitra", version="0.1.0", lifespan=lifespan)
     app.add_middleware(CandidateJSONLimit)
+    app.add_middleware(ResumeBodyLimit, max_bytes=config.resume_max_bytes)
     app.mount(
         "/static/companies",
         CompanyAssets(directory=str(MODULE_DIR / "static")),
@@ -60,6 +63,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         name="alter-resumes-static",
     )
     app.include_router(email_studio_router)
+    app.include_router(resume_processing_router)
     app.include_router(staff_router)
     app.include_router(jobs_router)
     app.include_router(worklog_router)

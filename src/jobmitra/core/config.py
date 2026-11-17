@@ -32,6 +32,10 @@ class Settings(BaseSettings):
     document_max_bytes: int = Field(default=12 * 1024 * 1024, ge=1024, le=100 * 1024 * 1024)
     resume_max_bytes: int = Field(default=10 * 1024 * 1024, ge=1024, le=100 * 1024 * 1024)
     ai_enabled: bool = False
+    resume_processing_enabled: bool = False
+    resume_processing_repo: Path | None = None
+    resume_processing_python: Path | None = None
+    resume_processing_database: Path | None = None
     office_timezone: str = "Asia/Kolkata"
 
     @field_validator("office_timezone")
