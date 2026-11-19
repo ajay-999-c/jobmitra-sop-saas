@@ -1,0 +1,9 @@
+{% extends 'ats_v2/base.html' %}
+{% block title %}JD Workspace (New){% endblock %}
+{% block breadcrumb %}JD Workspace{% endblock %}
+{% block scripts %}<script type="module" src="/static/ats-v2/workspace.mjs"></script>{% endblock %}
+{% block content %}
+<div class="ats-hero"><div><p class="ats-eyebrow">HIRING · FROM REQUIREMENT TO JOINING</p><h1 id="ats-page-title">JD Dashboard</h1><p id="ats-page-subtitle" class="ats-subtitle">Targets, hiring progress and candidate journeys in one workspace.</p></div><div class="ats-actions"><a class="ats-btn ats-secondary" href="/candidate-search-v2">Find candidates</a><button class="ats-btn" id="ats-create-jd" type="button">＋ Create JD</button></div></div>
+<nav class="ats-tabs" aria-label="JD Workspace views"><button type="button" data-view="dashboard" aria-current="page">Dashboard</button><button type="button" data-view="details">JD Details</button><button type="button" data-view="workflow">Hiring Workflow</button><button type="button" data-view="pipeline">Candidate Pipeline</button><button type="button" data-view="history">Activity History</button></nav>
+<div id="ats-workspace" aria-live="polite"><div class="ats-empty">Loading JD workspace…</div></div>
+{% endblock %}

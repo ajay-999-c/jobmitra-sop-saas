@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#d51d28">
+  <title>{% block title %}JD Workspace{% endblock %} · Jobmitra</title>
+  <link rel="icon" href="/static/stage2/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/ats-v2/workspace.css">
+  {% block scripts %}{% endblock %}
+</head>
+<body class="ats-v2">
+  <a class="ats-skip" href="#ats-main">Skip to content</a>
+  <header class="ats-topbar">
+    <a class="ats-brand" href="/overview" aria-label="Jobmitra overview"><img src="/static/stage2/jobmitra-logo.jpeg" alt="Jobmitra.com — Your online Job friend" width="854" height="349"></a>
+    <nav class="ats-global-nav" aria-label="Main">
+      <a href="/overview">Overview</a><a href="/companies">Companies</a><a href="/requirements">JD Tracking</a><a href="/candidate-desk">Candidate Desk</a><a href="/jd-workspace-v2" {% if request.url.path == '/jd-workspace-v2' %}aria-current="page"{% endif %}>JD Workspace (New)</a><a href="/candidate-search-v2" {% if request.url.path != '/jd-workspace-v2' %}aria-current="page"{% endif %}>Candidate Desk (New)</a>
+    </nav>
+  </header>
+  <div class="{% block layout_class %}ats-layout{% endblock %}">
+    {% block sidebar %}
+    <aside class="ats-sidebar">
+      <p class="ats-nav-label">Recruitment workspace</p>
+      <a class="ats-side-link" href="/jd-workspace-v2" {% if request.url.path == '/jd-workspace-v2' %}aria-current="page"{% endif %}><span aria-hidden="true">▦</span> JD Dashboard</a>
+      <a class="ats-side-link" href="/jd-workspace-v2?view=create"><span aria-hidden="true">＋</span> Create JD</a>
+      <a class="ats-side-link" href="/candidate-search-v2" {% if request.url.path != '/jd-workspace-v2' %}aria-current="page"{% endif %}><span aria-hidden="true">⌕</span> Candidate Search</a>
+      <a class="ats-side-link" href="/candidate-search-v2?register=1"><span aria-hidden="true">＋</span> Register Candidate</a>
+      <div class="ats-sidebar-rule"></div>
+      <p class="ats-nav-label">Existing Jobmitra</p>
+      <a class="ats-side-link" href="/requirements">JD Tracking ↗</a>
+      <a class="ats-side-link" href="/candidate-desk">Candidate Desk ↗</a>
+      <a class="ats-side-link" href="/companies">Existing Companies ↗</a>
+      <p class="ats-sidebar-note">This workspace uses imported companies and its own candidates, JDs and history. Company changes become available after the next import.</p>
+    </aside>
+    {% endblock %}
+    <main id="ats-main" class="ats-main">
+      {% block breadcrumb_row %}<p class="ats-crumb">Jobmitra / Recruitment / {% block breadcrumb %}Workspace{% endblock %}</p>{% endblock %}
+      <div id="ats-error" class="ats-alert ats-error" role="alert" hidden></div>
+      <div id="ats-notice" class="ats-alert ats-success" role="status" hidden></div>
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+  <dialog id="ats-dialog" class="ats-dialog" aria-labelledby="ats-dialog-title"><div id="ats-dialog-content"></div></dialog>
+</body>
+</html>

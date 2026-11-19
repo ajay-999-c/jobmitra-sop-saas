@@ -1,0 +1,78 @@
+{% extends 'ats_v2/base.html' %}
+{% block title %}Candidate Desk (New){% endblock %}
+{% block layout_class %}ats-candidate-desk{% endblock %}
+{% block sidebar %}{% endblock %}
+{% block breadcrumb_row %}{% endblock %}
+{% block scripts %}
+<link rel="stylesheet" href="/static/ats-v2/candidate-desk.css">
+<script type="module" src="/static/ats-v2/search.mjs"></script>
+{% endblock %}
+{% block content %}
+<div class="desk-heading"><h1>Candidate Desk</h1><button class="ats-btn" id="ats-register" type="button">＋ Register Candidate</button></div>
+<nav class="ats-tabs desk-nav" aria-label="Candidate Desk">
+  <a href="/candidate-desk">Today <span>· Legacy</span></a>
+  <a href="/candidates">Candidates <span>· Legacy</span></a>
+  <a href="/candidate-search-v2" aria-current="page">Candidate Search</a>
+  <a href="/office-visits">Office Visits <span>· Legacy</span></a>
+  <a href="/jd-workspace-v2?view=pipeline">JD Pools <span>↗</span></a>
+  <details class="desk-disclosure">
+    <summary>More</summary>
+    <div class="desk-menu" aria-label="Existing Jobmitra modules">
+      <a href="/job-search-requests">Job Search Requests · Legacy</a>
+      <a href="/candidate-search-v2?section=parsed-resumes">Parsed Resumes</a>
+      <a href="/resume-processing">Resume Processing · Separate studio</a>
+      <a href="/candidates/foundit-import">Foundit Paste · Legacy</a>
+      <a href="/domains">Domain Catalog · Legacy</a>
+    </div>
+  </details>
+</nav>
+<section id="ats-parsed-mode" aria-labelledby="ats-parsed-title" hidden>
+  <h2 id="ats-parsed-title">Parsed Resumes</h2>
+  <p>Search for an existing SQLite candidate, then select their name to view parsed versions or attach reviewed JSON. A current original resume is required to attach a new parse.</p>
+</section>
+<form id="ats-search-form" aria-label="Candidate search">
+  <div class="desk-primary">
+    <label>Skills / Keywords<input name="keywords" placeholder="e.g. Python, FastAPI" maxlength="500"></label>
+    <label>Location<input name="location" placeholder="Current or preferred" maxlength="200"></label>
+    <fieldset><legend>Experience · years</legend><div class="desk-pair">
+      <input name="experience_min" aria-label="Minimum experience in years" placeholder="Min" type="number" min="0" max="100" step="0.5">
+      <input name="experience_max" aria-label="Maximum experience in years" placeholder="Max" type="number" min="0" max="100" step="0.5">
+    </div></fieldset>
+    <fieldset><legend>Expected salary · ₹</legend><div class="desk-pair">
+      <input name="salary_min" aria-label="Minimum expected salary in rupees" placeholder="Min" type="number" min="0" max="10000000000" step="1">
+      <input name="salary_max" aria-label="Maximum expected salary in rupees" placeholder="Max" type="number" min="0" max="10000000000" step="1">
+    </div></fieldset>
+    <button class="ats-btn desk-search-button" type="submit">Search</button>
+  </div>
+  <div class="desk-options">
+    <label>Period<select name="salary_period"><option value="MONTHLY">Monthly</option><option value="ANNUAL">Annual</option></select></label>
+    <label>Salary basis<select name="salary_basis"><option value="INDICATIVE">Any / Indicative</option><option value="CTC">CTC</option><option value="GROSS">Gross</option><option value="IN_HAND">In hand</option></select></label>
+    <label>Keywords<select name="match"><option value="ANY">Match any</option><option value="ALL">Match all</option></select></label>
+    <details class="desk-disclosure" id="ats-more-filters">
+      <summary>More Filters<span id="ats-advanced-count"></span></summary>
+      <div class="desk-advanced">
+        <label>Maximum notice · days<input name="max_notice_days" type="number" min="0" max="730"></label>
+        <label>Availability<select name="availability"><option value="">Any availability</option><option value="AVAILABLE">Available</option><option value="TO_CONFIRM">To confirm</option><option value="UNAVAILABLE">Unavailable</option></select></label>
+        <label class="ats-check"><input name="include_unknown_experience" type="checkbox" checked> Include unknown experience</label>
+        <label class="ats-check"><input name="include_unknown_salary" type="checkbox" checked> Include unknown or non-comparable salary</label>
+        <label class="ats-check"><input name="include_unknown_notice" type="checkbox" checked> Include unknown notice</label>
+        <button class="ats-btn ats-small" type="submit">Apply filters</button>
+      </div>
+    </details>
+    <button class="ats-link" id="ats-clear-filters" type="button">Clear Filters</button>
+  </div>
+</form>
+<div class="desk-results-layout">
+  <section class="ats-results" aria-label="Candidate results">
+    <div class="ats-result-head"><h2 id="ats-result-count" aria-live="polite">Candidate Results</h2><label>Sort by<select id="ats-sort"><option value="relevance">Relevance</option><option value="recent">Recently updated</option><option value="experience">Experience · high to low</option></select></label></div>
+    <p id="ats-salary-context" class="ats-hint" hidden></p>
+    <div id="ats-results" class="ats-stack" aria-live="polite"><div class="ats-empty">Loading candidates…</div></div>
+    <div id="ats-pagination" class="ats-pagination"></div>
+  </section>
+  <section class="ats-card desk-profile-panel" id="ats-profile-panel" aria-label="Candidate details" hidden>
+    <div class="desk-profile-tools"><button class="ats-btn ats-secondary ats-small" id="ats-close-profile" type="button">Close profile</button></div>
+    <div id="ats-profile" class="ats-profile"></div>
+  </section>
+</div>
+<dialog id="ats-profile-drawer" aria-label="Candidate details"></dialog>
+{% endblock %}

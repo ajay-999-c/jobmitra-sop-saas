@@ -23,13 +23,15 @@
 ('/overview', 'Overview', request.url.path == '/overview'),
 ('/companies', 'Companies', request.url.path.startswith('/companies')),
 ('/requirements', 'JD Tracking', request.url.path.startswith('/requirements')),
+('/jd-workspace-v2', 'JD Workspace (New)', request.url.path == '/jd-workspace-v2'),
 ('/candidate-desk', 'Candidate Desk', request.url.path.startswith(('/candidate', '/office-visits', '/job-search-requests', '/domains'))),
+('/candidate-search-v2', 'Candidate Desk (New)', false),
 ('/staff', 'Staff', request.url.path == '/staff'),
 ('/alter-resumes', 'Alter Resumes', request.url.path == '/alter-resumes'),
 ('/resume-processing', 'Resume Processing', request.url.path == '/resume-processing'),
 ('/tasks', 'Tasks', request.url.path == '/tasks'),
 ('/email', 'Email', request.url.path.startswith('/email'))
-] %}<a href="{{ href }}" {% if active %}aria-current="page"{% endif %}>{{ label }}</a>{% endfor %}
+] %}{% if label not in ('JD Workspace (New)', 'Candidate Desk (New)') or request.app.state.settings.ats_v2_enabled %}<a href="{{ href }}" {% if active %}aria-current="page"{% endif %}>{{ label }}</a>{% endif %}{% endfor %}
 </nav>
 <label class="recorder">Working as<select id="recording-as">
 <option value="">Choose staff member</option>{% for member in staff if member.is_active %}<option value="{{ member.id }}">{{ member.display_name }}</option>{% endfor %}</select></label>

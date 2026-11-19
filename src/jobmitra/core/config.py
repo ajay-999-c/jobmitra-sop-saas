@@ -36,6 +36,9 @@ class Settings(BaseSettings):
     resume_processing_repo: Path | None = None
     resume_processing_python: Path | None = None
     resume_processing_database: Path | None = None
+    ats_v2_enabled: bool = False
+    ats_v2_database: Path | None = None
+    ats_v2_resume_storage_root: Path | None = None
     office_timezone: str = "Asia/Kolkata"
 
     @field_validator("office_timezone")

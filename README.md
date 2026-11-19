@@ -1,5 +1,14 @@
 # Jobmitra — Company Management and JD Tracking
 
+The experimental ATS now uses an explicitly imported SQLite Company Master.
+See [master migration, incremental imports and recovery](docs/postgres-masters-to-sqlite-migration.md).
+
+The additive [ATS JD Workspace and Candidate Search](docs/ats-v2-workspace.md)
+runs beside legacy JD Tracking. It uses a separate, explicitly initialized SQLite database for imported Company
+Master records and new ATS candidates, JDs and history. PostgreSQL remains the
+legacy source; company updates arrive through an explicit one-way import.
+The feature is disabled by default; setup, API, Windows commands and limits are documented.
+
 The opt-in [Resume Processing demo](docs/resume-processing.md) adds a localhost-only
 `/resume-processing` workspace backed by the existing processor SQLite database and
 separate Python environment. Setup, Windows commands, offline tests and the manual

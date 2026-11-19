@@ -10,6 +10,10 @@ from jobmitra.core.config import Settings, get_settings
 from jobmitra.core.database import build_engine, check_database
 from jobmitra.core.pages import PACKAGE_DIR, templates
 from jobmitra.modules.alter_resumes.router import router as alter_resumes_router
+from jobmitra.modules.ats_v2.database import build_ats_engine
+from jobmitra.modules.ats_v2.database import validate as validate_ats_database
+from jobmitra.modules.ats_v2.router import AtsBodyLimit
+from jobmitra.modules.ats_v2.router import router as ats_v2_router
 from jobmitra.modules.candidates.limits import CandidateJSONLimit
 from jobmitra.modules.candidates.resumes import router as resumes_router
 from jobmitra.modules.candidates.router import router as candidates_router
@@ -29,14 +33,31 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         app.state.engine = build_engine(config)
+        app.state.ats_v2_engine = None
+        ats_engine = None
         try:
+            if config.ats_v2_enabled and config.ats_v2_database:
+                try:
+                    path = config.ats_v2_database.expanduser().resolve()
+                    if path.is_file():
+                        ats_engine = build_ats_engine(path)
+                        validate_ats_database(ats_engine)
+                        app.state.ats_v2_engine = ats_engine
+                except (SQLAlchemyError, RuntimeError, OSError, ValueError):
+                    # An unavailable new store must not stop the legacy application.
+                    if ats_engine is not None:
+                        ats_engine.dispose()
+                    ats_engine = None
             yield
         finally:
+            if ats_engine is not None:
+                ats_engine.dispose()
             app.state.engine.dispose()
 
     app = FastAPI(title="Jobmitra", version="0.1.0", lifespan=lifespan)
     app.add_middleware(CandidateJSONLimit)
     app.add_middleware(ResumeBodyLimit, max_bytes=config.resume_max_bytes)
+    app.add_middleware(AtsBodyLimit, max_bytes=config.resume_max_bytes)
     app.mount(
         "/static/companies",
         CompanyAssets(directory=str(MODULE_DIR / "static")),
@@ -67,6 +88,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(staff_router)
     app.include_router(jobs_router)
     app.include_router(worklog_router)
+    app.mount(
+        "/static/ats-v2",
+        CompanyAssets(directory=str(PACKAGE_DIR / "static" / "ats_v2")),
+        name="ats-v2-static",
+    )
+    app.include_router(ats_v2_router)
 
     @app.exception_handler(HTTPException)
     async def portal_error(request: Request, error: HTTPException):

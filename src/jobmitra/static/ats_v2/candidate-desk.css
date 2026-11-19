@@ -1,0 +1,94 @@
+.ats-candidate-desk .ats-main { padding: 22px clamp(14px, 2.5vw, 44px) 54px; }
+.desk-heading, .desk-profile-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.desk-heading { margin-bottom: 10px; }
+.desk-heading h1 { margin: 0; font-size: clamp(24px, 3vw, 32px); }
+.desk-nav.ats-tabs { flex-wrap: wrap; overflow: visible; margin-bottom: 16px; align-items: center; }
+.desk-nav a span { color: #59677b; }
+#ats-parsed-mode { padding: 10px 12px; margin-bottom: 12px; border-inline-start: 3px solid var(--ats-brand); }
+#ats-parsed-mode h2 { margin: 0 0 4px; font-size: 16px; }
+#ats-parsed-mode p { margin: 0; }
+.desk-disclosure { position: relative; }
+.desk-disclosure summary { cursor: pointer; padding: 8px 10px; color: #33445a; font-size: 12px; font-weight: 700; }
+.desk-menu, .desk-advanced {
+  position: absolute;
+  z-index: 3;
+  inset-block-start: 100%;
+  inset-inline-start: 0;
+  padding: 12px;
+  border: 1px solid var(--ats-line);
+  border-radius: 8px;
+  background: white;
+  box-shadow: 0 4px 12px #17243a14;
+}
+.desk-menu { display: grid; }
+.desk-nav .desk-menu a { padding: 8px; }
+#ats-search-form {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--ats-line);
+  border-radius: 10px;
+  background: white;
+  margin-bottom: 16px;
+}
+.desk-primary, .desk-pair, .desk-advanced { display: grid; gap: 8px; }
+.desk-primary { grid-template-columns: minmax(0, 2.2fr) minmax(0, 1.1fr) minmax(0, 1.2fr) minmax(0, 1.5fr) auto; align-items: end; }
+.desk-pair { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+#ats-search-form fieldset { border: 0; padding: 0; margin: 0; }
+#ats-search-form legend { padding: 0; margin-bottom: 5px; }
+#ats-search-form label, #ats-search-form legend { color: #39495d; font-size: 12px; font-weight: 650; }
+#ats-search-form input:not([type=checkbox]), #ats-search-form select { min-height: 38px; padding: 6px 8px; }
+.desk-options { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-top: 8px; }
+.desk-options > label { display: flex; align-items: center; gap: 6px; }
+.desk-advanced { width: min(320px, calc(100vw - 56px)); }
+.desk-results-layout { display: grid; gap: 16px; align-items: start; }
+.desk-results-layout > *, .desk-profile-panel { min-width: 0; overflow-wrap: anywhere; }
+.desk-profile-panel { padding: 14px; }
+.desk-profile-tools { justify-content: flex-end; margin-bottom: 10px; }
+.desk-profile-panel .ats-profile { position: static; padding: 0; overflow: visible; max-height: none; }
+.desk-profile-panel .ats-json { white-space: pre-wrap; }
+.desk-results-layout .ats-result-head { align-items: center; margin-bottom: 10px; }
+.desk-results-layout .ats-result-head label { width: auto; min-width: 132px; }
+.desk-results-layout .ats-result { padding: 12px 14px; box-shadow: none; }
+.desk-results-layout .ats-result-name { text-align: start; overflow-wrap: anywhere; }
+.desk-results-layout .ats-result-facts { margin: 6px 0; }
+.desk-results-layout .ats-taglist { margin: 6px 0 0; }
+#ats-profile-drawer {
+  box-sizing: border-box;
+  inset: 0 0 0 auto;
+  margin: 0;
+  border: 0;
+  padding: 0;
+  width: min(100%, 550px);
+  height: 100%;
+  max-height: 100%;
+  max-width: 100%;
+  color: inherit;
+  background: white;
+  overflow: auto;
+}
+#ats-profile-drawer::backdrop { background: #14213666; }
+#ats-profile-drawer .desk-profile-panel { min-height: 100%; border: 0; border-radius: 0; }
+@media (min-width: 1280px) {
+  .desk-results-layout.has-profile { grid-template-columns: minmax(580px, 63fr) minmax(390px, 37fr); }
+  .desk-results-layout .desk-profile-panel { position: sticky; top: 12px; max-height: calc(100dvh - 24px); overflow: auto; }
+}
+@media (max-width: 1023px) {
+  .desk-primary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .desk-search-button { grid-column: 1 / -1; justify-self: end; }
+  #ats-more-filters { position: static; }
+  .desk-advanced { position: static; width: 100%; box-shadow: none; margin-top: 4px; }
+  #ats-more-filters[open] { flex-basis: 100%; order: 1; }
+}
+@media (max-width: 540px) {
+  .desk-primary > label { grid-column: 1 / -1; }
+  .desk-options { gap: 8px; }
+  .desk-options > label { flex: 1 1 120px; }
+  .desk-menu { inset-inline-start: auto; inset-inline-end: 0; }
+  .desk-search-button { justify-self: stretch; }
+}
