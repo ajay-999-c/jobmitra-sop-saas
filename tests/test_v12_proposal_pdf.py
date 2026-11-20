@@ -3,9 +3,14 @@
 import base64
 import hashlib
 import io
+import os
 import re
+import subprocess
+import xml.etree.ElementTree as ET
+import zipfile
 from concurrent.futures import ThreadPoolExecutor
 from html import unescape
+from pathlib import Path
 from unittest.mock import patch
 from uuid import uuid4
 
@@ -91,9 +96,17 @@ def test_pdf_exact_terms_and_decimal_amounts_no_master_changes(
     assert len(reader.pages) == 2
     assert tuple(round(float(n)) for n in reader.pages[0].mediabox[2:]) == (595, 842)
     extracted = compact(" ".join(p.extract_text() for p in reader.pages))
-    assert "Synthetic Client Company" in extracted and amount in extracted
+    assert "Synthetic Client Company" in extracted
     assert record["snapshot"]["fee_amount"] == amount
     assert str(days) + " whole days" in extracted
+    assert f"{fee}% of Annual CTC" in extracted
+    assert "Fee calculation basis Candidate Annual CTC" in extracted
+    assert "Payment terms Within 7 days of candidate joining, against invoice" in extracted
+    assert "Applicable taxes" not in extracted.split("Terms & Conditions", 1)[0]
+    assert "3 Ace" not in extracted
+    for number, page in enumerate(reader.pages, 1):
+        assert record["reference"] in compact(page.extract_text())
+        assert f"Page {number} of 2" in page.extract_text()
     for i, clause in enumerate(proposal_pdf.clauses(fee), 1):
         plain = unescape(re.sub(r"<[^>]+>", "", clause))
         assert compact(plain) in extracted, i
@@ -104,13 +117,30 @@ def test_pdf_exact_terms_and_decimal_amounts_no_master_changes(
         "Signature",
         "Date",
         "Company seal (optional)",
-        "This unsigned document does not record acceptance.",
+        "Chief Executive Officer",
     ]:
         assert label in extracted
+    for removed in [
+        "Unsigned proposal",
+        "Salary-days illustration",
+        "Rounded down",
+        "illustrative only",
+        "This unsigned document does not record acceptance.",
+    ]:
+        assert removed.casefold() not in extracted.casefold()
+    assert record["snapshot"]["pdf_renderer"] == 2
+    assert record["snapshot"]["layout_source_sha256"] == proposal_pdf.TERMS["layout_source_sha256"]
     assert record["status"] == "PREPARED" and record["events"] == []
     root = pdf_client.app.state.settings.unified_v12_proposal_storage_root
-    assert root.stat().st_mode & 0o077 == 0
-    assert all(p.stat().st_mode & 0o077 == 0 for p in root.iterdir())
+    if os.name == "posix":
+        assert root.stat().st_mode & 0o077 == 0
+        assert all(p.stat().st_mode & 0o077 == 0 for p in root.iterdir())
+    else:
+        # Windows validates protected DACLs through handles, not Unix mode bits.
+        from jobmitra.modules.ats_v2.proposal_windows import WindowsStore
+
+        with WindowsStore().root(root):
+            pass
     with store[0].connect() as conn:
         assert local_state(conn) == before
     validate(store[0])
@@ -136,6 +166,39 @@ def test_terms_are_word_for_word_original_source():
         hashlib.sha256(proposal.STUDIO_FILE.read_bytes()).hexdigest()
         == proposal_pdf.TERMS["source_sha256"]
     )
+
+
+def test_final_word_reference_clauses_logo_and_six_commercial_rows():
+    source = Path(__file__).parents[1] / proposal_pdf.TERMS["layout_source_file"]
+    assert (
+        hashlib.sha256(source.read_bytes()).hexdigest()
+        == proposal_pdf.TERMS["layout_source_sha256"]
+    )
+    ns = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
+    with zipfile.ZipFile(source) as archive:
+        document = ET.fromstring(archive.read("word/document.xml"))
+        assert archive.read("word/media/image1.jpg") == proposal_pdf.LOGO.read_bytes()
+    # Numbering is a separate Word property; compare the clause text nodes.
+    paragraphs = [
+        "".join(t.text or "" for t in p.findall(".//w:t", ns))
+        for p in document.findall(".//w:p", ns)
+    ]
+    for clause in proposal_pdf.clauses("8.33"):
+        assert unescape(re.sub(r"<[^>]+>", "", clause)) in paragraphs
+    table = document.find(".//w:tbl", ns)
+    rows = [
+        ["".join(t.text or "" for t in c.findall(".//w:t", ns)) for c in r.findall("w:tc", ns)]
+        for r in table.findall("w:tr", ns)
+    ]
+    assert len(rows) == 6
+    assert [r[0] for r in rows] == [
+        "Consultant",
+        "Client",
+        "Recruitment service fee",
+        "Fee calculation basis",
+        "Salary-days",
+        "Payment terms",
+    ]
 
 
 def test_extension_explicit_optional_atomic_and_v2_refused(client, store, v2):
@@ -315,7 +378,14 @@ def test_invalid_or_unsafe_signed_uploads_refused(pdf_client, store, kind):
     if kind == "symlink":
         root = pdf_client.app.state.settings.unified_v12_proposal_storage_root
         alternate = store[-1] / "symlink"
-        alternate.symlink_to(root, target_is_directory=True)
+        if os.name == "nt":
+            subprocess.run(
+                ["cmd", "/c", "mklink", "/J", str(alternate), str(root)],
+                check=True,
+                capture_output=True,
+            )
+        else:
+            alternate.symlink_to(root, target_is_directory=True)
         pdf_client.app.state.settings.unified_v12_proposal_storage_root = alternate
     data = {
         "actor_name": "Synthetic reviewer",
@@ -385,7 +455,19 @@ def test_chunked_request_limit_and_html_injection(pdf_client, store):
         headers={**HEADERS, "Idempotency-Key": str(uuid4()), "Content-Type": "application/json"},
     )
     assert response.status_code == 413
-    record = generated(pdf_client, store, consultant="<script>alert(1)</script>")
-    pdf = pdf_client.get(route(store) + "/" + record["id"] + "/pdf").content
+    assert (
+        post(pdf_client, route(store), body(consultant="<script>alert(1)</script>")).status_code
+        == 422
+    )
+    pdf = proposal_pdf.render(
+        {
+            "company_name": "<script>alert(1)</script>",
+            "consultant": proposal_pdf.CONSULTANT,
+            "reference": "ESCAPE-TEST",
+            "issue_date": "2026-11-20",
+            "fee_percent": "6",
+            "clauses": proposal_pdf.clauses("6"),
+        }
+    )
     text = " ".join(p.extract_text() for p in PdfReader(io.BytesIO(pdf)).pages)
     assert "<script>alert(1)</script>" in text

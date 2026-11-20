@@ -1,21 +1,20 @@
-"""PDF rendering only. No email delivery or database access."""
+"""Existing ReportLab proposal renderer, following the finalized Word reference."""
 
 import io
 import json
-from decimal import Decimal
 from html import escape
 from pathlib import Path
 
-import reportlab
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_LEFT
 from reportlab.lib.pagesizes import A4
-from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
-from reportlab.lib.units import mm
+from reportlab.lib.styles import ParagraphStyle
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.pdfgen import canvas as pdfcanvas
 from reportlab.platypus import (
     CondPageBreak,
+    Flowable,
     KeepTogether,
     Paragraph,
     SimpleDocTemplate,
@@ -29,23 +28,69 @@ from .common import AtsError
 TERMS = json.loads(Path(__file__).with_name("proposal_terms.json").read_text())
 TITLE = "Recruitment Services Proposal & Terms of Engagement"
 CONSULTANT = "e - Friend Solutions India (Jobmitra.com)"
-LOGO = Path(__file__).parents[2] / "static" / "stage2" / "jobmitra-logo.jpeg"
+ASSETS = Path(__file__).parents[2] / "static" / "ats_v2" / "proposal-assets"
+LOGO = ASSETS / "jobmitra-logo.jpg"
+RENDERER_VERSION = 2
+DAYS = {"6": 21, "8.33": 30}
+INK, MUTED, SUBTLE, RED, LINE = [
+    colors.HexColor(value) for value in ["#1D2C43", "#53647B", "#7B899D", "#D7192A", "#E1E7EF"]
+]
+MARGIN, WIDTH = 56.15, A4[0] - 112.3
 
-# ReportLab's bundled, redistributable TrueType faces give deterministic embedding.
-font_dir = Path(reportlab.__file__).parent / "fonts"
-pdfmetrics.registerFont(TTFont("Proposal", str(font_dir / "Vera.ttf")))
-pdfmetrics.registerFont(TTFont("Proposal-Bold", str(font_dir / "VeraBd.ttf")))
+# The reference uses Inter. These licensed static instances retain its exact
+# outlines and use a renamed family to respect the reserved font name.
+pdfmetrics.registerFont(TTFont("Proposal", str(ASSETS / "JobmitraProposal-Regular.ttf")))
+pdfmetrics.registerFont(TTFont("Proposal-Bold", str(ASSETS / "JobmitraProposal-Bold.ttf")))
 pdfmetrics.registerFontFamily("Proposal", normal="Proposal", bold="Proposal-Bold")
 
 
 def clauses(percent):
-    days = int(Decimal(percent) * 365 / 100)
-    return [c.format(percent=percent, days=days) for c in TERMS["clauses"]]
+    if percent not in DAYS:
+        raise AtsError("Choose the approved 6% or 8.33% proposal.")
+    return [c.format(percent=percent, days=DAYS[percent]) for c in TERMS["clauses"]]
+
+
+class Section(Flowable):
+    """The source's heading and bottom rule; keep it with the following text."""
+
+    def __init__(self, heading, style, rule=RED):
+        super().__init__()
+        self.paragraph, self.rule = Paragraph(heading, style), rule
+        self.keepWithNext = True
+
+    def wrap(self, width, height):
+        self.width = width
+        _, self.text_height = self.paragraph.wrap(width, height)
+        self.height = self.text_height + 10
+        return width, self.height
+
+    def draw(self):
+        self.paragraph.drawOn(self.canv, 0, 10)
+        self.canv.setStrokeColor(self.rule)
+        self.canv.setLineWidth(1.25 if self.rule == RED else 0.75)
+        self.canv.line(0, 2, self.width, 2)
+
+
+class NumberedCanvas(pdfcanvas.Canvas):
+    def __init__(self, *args, footer, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._page_states, self._footer = [], footer
+
+    def showPage(self):
+        self._page_states.append(dict(self.__dict__))
+        self._startPage()
+
+    def save(self):
+        total = len(self._page_states)
+        for state in self._page_states:
+            self.__dict__.update(state)
+            self._footer(self, total)
+            super().showPage()
+        super().save()
 
 
 def render(snapshot):
     s = snapshot
-    # Fail explicitly instead of silently painting missing glyphs in a legal document.
     supported = pdfmetrics.getFont("Proposal").face.charWidths
     if any(ord(c) not in supported for c in json.dumps(s, ensure_ascii=False) if ord(c) > 127):
         raise AtsError("These document details need an additional font. No PDF was saved.", 422)
@@ -53,31 +98,43 @@ def render(snapshot):
     doc = SimpleDocTemplate(
         output,
         pagesize=A4,
-        rightMargin=19 * mm,
-        leftMargin=19 * mm,
-        topMargin=27 * mm,
-        bottomMargin=19 * mm,
+        rightMargin=MARGIN,
+        leftMargin=MARGIN,
+        topMargin=98,
+        bottomMargin=73,
         title=TITLE,
         author=s["consultant"],
     )
-    styles = getSampleStyleSheet()
-    for name, size, leading, color in [
-        ("Body", 9, 14, "#344256"),
-        ("Small", 8, 12, "#627084"),
-        ("TitleP", 21, 27, "#172a40"),
-        ("Section", 12, 18, "#172a40"),
-    ]:
-        styles.add(
-            ParagraphStyle(
-                name=name,
-                fontName="Proposal",
-                fontSize=size,
-                leading=leading,
-                textColor=colors.HexColor(color),
-                spaceAfter=7,
-                alignment=TA_LEFT,
-            )
+    # Remove the default frame's extra inset; Word's table/text edges align.
+    doc.leftMargin -= 6
+    doc.rightMargin -= 6
+    doc.topMargin -= 6
+    doc.bottomMargin -= 6
+    styles = {
+        name: ParagraphStyle(
+            name,
+            fontName="Proposal-Bold" if bold else "Proposal",
+            fontSize=size,
+            leading=leading,
+            textColor=color,
+            alignment=TA_LEFT,
+            spaceAfter=after,
         )
+        for name, size, leading, color, bold, after in [
+            ("Body", 10, 14.9, INK, False, 0),
+            ("Label", 9, 13.45, MUTED, False, 0),
+            ("Value", 9.5, 13.45, INK, True, 0),
+            ("Meta", 9, 12.2, SUBTLE, False, 0),
+            ("Title", 20.5, 27.8, INK, True, 0),
+            ("Section", 13, 18, INK, True, 0),
+            ("Intro", 9.5, 12.9, MUTED, False, 0),
+            ("Number", 10, 14.9, RED, True, 0),
+            ("Name", 11, 14.9, INK, True, 0),
+            ("Signoff", 9.5, 12.9, MUTED, False, 0),
+            ("Website", 9, 12.2, RED, False, 0),
+            ("Footer", 8, 10, SUBTLE, False, 0),
+        ]
+    }
 
     def p(value, style="Body"):
         return Paragraph(value, styles[style])
@@ -85,140 +142,174 @@ def render(snapshot):
     def safe(value):
         return escape(str(value or ""))
 
-    def page(canvas, document):
+    def header(canvas, document):
         canvas.saveState()
-        canvas.drawImage(
-            str(LOGO),
-            19 * mm,
-            A4[1] - 20 * mm,
-            width=32 * mm,
-            height=10 * mm,
-            preserveAspectRatio=True,
-            mask="auto",
-        )
+        canvas.drawImage(str(LOGO), 65.2, A4[1] - 83.15, width=112.3, height=45.9, mask="auto")
+        canvas.setFont("Proposal-Bold", 8.5)
+        canvas.setFillColor(MUTED)
+        canvas.drawRightString(A4[0] - MARGIN, A4[1] - 45.5, "RECRUITMENT SERVICES")
+        canvas.setStrokeColor(LINE)
+        canvas.setLineWidth(0.6)
+        canvas.line(MARGIN, A4[1] - 97.05, A4[0] - MARGIN, A4[1] - 97.05)
+        canvas.restoreState()
+
+    def footer(canvas, total):
+        canvas.saveState()
+        canvas.setStrokeColor(LINE)
+        canvas.setLineWidth(0.6)
+        canvas.line(MARGIN, 62.4, A4[0] - MARGIN, 62.4)
+        # Wrap long references, retaining every character and the page-number area.
+        reference = p(safe(s["reference"]), "Footer")
+        _, height = reference.wrap(WIDTH - 85, 35)
+        reference.drawOn(canvas, MARGIN, 41 - height)
         canvas.setFont("Proposal", 8)
-        canvas.setFillColor(colors.HexColor("#657387"))
-        canvas.drawRightString(A4[0] - 19 * mm, A4[1] - 16 * mm, "RECRUITMENT SERVICES")
-        canvas.setStrokeColor(colors.HexColor("#dfe4eb"))
-        canvas.line(19 * mm, 15 * mm, A4[0] - 19 * mm, 15 * mm)
-        footer = "Unsigned proposal | " + s["reference"]
-        # Full reference stays in the document body; constrain the running footer.
-        if pdfmetrics.stringWidth(footer, "Proposal", 8) > 140 * mm:
-            while pdfmetrics.stringWidth(footer + "...", "Proposal", 8) > 140 * mm:
-                footer = footer[:-1]
-            footer += "..."
-        canvas.drawString(19 * mm, 10 * mm, footer)
-        canvas.drawRightString(A4[0] - 19 * mm, 10 * mm, f"Page {document.page}")
+        canvas.setFillColor(SUBTLE)
+        canvas.drawRightString(A4[0] - MARGIN, 33, f"Page {canvas.getPageNumber()} of {total}")
         canvas.restoreState()
 
     story = [
-        p(safe(TITLE), "TitleP"),
-        p("COMMERCIAL PROPOSAL", "Small"),
-        p("Prepared for <b>" + safe(s["company_name"]) + "</b>"),
+        p("Recruitment Services Proposal", "Title"),
+        Spacer(1, 8),
+        p("&amp; Terms of Engagement", "Title"),
+        Spacer(1, 11),
         p(
             "Reference: <b>"
             + safe(s["reference"])
             + "</b> &nbsp; | &nbsp; Issued: "
             + safe(s["issue_date"]),
-            "Small",
+            "Meta",
         ),
-        Spacer(1, 3 * mm),
+        Spacer(1, 19),
     ]
-    days = int(Decimal(s["fee_percent"]) * 365 / 100)
     rows = [
         ("Consultant", s["consultant"]),
         ("Client", s["company_name"]),
         ("Recruitment service fee", s["fee_percent"] + "% of Annual CTC"),
-        ("Fee calculation basis", "Candidate Annual CTC (basic salary + allowances)"),
-        ("Salary-days illustration", str(days) + " whole days (rounded down; illustrative only)"),
+        ("Fee calculation basis", "Candidate Annual CTC"),
+        ("Salary-days", str(DAYS[s["fee_percent"]]) + " whole days"),
         ("Payment terms", "Within 7 days of candidate joining, against invoice"),
-        ("Applicable taxes", "Additional, if applicable"),
     ]
-    if s.get("annual_ctc"):
-        rows.extend(
-            [
-                ("Illustrative Annual CTC (INR)", s["annual_ctc"]),
-                ("Fee before applicable taxes (INR)", s["fee_amount"]),
-            ]
-        )
     table = Table(
-        [[p(safe(a), "Small"), p("<b>" + safe(b) + "</b>")] for a, b in rows],
-        colWidths=[53 * mm, 119 * mm],
+        [[p(safe(a), "Label"), p(safe(b), "Value")] for a, b in rows],
+        colWidths=[147.6, WIDTH - 147.6],
         hAlign="LEFT",
     )
     table.setStyle(
         TableStyle(
             [
-                ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#f6f8fb")),
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("LEFTPADDING", (0, 0), (-1, -1), 10),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 10),
-                ("TOPPADDING", (0, 0), (-1, -1), 6),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-                ("LINEBELOW", (0, 0), (-1, -1), 0.4, colors.HexColor("#e0e5ed")),
+                ("ROWBACKGROUNDS", (0, 0), (-1, -1), [colors.HexColor("#F5F7FA"), colors.white]),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 7),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 4.75),
+                ("TOPPADDING", (0, 0), (-1, -1), 5.9),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 5.9),
+                ("LINEBELOW", (0, 0), (-1, -1), 0.5, LINE),
             ]
         )
     )
     story.extend(
         [
             table,
-            Spacer(1, 4 * mm),
+            Spacer(1, 21),
+            Section("Terms &amp; Conditions", styles["Section"]),
+            Spacer(1, 8),
             p(
-                "The contractual fee is calculated from the exact percentage of Annual CTC. "
-                "The salary-days illustration does not determine the contractual amount.",
-                "Small",
-            ),
-            p("Terms &amp; Conditions", "Section"),
-            p(
-                "These terms are between <b>"
+                "These terms are between "
                 + safe(s["consultant"])
-                + "</b> (the Consultant) and <b>"
+                + " (the Consultant) and "
                 + safe(s["company_name"])
-                + "</b> (the Client)."
+                + " (the Client).",
+                "Intro",
             ),
+            Spacer(1, 9),
         ]
     )
     for i, clause in enumerate(s["clauses"], 1):
-        if i == 5:
-            # Start page two for a normal proposal, but do not force an almost
-            # empty third page if a long legal company name already flowed over.
+        if i == 6:
             story.extend(
-                [CondPageBreak(140 * mm), p("Terms &amp; Conditions - continued", "Section")]
+                [
+                    CondPageBreak(510),
+                    Section(
+                        'Terms &amp; Conditions <font name="Proposal" '
+                        'color="#53647B"> - continued</font>',
+                        styles["Section"],
+                    ),
+                    Spacer(1, 10),
+                ]
             )
-        story.append(p(f"<b>{i}.</b> &nbsp; {clause}"))
+        # Dedicated number column gives 1-10 identical hanging alignment. The
+        # source has plain clauses; remove only markup, never change their words.
+        plain = clause.replace("<b>", "").replace("</b>", "")
+        row = Table(
+            [[p(str(i) + ".", "Number"), p(plain)]], colWidths=[28.8, WIDTH - 28.8], hAlign="LEFT"
+        )
+        row.setStyle(
+            TableStyle(
+                [
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                    ("TOPPADDING", (0, 0), (-1, -1), 4),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4.5),
+                ]
+            )
+        )
+        story.append(row)
     story.extend(
         [
-            Spacer(1, 3 * mm),
+            Spacer(1, 17),
             p(
                 "Please review these terms and share your confirmation or any questions. "
-                "We look forward "
-                "to a successful recruitment partnership with your team."
+                "We look forward to a successful recruitment partnership with your team.",
+                "Intro",
             ),
-            p(
-                "<b>Vishal Agrawal</b><br/>Director<br/>"
-                + safe(s["consultant"])
-                + "<br/>www.jobmitra.com"
-            ),
-            Spacer(1, 4 * mm),
+            Spacer(1, 14),
+            p("Vishal Agrawal", "Name"),
+            Spacer(1, 3),
+            p("Chief Executive Officer", "Signoff"),
+            Spacer(1, 2),
+            p(safe(s["consultant"]), "Signoff"),
+            Spacer(1, 2),
+            p("www.jobmitra.com", "Website"),
+            Spacer(1, 17),
         ]
     )
-    acknowledgement = [
-        p("Company acknowledgement", "Section"),
-        p(
-            "To be completed by the Client after review. "
-            "This unsigned document does not record acceptance.",
-            "Small",
-        ),
+    acknowledgement = [Section("Company acknowledgement", styles["Section"], LINE), Spacer(1, 12)]
+    labels = [
+        "Authorized representative name",
+        "Designation",
+        "Company name",
+        "Signature",
+        "Date",
+        "Company seal (optional)",
     ]
-    for label, value in [
-        ("Authorized representative name", ""),
-        ("Designation", ""),
-        ("Company name", s["company_name"]),
-        ("Signature", ""),
-        ("Date", ""),
-        ("Company seal (optional)", ""),
-    ]:
-        acknowledgement.append(p("<b>" + label + ":</b> " + (safe(value) if value else "_" * 45)))
+    entries = [
+        [
+            p(safe(label) + ":", "Label"),
+            p(safe(s["company_name"]), "Value")
+            if label == "Company name"
+            else p("_" * 40, "Label"),
+        ]
+        for label in labels
+    ]
+    signatures = Table(entries, colWidths=[184.3, WIDTH - 184.3], hAlign="LEFT")
+    signatures.setStyle(
+        TableStyle(
+            [
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 4),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+                ("TOPPADDING", (0, 0), (-1, -1), 4.65),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4.65),
+            ]
+        )
+    )
+    acknowledgement.append(signatures)
     story.append(KeepTogether(acknowledgement))
-    doc.build(story, onFirstPage=page, onLaterPages=page)
+    doc.build(
+        story,
+        onFirstPage=header,
+        onLaterPages=header,
+        canvasmaker=lambda *a, **kw: NumberedCanvas(*a, footer=footer, **kw),
+    )
     return output.getvalue()

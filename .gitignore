@@ -31,6 +31,8 @@ Desktop.ini
 *~
 .playwright-cli/
 output/playwright/
+# Generated proposal previews may contain client snapshots; source assets live under src/.
+/output/pdf/
 /outputs/playwright/
 /playwright-report/
 /blob-report/

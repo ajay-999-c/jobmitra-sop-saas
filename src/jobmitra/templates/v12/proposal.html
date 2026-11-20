@@ -11,19 +11,18 @@
   <label>Company name<input id="company" readonly></label>
   <label>Active company contact<select id="contact" aria-label="Proposal company contact"></select></label>
   <label>Recipient email · editable<input id="recipient" type="email" maxlength="254" placeholder="Enter email if not recorded" aria-label="Proposal recipient email"></label>
-  <label>Consultant legal name<input id="consultant" required maxlength="200" value="e - Friend Solutions India (Jobmitra.com)"></label>
+  <label>Consultant legal name<input id="consultant" readonly required maxlength="200" value="e - Friend Solutions India (Jobmitra.com)"></label>
   <div class="fields"><label>Proposal issue date<input id="issueDate" type="date" required value="{{ today }}"></label>
    <label>Proposal reference<input id="reference" maxlength="80" placeholder="Assigned on generation"></label></div>
-  <fieldset><legend>Recruitment service fee</legend><label class="radio"><input type="radio" name="fee" value="6" checked>6% of Annual CTC <small>21 whole days · illustration only</small></label>
-   <label class="radio"><input type="radio" name="fee" value="8.33">8.33% of Annual CTC <small>30 whole days · illustration only</small></label></fieldset>
-  <label>Illustrative Annual CTC in INR · optional<input id="annualCtc" type="number" min="0.01" step="0.01" placeholder="Optional amount"></label>
+  <fieldset><legend>Recruitment service fee</legend><label class="radio"><input type="radio" name="fee" value="6" checked>6% of Annual CTC <small>21 whole days</small></label>
+   <label class="radio"><input type="radio" name="fee" value="8.33">8.33% of Annual CTC <small>30 whole days</small></label></fieldset>
   <p class="hint">Contractual fees use the exact percentage of Annual CTC. Each generated PDF is a separate, preserved version.</p>
   <button id="generate" type="submit" class="primary" disabled>Generate PDF</button>
  </form></section>
  <section class="card preview"><h2>PDF preview</h2><p id="versionNote">No PDF generated yet. Form details are an unsaved draft.</p>
   <div class="actions"><a id="download" class="button" hidden>Download PDF</a><button id="prepareEmail" type="button" disabled>Prepare Email</button></div>
   <iframe id="pdfPreview" title="Recruitment proposal PDF preview" hidden></iframe>
-  <p class="hint">If your browser cannot display PDFs here, use Download PDF. Unsigned proposals contain blank acknowledgement and signature fields.</p>
+  <p class="hint">If your browser cannot display PDFs here, use Download PDF. Generated proposals contain blank acknowledgement and signature fields.</p>
  </section></div>
  <section id="emailSection" class="card" hidden><h2>Prepare Email</h2><p class="warning">The PDF is not attached automatically. Download the selected version and attach it manually before sending. Nothing has been sent.</p>
   <label>To · editable<input id="emailTo" type="email" placeholder="Enter recipient email"></label><button id="copyTo" type="button">Copy To</button>

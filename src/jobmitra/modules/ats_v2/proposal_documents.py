@@ -4,7 +4,6 @@ import base64
 import hashlib
 import io
 import json
-import os
 import re
 from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
@@ -16,7 +15,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pypdf import PdfReader
 from sqlalchemy import text
 
-from . import proposal, proposal_pdf, proposal_store, unified
+from . import proposal, proposal_pdf, proposal_storage, proposal_store, unified
 from .common import AtsError, utc_now
 from .database import transaction
 
@@ -44,6 +43,13 @@ class Generate(Input):
     reference: str = Field(default="", max_length=80, pattern=r"^[A-Za-z0-9 /_.-]*$")
     fee_percent: Literal["6", "8.33"]
     annual_ctc: Decimal | None = Field(default=None, gt=0, max_digits=16, decimal_places=2)
+
+    @field_validator("consultant")
+    @classmethod
+    def approved_consultant(cls, value):
+        if value != proposal_pdf.CONSULTANT:
+            raise ValueError("Use the approved consultant legal name.")
+        return value
 
     @field_validator("recipient_email")
     @classmethod
@@ -112,36 +118,8 @@ def _insert(conn, table, values):
     )
 
 
-def _root(root):
-    root = Path(root).absolute()
-    if any(p.is_symlink() for p in [root, *root.parents]):
-        raise AtsError("Proposal storage must not contain symlinks.", 503)
-    root.mkdir(mode=0o700, parents=True, exist_ok=True)
-    if not root.is_dir() or root.stat().st_mode & 0o077:
-        raise AtsError("Proposal storage must be a private directory (mode 700).", 503)
-    return root
-
-
 def _publish(root, key, blob):
-    root = _root(root)
-    if not re.fullmatch(r"[a-f0-9-]{36}\.pdf", key):
-        raise AtsError("Invalid private proposal key.", 503)
-    path = root / key
-    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
-    try:
-        with os.fdopen(fd, "wb") as stream:
-            stream.write(blob)
-            stream.flush()
-            os.fsync(stream.fileno())
-        directory_fd = os.open(root, os.O_RDONLY | os.O_DIRECTORY)
-        try:
-            os.fsync(directory_fd)
-        finally:
-            os.close(directory_fd)
-    except Exception:
-        path.unlink(missing_ok=True)
-        raise
-    return path
+    return proposal_storage.publish(root, key, blob)
 
 
 def _discard_unreferenced(engine, path):
@@ -159,24 +137,19 @@ def _discard_unreferenced(engine, path):
     except Exception:
         return
     if not referenced:
-        path.unlink(missing_ok=True)
+        try:
+            proposal_storage.remove(path.parent, path.name)
+        except (AtsError, OSError):
+            # Never weaken path/ACL checks to clean up an orphan.
+            return
 
 
 def _read(root, key, checksum, size):
-    root = _root(root)
-    if not re.fullmatch(r"[a-f0-9-]{36}\.pdf", key):
-        raise AtsError("Invalid private document reference.", 503)
-    path = root / key
     try:
-        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
-        with os.fdopen(fd, "rb") as stream:
-            stat = os.fstat(stream.fileno())
-            if stat.st_nlink != 1 or stat.st_size != size:
-                raise AtsError("Stored PDF verification failed.", 503)
-            blob = stream.read(MAX_PDF + 1)
+        blob = proposal_storage.read(root, key, MAX_PDF + 1)
     except OSError:
         raise AtsError("Private PDF is unavailable.", 503) from None
-    if len(blob) > MAX_PDF or hashlib.sha256(blob).hexdigest() != checksum:
+    if len(blob) != size or len(blob) > MAX_PDF or hashlib.sha256(blob).hexdigest() != checksum:
         raise AtsError("Stored PDF checksum verification failed.", 503)
     return blob
 
@@ -289,7 +262,8 @@ def generate(engine, company_id, data, role, root):
                 else None,
                 "clauses": proposal_pdf.clauses(data.fee_percent),
                 "terms_source_sha256": proposal_pdf.TERMS["source_sha256"],
-                "pdf_renderer": 1,
+                "pdf_renderer": proposal_pdf.RENDERER_VERSION,
+                "layout_source_sha256": proposal_pdf.TERMS["layout_source_sha256"],
             }
             blob = proposal_pdf.render(snap)
             key = pid + ".pdf"

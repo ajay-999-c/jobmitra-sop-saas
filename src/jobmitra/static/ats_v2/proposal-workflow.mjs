@@ -59,7 +59,7 @@ $('contact').onchange=()=>run(async()=>{
 $('proposalForm').oninput=()=>{if(selected)notice('Form has unsaved changes. The preview remains '+selected.reference+'. Generate PDF to save a new version.');};
 $('proposalForm').onsubmit=event=>{event.preventDefault();run(async()=>{
  if(!$('proposalForm').reportValidity())return;
- const body={company_contact_id:$('contact').value||null,recipient_email:$('recipient').value.trim(),consultant:$('consultant').value.trim(),issue_date:$('issueDate').value,reference:$('reference').value.trim(),fee_percent:document.querySelector('[name="fee"]:checked').value,annual_ctc:$('annualCtc').value||null};
+ const body={company_contact_id:$('contact').value||null,recipient_email:$('recipient').value.trim(),consultant:$('consultant').value.trim(),issue_date:$('issueDate').value,reference:$('reference').value.trim(),fee_percent:document.querySelector('[name="fee"]:checked').value};
  const record=await write(base+'/proposals',body);showVersion(record);await refreshHistory(record.id);
  $('reference').value='';notice('PDF '+record.reference+' saved as Prepared. Nothing has been sent or accepted.');
 });};
