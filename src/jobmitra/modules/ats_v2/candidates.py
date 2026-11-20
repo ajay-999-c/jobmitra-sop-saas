@@ -7,6 +7,7 @@ from sqlalchemy import text
 
 from jobmitra.modules.candidates.schemas import mobile_key
 
+from . import request_receipts as receipts
 from .candidate_schemas import CandidateCreate, CandidatePatch, SearchParams
 from .common import AtsError, one
 from .database import transaction
@@ -50,7 +51,7 @@ def participation(conn, candidate_id):
         dict(r)
         for r in conn.execute(
             text(
-                "SELECT jc.id,jc.job_id,jc.stage_code,jc.round_id,j.jd_code,j.title,j.status "
+                "SELECT jc.*,j.jd_code,j.title,j.status "
                 "FROM jd_candidates jc JOIN job_descriptions j ON j.id=jc.job_id "
                 "WHERE jc.candidate_id=:id ORDER BY jc.added_at DESC,jc.id DESC"
             ),
@@ -63,6 +64,10 @@ def get_candidate(engine, candidate_id):
     with engine.connect() as conn:
         result = candidate_dict(one(conn, "candidates", candidate_id))
         result["participation"] = participation(conn, candidate_id)
+        from .unified import eligibility, is_v3
+
+        if is_v3(conn):
+            result.update(eligibility(conn, candidate_id))
         return result
 
 
@@ -86,6 +91,9 @@ def _db_values(data):
 
 
 def _duplicates(conn, values, candidate_id=None):
+    from .registration_store import ensure_source
+
+    ensure_source(conn, values)
     clauses, params = [], {"candidate_id": candidate_id or -1}
     for field in ("phone_normalized", "email_normalized"):
         if values.get(field):
@@ -135,6 +143,28 @@ def rebuild_search(conn, candidate_id):
             {"id": candidate_id},
         )
     )
+    from .profile_store import installed
+
+    if installed(conn):
+        profile = conn.execute(
+            text(
+                "SELECT profile_json FROM candidate_profile_versions WHERE candidate_id=:id "
+                "ORDER BY id DESC LIMIT 1"
+            ),
+            {"id": candidate_id},
+        ).scalar()
+        extra = json.loads(profile or "{}")
+        professional.extend(
+            json.dumps(extra.get(k), ensure_ascii=False)
+            for k in (
+                "employment_history",
+                "education_history",
+                "certifications",
+                "projects",
+                "subdomain",
+            )
+            if extra.get(k)
+        )
     projection = " ".join(str(value) for value in professional if value).casefold()
     conn.execute(
         text(
@@ -148,6 +178,9 @@ def rebuild_search(conn, candidate_id):
 def create_candidate(engine, data: CandidateCreate):
     values = _db_values(data)
     with transaction(engine) as conn:
+        prior = receipts.replay(conn, "candidate-create", data.model_dump(mode="json"))
+        if prior is not None:
+            return get_candidate(engine, prior)
         _duplicates(conn, values)
         # Generate the stable public code before INSERT so its initial audit is complete.
         import uuid
@@ -159,12 +192,25 @@ def create_candidate(engine, data: CandidateCreate):
             text(f"INSERT INTO candidates({columns}) VALUES({placeholders})"), values
         ).lastrowid
         rebuild_search(conn, candidate_id)
+        receipts.record(
+            conn,
+            "candidate-create",
+            data.model_dump(mode="json"),
+            candidate_id,
+            candidate_id=candidate_id,
+        )
     return get_candidate(engine, candidate_id)
 
 
 def update_candidate(engine, candidate_id, data: CandidatePatch):
     values = _db_values(data)
+    request_data = {
+        "candidate_id": candidate_id,
+        **data.model_dump(mode="json", exclude_unset=True),
+    }
     with transaction(engine) as conn:
+        if receipts.replay(conn, "candidate-update", request_data) is not None:
+            return get_candidate(engine, candidate_id)
         one(conn, "candidates", candidate_id)
         _duplicates(conn, values, candidate_id)
         if values:
@@ -177,6 +223,9 @@ def update_candidate(engine, candidate_id, data: CandidatePatch):
                 {**values, "candidate_id": candidate_id},
             )
             rebuild_search(conn, candidate_id)
+        receipts.record(
+            conn, "candidate-update", request_data, candidate_id, candidate_id=candidate_id
+        )
     return get_candidate(engine, candidate_id)
 
 
@@ -186,19 +235,22 @@ def _like(value):
     )
 
 
-def search_candidates(engine, params: SearchParams):
+def search_candidates(engine, params: SearchParams, *, include_names=False):
     clauses, bindings, scores = ["c.is_active=1"], {}, []
+    evidence = "COALESCE(c.search_text,'')"
+    if include_names:
+        evidence = "(COALESCE(c.search_text,'') || ' ' || lower(c.full_name))"
     terms = [a or b for a, b in re.findall(r'"([^"\n]+)"|([^\s,]+)', params.keywords)][:30]
     for index, term in enumerate(terms):
         key = f"term{index}"
         bindings[key] = _like(term)
-        expression = f"COALESCE(c.search_text,'') LIKE :{key} ESCAPE '\\'"
+        expression = f"{evidence} LIKE :{key} ESCAPE '\\'"
         scores.append(f"CASE WHEN {expression} THEN 1 ELSE 0 END")
     if terms:
         clauses.append(
             "("
             + (" AND " if params.match == "ALL" else " OR ").join(
-                f"COALESCE(c.search_text,'') LIKE :term{i} ESCAPE '\\'" for i in range(len(terms))
+                f"{evidence} LIKE :term{i} ESCAPE '\\'" for i in range(len(terms))
             )
             + ")"
         )
@@ -224,9 +276,7 @@ def search_candidates(engine, params: SearchParams):
         )
     elif not params.include_unknown_experience:
         clauses.append("c.experience_years IS NOT NULL")
-    salary_bounds = (
-        ("salary_min", ">="), ("salary_max", "<="), ("budget", "<=")
-    )
+    salary_bounds = (("salary_min", ">="), ("salary_max", "<="), ("budget", "<="))
     if any(getattr(params, field) is not None for field, _ in salary_bounds):
         bindings["basis"] = params.salary_basis
         comparable = (
@@ -249,9 +299,7 @@ def search_candidates(engine, params: SearchParams):
                 conditions.append(f"{annual} {operator} :{field}")
         expression = f"(({comparable}) AND {' AND '.join(conditions)})"
         clauses.append(
-            f"({expression} OR NOT ({comparable}))"
-            if params.include_unknown_salary
-            else expression
+            f"({expression} OR NOT ({comparable}))" if params.include_unknown_salary else expression
         )
     elif not params.include_unknown_salary:
         clauses.append(
@@ -291,5 +339,9 @@ def search_candidates(engine, params: SearchParams):
         for row in rows:
             item = candidate_dict(row)
             item["participation"] = participation(conn, item["id"])
+            from .unified import eligibility, is_v3
+
+            if is_v3(conn):
+                item.update(eligibility(conn, item["id"]))
             items.append(item)
     return {"items": items, "total": total, "page": params.page, "page_size": params.page_size}

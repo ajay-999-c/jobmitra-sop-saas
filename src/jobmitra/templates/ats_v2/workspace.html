@@ -1,4 +1,4 @@
-{% extends 'ats_v2/base.html' %}
+{% extends base_template | default('ats_v2/base.html') %}
 {% block title %}JD Workspace (New){% endblock %}
 {% block breadcrumb %}JD Workspace{% endblock %}
 {% block scripts %}<script type="module" src="/static/ats-v2/workspace.mjs"></script>{% endblock %}

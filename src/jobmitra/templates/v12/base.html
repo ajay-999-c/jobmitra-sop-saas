@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#d51e29">
+  <title>{% block title %}Companies{% endblock %} · Jobmitra</title>
+  <link rel="icon" href="/static/stage2/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/ats-v2/workspace.css">
+  <link rel="stylesheet" href="/static/ats-v2/unified.css">
+  <script type="module" src="/static/ats-v2/unified.mjs"></script>
+  {% block scripts %}{% endblock %}
+</head>
+<body class="ats-v2 v12" data-unified-v12 data-workspace="{{ workspace_section }}">
+  <a class="ats-skip" href="#ats-main">Skip to content</a>
+  <header class="v12-header">
+    <a class="v12-brand" href="/workspace-v12/companies" aria-label="Jobmitra home"><span>Job</span>mitra<span>.com</span><small>Your online job friend</small></a>
+    <nav class="v12-switcher" aria-label="Recruitment workspaces">
+      {% for key,label in [('companies','Companies'),('candidates','Candidate Desk'),('jobs','JD Tracking')] %}
+      <a href="/workspace-v12/{{ key }}" {% if workspace_section == key %}aria-current="page"{% endif %}>{{ label }}</a>
+      {% endfor %}
+    </nav>
+    <div class="v12-header-actions"><button type="button" id="v12-access" class="ats-btn ats-secondary ats-small">Unlock editing</button><details class="v12-legacy"><summary>Other operations</summary><nav aria-label="Other operations"><span>Staff · V12 replacement pending</span><span>Domain Catalog · V12 replacement pending</span><a href="/email">Standalone Email Studio</a></nav></details></div>
+  </header>
+  <div class="{% block layout_class %}v12-layout{% endblock %}">
+    {% block sidebar %}{% endblock %}
+    <main id="ats-main" class="ats-main v12-main">
+      {% block breadcrumb_row %}{% endblock %}
+      <div id="ats-error" class="ats-alert ats-error" role="alert" hidden></div>
+      <div id="ats-notice" class="ats-alert ats-success" role="status" hidden></div>
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+  <dialog id="ats-dialog" class="ats-dialog" aria-labelledby="ats-dialog-title"><div id="ats-dialog-content"></div></dialog>
+  <dialog id="v12-email-dialog" class="v12-email-dialog" aria-label="Email Studio"><div class="v12-email-head"><div><h2>Email Studio</h2><p>Review and copy · No email is sent</p></div><button type="button" id="v12-email-close" class="ats-btn ats-secondary">Close</button></div><div id="v12-email-content"></div></dialog>
+</body>
+</html>

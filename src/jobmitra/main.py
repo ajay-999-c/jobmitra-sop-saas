@@ -14,6 +14,7 @@ from jobmitra.modules.ats_v2.database import build_ats_engine
 from jobmitra.modules.ats_v2.database import validate as validate_ats_database
 from jobmitra.modules.ats_v2.router import AtsBodyLimit
 from jobmitra.modules.ats_v2.router import router as ats_v2_router
+from jobmitra.modules.ats_v2.unified_router import router as unified_v12_router
 from jobmitra.modules.candidates.limits import CandidateJSONLimit
 from jobmitra.modules.candidates.resumes import router as resumes_router
 from jobmitra.modules.candidates.router import router as candidates_router
@@ -29,6 +30,9 @@ from jobmitra.modules.worklog.router import router as worklog_router
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     config = settings if settings is not None else get_settings()
+    from jobmitra.core.local_v12 import LocalPreviewGuard, validate_direct_editing
+
+    validate_direct_editing(config)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -65,6 +69,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.include_router(companies_router)
     app.state.settings = config
+    from jobmitra.core.v12_frontend_routes import V12FrontendRoutes
+
+    app.add_middleware(V12FrontendRoutes, settings=config)
     app.mount(
         "/static/stage2",
         CompanyAssets(directory=str(PACKAGE_DIR / "static" / "stage2")),
@@ -94,6 +101,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         name="ats-v2-static",
     )
     app.include_router(ats_v2_router)
+    app.include_router(unified_v12_router)
+    app.add_middleware(LocalPreviewGuard, settings=config)
 
     @app.exception_handler(HTTPException)
     async def portal_error(request: Request, error: HTTPException):

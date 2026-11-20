@@ -1,0 +1,16 @@
+{% extends 'v12/base.html' %}
+{% block title %}Companies{% endblock %}
+{% block scripts %}<script type="module" src="/static/ats-v2/companies.mjs"></script>{% endblock %}
+{% block content %}
+<div class="v12-hero"><div><p class="v12-eyebrow">COMPANIES &amp; PLACEMENTS</p><h1>Companies</h1><p class="ats-subtitle">Hiring relationships, selection records and confirmed joinings.</p></div><a class="ats-btn" href="/workspace-v12/jobs?view=create">＋ Create JD</a></div>
+<section class="ats-card v12-report" aria-labelledby="v12-report-title">
+  <div class="v12-section-head"><div><h2 id="v12-report-title">Hiring outcomes at a glance</h2><p class="ats-muted">Successful placements use the actual confirmed joining date.</p></div><form id="v12-period-form" class="v12-period-form"><label>Period<select name="period" id="v12-period"><option value="week">This week</option><option value="month" selected>This month</option><option value="year">This year</option><option value="custom">Custom dates</option></select></label><label class="v12-custom" hidden>From<input name="start" type="date"></label><label class="v12-custom" hidden>To<input name="end" type="date"></label><button class="ats-btn ats-secondary" type="submit">Apply</button></form></div>
+  <div id="v12-report-range" class="v12-range" aria-live="polite"></div>
+  <div class="v12-metrics" id="v12-metrics" aria-live="polite"></div>
+  <div class="v12-trend"><div><h3>Confirmed joining trend</h3><p class="ats-muted">Selections and previews never count as placements.</p></div><div id="v12-trend" aria-label="Confirmed joining trend"></div></div>
+</section>
+<div class="v12-company-grid">
+  <aside class="ats-card v12-directory" aria-labelledby="v12-directory-title"><div class="v12-section-head"><div><h2 id="v12-directory-title">Company directory</h2><p id="v12-company-count" class="ats-muted"></p></div><button class="ats-btn ats-secondary ats-small" id="v12-new-company" type="button">＋ Add company</button></div><form id="v12-company-search"><label>Search companies<input name="q" placeholder="Company name" autocomplete="off"></label><button type="submit" class="ats-btn ats-secondary">Search</button></form><div id="v12-company-list" aria-live="polite"></div><div id="v12-company-pages" class="v12-pages"></div></aside>
+  <section class="ats-card v12-company-detail" id="v12-company-detail" aria-live="polite"><div class="ats-empty"><strong>Select a company</strong>View its placement register, linked JDs and contact details.</div></section>
+</div>
+{% endblock %}

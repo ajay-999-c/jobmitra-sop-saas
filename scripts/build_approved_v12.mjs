@@ -1,0 +1,150 @@
+// Rebuild the approved presentation without writing to its immutable source.
+// Usage: npm ci --ignore-scripts && npm run build:v12 (or npm run check:v12)
+import fs from 'node:fs';
+import crypto from 'node:crypto';
+import {createRequire} from 'node:module';
+import {parse} from '@babel/parser';
+import babelTraverse from '@babel/traverse';
+const require=createRequire(import.meta.url);
+const check=process.argv.includes('--check');
+// Keep the earlier explicit parser argument compatible; normal builds use locked dependencies.
+const legacyParser=process.argv[2]&&!process.argv[2].startsWith('--')?require(process.argv[2]):null;
+const babelParse=legacyParser?.babelParse||((code,filename)=>parse(code,{sourceType:'script',sourceFilename:filename}));
+const traverse=legacyParser?.traverse||babelTraverse;
+const reference='Jobmitra_Unified_Workspace_V12_Companies_Integrated (1).html';
+const bytes=fs.readFileSync(reference),hash=crypto.createHash('sha256').update(bytes).digest('hex');
+if(hash!=='a4c9a21cef040457fce8c4872d09d490962f5b98301703d7e1287fdcbf32340e')throw Error('Approved source hash mismatch.');
+const html=bytes.toString('utf8'),match=html.match(/<script>([\s\S]*)<\/script>/);
+let source=match[1];
+const replacements={};
+for(const area of ['candidates','jobs','companies']){
+ const file=fs.readFileSync('scripts/v12-adapters/'+area+'.js','utf8');replacements[area]={};
+ for(const n of babelParse(file,'adapter.js').program.body)if(n.type==='FunctionDeclaration')replacements[area][n.id.name]=file.slice(n.start,n.end);
+}
+const edits=[];
+const area=n=>n.loc.start.line<516?'jobs':n.loc.start.line<966?'candidates':'companies';
+const replace=(n,value)=>edits.push({start:n.start,end:n.end,value});
+traverse(babelParse(source,'reference.js'),{
+ ObjectProperty(p){if(p.node.key.name==='addCandidate'&&p.node.value.type==='ArrowFunctionExpression')replace(p.node.value,`async(person,jobId)=>{try{await native.addToPool(person.id,String(jobId),person);return{ok:true};}catch(error){return{ok:false,error:error.message};}}`);},
+ FunctionDeclaration(p){const value=replacements[area(p.node)]?.[p.node.id.name];if(value)replace(p.node,value);},
+ VariableDeclarator(p){if(['jdPrototypeDemo','jdFallbackJourney'].includes(p.node.id.name))replace(p.node.init,'{}');if(p.node.id.name==='persist')replace(p.node.init,'()=>{}');},
+ AssignmentExpression(p){
+  const left=source.slice(p.node.left.start,p.node.left.end),a=area(p.node),n=p.node.right;
+  const handlers={
+   "el('saveMilestone').onclick":`()=>native.run(async()=>{const button=el('saveMilestone'),value=el('milestoneValue').value,note=el('milestoneNote').value.trim();await native.activity(c.id,{job_id:Number(draft.id),activity_type:'FOLLOW_UP',notes:note||labels[key]+' · '+value,details:{kind:'PLACEMENT_MILESTONE',milestone:key,value,manual_fact_only:true,delivery_enabled:false,financial_transaction:false}},button);closeModal();await native.refresh();render();toast('Manual status recorded. No email, invoice or payment was sent.');},toast)`,
+   "el('saveInterview').onclick":`()=>native.run(async()=>{const date=el('interviewDate').value;if(!date)throw Error('Choose the interview date and time.');const scheduledAt=new Date(date).toISOString(),mode=el('interviewMode').value,location=el('interviewLocation').value,notes=el('interviewNotes').value;await native.activity(c.id,{job_id:Number(draft.id),activity_type:'INTERVIEW',due_at:scheduledAt,notes:notes||'Interview scheduled',details:{kind:'INTERVIEW_SCHEDULED',scheduledAt,mode,location,round_id:c.stageId,round_name:round?.name,invitation_sent:false}},el('saveInterview'));closeModal();await native.refresh();render();toast('Interview schedule saved. No invitation was sent.');},toast)`,
+   "$('#editProfileForm').onsubmit":`e=>{e.preventDefault();const owner=e.currentTarget;native.run(async()=>{await native.authorize();await native.api('/api/ats-v2/candidates/'+c.id,{skills:[...new Map($('#editSkills').value.split(',').map(x=>x.trim()).filter(Boolean).map(x=>[x.toLowerCase(),x])).values()],professional_summary:$('#editSummary').value},'PATCH',owner);$('#modalHost').innerHTML='';await native.refresh();await search();if(activeProfileCandidate===c.id)showFullProfilePanel(c.id,'overview');toast('Professional profile saved to SQLite.');},toast);}`,
+   "$('#companyForm').onsubmit":`e=>{e.preventDefault();native.run(async()=>{collectContacts();const button=e.currentTarget;await native.api('/api/v12/approved/companies/'+c.id,{idempotency_key:native.key(button),actor_name:await native.authorize(),expected_revision:c.revision,name:$('#coName').value,phone:$('#coPhone').value,address:$('#coAddress').value,city:$('#coCity').value,state:$('#coState').value,postal:$('#coPostal').value,contacts},'PATCH',button);await native.refresh();toast('Company details and contact changes saved with audit history.');},toast);}`,
+   "$('#deleteCompany').onclick":`()=>native.run(async()=>{if(!confirm('Archive this company? Original contacts, JDs and history will be retained.'))return;const button=$('#deleteCompany');await native.api('/api/v12/approved/companies/'+c.id,{idempotency_key:native.key(button),actor_name:await native.authorize(),expected_revision:c.revision,name:c.name,phone:c.phone,address:c.address,city:c.city,state:c.state,postal:c.postal,contacts:c.contacts,archive:true},'PATCH',button);await native.refresh();toast('Company archived; original records preserved.');},toast)`,
+   "$('#markJoined').onclick":`()=>native.run(async()=>{const job=native.jobs.find(j=>j.id===p.jdId),person=job?.candidates.find(c=>c.id===p.candidateId);await native.outcome(job,person,'JOIN',$('#markJoined'));closeModal();await native.refresh();toast('Actual joining confirmed from canonical JD.');},toast)`,
+   "$('#notJoined').onclick":`()=>native.run(async()=>{const job=native.jobs.find(j=>j.id===p.jdId),person=job?.candidates.find(c=>c.id===p.candidateId);await native.outcome(job,person,'NOT_JOINED',$('#notJoined'));closeModal();await native.refresh();toast('Not Joined recorded; eligibility recalculated.');},toast)`,
+   "$('#resetDemo').onclick":`()=>native.run(async()=>{await native.refresh();toast('Canonical records reloaded. No records were reset.');},toast)`
+  };
+  if(handlers[left])replace(n,handlers[left]);
+  if(a==='companies'&&left==="$('#confirmDemoSelection').onclick"){} // Function replacement owns this handler.
+ },
+ CallExpression(p){const code=source.slice(p.node.callee.start,p.node.callee.end);
+  if(code==="$('#addToPoolBtn').addEventListener"&&p.node.arguments[0]?.value==='click')replace(p.node.arguments[1],`()=>native.run(async()=>{const current=job(selectedJob);if(!current||current.status!=='ACTIVE')throw Error('Select an active JD.');if(state.pools[selectedJob]?.[c.id]){poolJob=selectedJob;closeDetail();setTab('pool');return;}await native.addToPool(c.id,selectedJob,$('#addToPoolBtn'));await search();toast('Candidate added to the canonical JD Pool.');},toast)`);
+  if(code==="$('#officeVisitForm').addEventListener")replace(p.node.arguments[1],`e=>{e.preventDefault();native.run(async()=>{const cid=$('#visitCandidate').value,date=$('#visitDate').value;if(!cid||!date)throw Error('Select a candidate and visit date.');await native.activity(cid,{activity_type:'OFFICE_VISIT',occurred_at:date+'T12:00:00+05:30',notes:$('#visitNotes').value,details:{date,purpose:$('#visitPurpose').value}},e.currentTarget);await native.refresh();renderOfficeVisits();toast('Office visit saved.');},toast);}`);
+  if(code==="$('#jobRequestForm').addEventListener")replace(p.node.arguments[1],`e=>{e.preventDefault();native.run(async()=>{const cid=$('#requestCandidate').value,role=$('#requestRole').value.trim();if(!cid||!role)throw Error('Select a candidate and preferred role.');await native.activity(cid,{activity_type:'JOB_SEARCH_REQUEST',notes:$('#requestNotes').value,status:['CLOSED','FULFILLED'].includes($('#requestStatus').value.toUpperCase())?'DONE':'OPEN',details:{role,location:$('#requestLocation').value,status:$('#requestStatus').value}},e.currentTarget);await native.refresh();renderJobRequests();toast('Job search request saved.');},toast);}`);
+  if(code==="$('#resetBtn').addEventListener")replace(p.node.arguments[1],`()=>native.run(async()=>{await native.refresh();resetFilters();toast('Canonical records reloaded. Preserved documents were not deleted.');},toast)`);
+  if(code==='options'&&source.slice(p.node.arguments[0]?.start,p.node.arguments[0]?.end)==='draft.company')replace(p.node,`options(draft.companyId,[['','Choose an existing company'],...native.companies.filter(c=>c.active).map(c=>[c.id,c.name])])`);
+ }
+});
+// Outer function replacements own their nested handlers. Ignore overlapping edits.
+const filtered=edits.filter(e=>!edits.some(o=>o!==e&&o.start<=e.start&&o.end>=e.end&&(o.start<e.start||o.end>e.end)));
+for(const e of filtered.sort((a,b)=>b.start-a.start))source=source.slice(0,e.start)+e.value+source.slice(e.end);
+function section(start,end,value){const a=source.indexOf(start),b=source.indexOf(end,a);if(a<0||b<0)throw Error('Missing source boundary '+start);source=source.slice(0,a)+value+source.slice(b);}
+section('    const demo=','    let selectedId=',`    let state={jobs:structuredClone(native.jobs),activeId:native.jobs[0]?.id||null};\n`);
+source=source.replace("state.activeId||state.jobs[0].id","state.activeId||state.jobs[0]?.id||null");
+source=source.replace("draft=clone(state.jobs.find(x=>x.id===selectedId)||state.jobs[0])","draft=clone(state.jobs.find(x=>x.id===selectedId)||state.jobs[0]||native.emptyJD())");
+section('const candidates=[','function save(){',`const candidates=structuredClone(native.people),jobs=structuredClone(native.jobs);\nlet state={pools:native.pools(),events:native.snapshot.events.map(e=>({event:e.event_type,candidateId:String(e.candidate_id),jobId:String(e.job_id),at:e.created_at})),createdCandidates:[],profileEdits:{},officeVisits:native.historyActivities('OFFICE_VISIT'),jobSearchRequests:native.historyActivities('JOB_SEARCH_REQUEST')},tab='search',matchMode='any',selectedCandidate=null,selectedJob=jobs.find(j=>j.status==='ACTIVE')?.id||'',poolJob=jobs.find(j=>j.status==='ACTIVE')?.id||'',currentResults=[];\n`);
+section('const sampleCompanies=','let toastTimer;',`let state={companies:structuredClone(native.companies),placements:structuredClone(native.placements),available:structuredClone(native.people),selectedCompany:native.companies[0]?.id||'',scope:'all',tab:'placements',period:'month',from:native.today.slice(0,7)+'-01',to:native.today,placementStatus:'ALL',placementQuery:''};\nfunction save(){}\n`);
+source=source.replace("const day='2026-11-19';","const day=native.today;");
+source=source.replaceAll("draft[t.name]=t.value;","if(t.name==='company'){draft.companyId=t.value;draft.company=native.companies.find(c=>c.id===t.value)?.name||'';}else draft[t.name]=t.value;");
+source=source.replace('phone:row.querySelector(\'[data-field="phone"]\').value.trim(),primary:', 'phone:row.querySelector(\'[data-field="phone"]\').value.trim(),id:contacts[i]?.id||null,primary:');
+// Canonical numeric JD IDs still expose the approved Open control.
+source=source.replaceAll("j.id.startsWith('JD-')","Boolean(j.id)");
+source=source.replace('let foot=p.linkedFromJD?', 'let foot=false?').replace('if(p.linkedFromJD){$(\'#openLinkedJD\')','if(false&&p.linkedFromJD){$(\'#openLinkedJD\')');
+source=source.replace("modal('Candidate placement record','Stage events & candidate availability',body,foot);", "if(p.linkedFromJD)foot+='<button class=\"btn primary\" id=\"openLinkedJD\">Open JD Pipeline</button>';modal('Candidate placement record','Stage events & candidate availability',body,foot);if(p.linkedFromJD)$('#openLinkedJD').onclick=()=>{closeModal();window.JobmitraUnified.openJD(p.jdId);};");
+// Preserve distinct closed-selection facts using the approved terminal-state presentation.
+source=source.replaceAll("['SELECTED','JOINED','NOT_SELECTED']","['SELECTED','JOINED','NOT_SELECTED','NOT_JOINED','SELECTION_CANCELLED']");
+source=source.replaceAll("['NOT_SELECTED','JOINED']","['NOT_SELECTED','JOINED','NOT_JOINED','SELECTION_CANCELLED']");
+source=source.replaceAll("k==='NOT_SELECTED'?'Not Selected':", "k==='NOT_SELECTED'?'Not Selected':k==='NOT_JOINED'?'Not Joined':k==='SELECTION_CANCELLED'?'Selection Cancelled':");
+source=source.replaceAll("NOT_SELECTED:'Not Selected'", "NOT_SELECTED:'Not Selected',NOT_JOINED:'Not Joined',SELECTION_CANCELLED:'Selection Cancelled'");
+source=source.replace('e=>e.feedback&&e.feedback.trim()',"e=>e.feedback&&e.feedback.trim()&&!['MILESTONE','INTERVIEW_SCHEDULED'].includes(e.type)");
+// Expose the canonical selection to the separate proposal adapter; no presentation changes.
+source=source.replace('window.JobmitraUnifiedCompanies={refreshFromJD,getEligibility,','window.JobmitraUnifiedCompanies={getSelectedCompanyId:()=>state.selectedCompany,refreshFromJD,getEligibility,');
+// Initialize and refresh each original component from canonical service projections.
+source=source.replace('    render();\n  })();',`    window.addEventListener('jobmitra-native-update',()=>{state.jobs=structuredClone(native.jobs);const current=state.jobs.find(j=>j.id===selectedId);if(current){draft=clone(current);isNew=false;}else if(!isNew){selectedId=state.jobs[0]?.id||null;draft=clone(state.jobs[0]||native.emptyJD());}render();});\n    if(!state.jobs.length)view='dashboard';render();\n  })();`);
+source=source.replace(' search();renderDetails();',` window.addEventListener('jobmitra-native-update',()=>{candidates.splice(0,candidates.length,...structuredClone(native.people));jobs.splice(0,jobs.length,...structuredClone(native.jobs));state.pools=native.pools();state.officeVisits=native.historyActivities('OFFICE_VISIT');state.jobSearchRequests=native.historyActivities('JOB_SEARCH_REQUEST');if(tab==='search')search();if(tab==='pool')renderPool();if(tab==='dashboard')renderDashboard();if(tab==='candidates'){renderCandidates();if(activeProfileCandidate)showFullProfilePanel(activeProfileCandidate,activeProfileSection);}if(tab==='resumes')renderResumes();if(tab==='visits')renderOfficeVisits();if(tab==='requests')renderJobRequests();});\n search();renderDetails();`);
+source=source.replace('renderScope();renderAnalytics();renderDirectory();renderCompany();refreshFromJD();',`window.addEventListener('jobmitra-native-update',()=>{state.companies=structuredClone(native.companies);state.placements=structuredClone(native.placements);state.available=structuredClone(native.people);renderScope();renderAnalytics();renderDirectory();renderCompany();});renderScope();renderAnalytics();renderDirectory();renderCompany();`);
+source=source.replace('return {name:master.name||c.name,experience:', 'return {id:c.id,name:master.name||c.name,experience:');
+source=source.replace('getContacts?.(draft.company)', 'getContacts?.(draft.companyId)');source=source.replaceAll('getContacts?.(draft.company)', 'getContacts?.(draft.companyId)');
+source=source.replace('window.JobmitraUnified.openEmailStudio=(context)=>{',`window.JobmitraUnified.openEmailStudio=async(context)=>{\n const ids=context.candidates?.map(c=>c.id).filter(Boolean)||[];if(!ids.length)throw Error('Choose a canonical JD membership.');const audience=context.status==='candidate_submission'?'COMPANY':'CANDIDATE';const facts=await Promise.all(ids.map(id=>native.api('/api/v12/email-context?'+new URLSearchParams({candidate_id:id,job_id:context.jobId,audience}))));if(['NOT_JOINED','SELECTION_CANCELLED'].includes(facts[0].selection_outcome))throw Error('The approved Email Studio has no Not Joined or Selection Cancelled template. No misleading rejection/selection preview was generated.');if(audience==='CANDIDATE')context.status=facts[0].stage==='JOINED'?'joined':facts[0].selection_outcome==='PENDING_JOINING'?'selected':facts[0].stage==='NOT_SELECTED'?'not_selected':facts[0].stage==='ROUND'&&context.interviewDate?'custom_round':'jobmitra_screening';context={...context,companyName:facts[0].company_name||'',jobTitle:facts[0].job_title,location:facts[0].location||'',candidateEmail:audience==='CANDIDATE'?facts[0].recipient_email:'',joiningDate:facts[0].joined_on||'',companyContacts:facts[0].contacts.map(c=>({id:c.id,name:c.name,email:c.email,is_primary:c.id===facts[0].selected_contact_id}))};`);
+// Keep Email Studio source bytes intact; its integration reloads canonical context.
+source=source.replace('window.JobmitraUnified.openEmailStudio=async(context)=>{','window.JobmitraUnified.openEmailStudio=(context)=>native.run(async()=>{');
+source=source.replace("document.getElementById('closeEmailStudio').focus();\n };", "document.getElementById('closeEmailStudio').focus();\n });");
+source=source.replace("emailFrame.onload=()=>{",`emailFrame.onload=()=>{
+     const sample=emailFrame.contentDocument?.getElementById('sampleBtn');if(sample){sample.textContent='Reload candidate details';sample.addEventListener('click',event=>{event.stopImmediatePropagation();emailFrame.contentWindow.postMessage({type:'jobmitra-email-prefill',context:context||{}},'*');},true);}`);
+source=source.replace('(function(){',`(async function(){\n await native.refresh(false);`);
+source=source.replace(/activate\('companies'\);(?=\s*\}\)\(\);\s*$)/,`const section=window.document.body.dataset.section;activate(section==='jobs'?'jd':section==='candidates'?'candidate':'companies');\n native.renderAccess();`);
+source=source.replace("showCandidateHistory:(id)=>showCandidateHistory(id),", "showCandidateHistory:(id)=>showCandidateHistory(id),showForPool:async(id)=>{setTab('search');resetFilters();await search();selectCandidate(id);},");
+source=source.replace("b.onclick=()=>toast('Eligible in prototype. Actual JD assignment happens in Candidate Desk.')", "b.onclick=()=>{closeModal();window.JobmitraUnified.show('candidate');window.JobmitraUnifiedCandidate.showForPool(b.dataset.previewPool);}");
+source=source.replace("toast('Navigation is a visual placeholder in this standalone demo.');", "if(target.id==='topStaff')toast('Staff has no approved native V12 replacement yet. Legacy backend data and APIs are preserved.');else window.JobmitraUnified.show('companies');");
+// Candidate-only additions retain the approved component and its other renderers.
+source=source.replace("function setTab(next){tab=next;", "function setTab(next){tab=next;");
+source=source.replace("document.querySelector('.more-tabs')?.removeAttribute('open');window.scrollTo", "document.querySelector('.more-tabs')?.removeAttribute('open');native.candidateDesk?.section(next);window.scrollTo");
+const resumeStart=source.indexOf("if(section==='resumes')return"),resumeEnd=source.indexOf("if(section==='parsed')",resumeStart);
+if(resumeStart<0||resumeEnd<0)throw Error('Candidate resume boundary missing.');
+source=source.slice(0,resumeStart)+"if(section==='resumes')return native.candidateDesk.resumeHTML(c);\n  "+source.slice(resumeEnd);
+const parsedStart=source.indexOf("if(section==='parsed')return"),parsedEnd=source.indexOf('\n  return `<div class="profile-v9-section"',parsedStart);
+if(parsedStart<0||parsedEnd<0)throw Error('Candidate parsed section boundary missing.');
+source=source.slice(0,parsedStart)+"if(section==='parsed')return native.candidateDesk.parsedHTML(c);"+source.slice(parsedEnd);
+source=source.replace("$('#profileResumeForm')?.addEventListener('submit',e=>attachOriginalResume(e,id));", "$('#profileResumeForm')?.addEventListener('submit',e=>attachOriginalResume(e,id));native.candidateDesk.bindResume(id);");
+source=source.replace("$('#profilePreviewParsed')?.addEventListener('click',()=>previewParsedJSON(id));", "$('#profilePreviewParsed')?.addEventListener('click',()=>previewParsedJSON(id));native.candidateDesk.bindParsed(id);");
+source=source.replace("$('#detailUnderlay').classList.add('mobile-open');if(window.matchMedia", "$('#detailUnderlay').classList.add('mobile-open');native.candidateDesk.opened();if(window.matchMedia");
+source=source.replace("function selectCandidate(id){", "function selectCandidate(id){native.candidateDesk.remember();");
+source=source.replace("function closeDetail(){", "function closeDetail(){native.candidateDesk.closed();");
+source=source.replace(" search();renderDetails();", ` native.candidateRegisters=installCandidateRegisters(native,candidateShadow,expLabel);native.candidateDesk=installCandidateDesk(native,{root:candidateShadow,tab:setTab,close:closeDetail,registration:showRegistration,toast,profile:(id,section='overview')=>{setTab('candidates');showFullProfilePanel(String(id),section);}});\n search();renderDetails();`);
+source=source.replace('class="profile-v9-copy">${escapeHTML(x)}</p>', 'class="profile-v9-copy">${escapeHTML(native.candidateDesk.describe(x))}</p>');
+source=source.replaceAll('Edit professional details','Edit Candidate Details').replaceAll('Edit details</button>','Edit Candidate Details</button>');
+source=source.replace("kv('Current CTC',", "kv('Current salary',").replace("kv('Expected CTC',", "kv('Expected salary',");
+source=source.replace('of ${state.companies.length} demo','of ${state.companies.length} companies');
+source=source.replaceAll('Editable in this preview','Editable record').replaceAll('Browser preview only','Canonical SQLite').replaceAll('Delete company','Archive company').replaceAll('Company Master fields remain available. Contact email can later prefill Email Studio.','Company Master fields remain available. Contact email prefills Email Studio.');
+source=source.replaceAll('demo joining','confirmed joining').replaceAll('Shows demo companies based on the Companies-page layout. Your original Company Master and contacts are not modified.','Canonical company records from SQLite. Historical contacts and JD events remain preserved.');
+source=source.replaceAll('Browser-local interactive prototype · No real candidates, email or payments are modified','SQLite workspace · Candidate changes are audited · No email or payments are sent').replaceAll('Standalone preview of how pool restrictions will appear','Canonical candidates and allocation eligibility').replaceAll('recorded in this preview','recorded in this workspace');
+source=source.replace("if(!c){c=state.companies[0];if(!c)return;", "if(!c){c=state.companies[0];if(!c){$('#companyTitle').textContent='No company selected';$('#companySubtitle').textContent='';$('#companyMeta').innerHTML='';$('#companyPanel').innerHTML='<div class=\"blank-state\">No company records. Use Add company to register a client.</div>';return;}");
+// Three additive registration controls; the approved reference remains immutable.
+source=source.replace('${kv(\'Name\',c.name)}', "${kv('Registration date',registrationDate(c.created))}${kv('Purpose of Visit / Registration',c.registrationPurpose)}${kv('Name',c.name)}");
+source=source.replace('<option>Foundit</option><option>Walk-in</option>', '${(native.snapshot.candidate_sources||[]).filter(s=>[\'EMAIL\',\'MANUAL\',\'RESUME_UPLOAD\'].includes(s.value)).map(s=>\'<option>\'+escapeHTML(s.label)+\'</option>\').join(\'\')}<option>Foundit</option><option>Walk-in</option>');
+source=source.replace('<div class="span2 resume-upload">', '<div class="field span2"><label for="regPurpose">Purpose of Visit / Registration (optional)</label><textarea class="control" id="regPurpose" name="registration_purpose" maxlength="2000" placeholder="e.g. Job enquiry, resume submission, follow-up or career consultation"></textarea></div><div class="span2 resume-upload">');
+// These are truthful integration wording changes, not alternate UI components.
+const wording=[['Reset preview data','Reload records'],['Current demo associations','Current canonical associations'],['All milestones are manual records in this prototype.','All milestones are manual records in this workspace.'],['↻ Reset preview','↻ Reload records'],['Reset local preview','Reload records'],['Reset demo','Reload records'],['＋ Simulate JD selection','＋ Record JD selection'],['Demo job requirements','Job requirements'],['Available (demo)','Available'],['Stored on this device','Stored on the server'],['Saving is local to this browser. This prototype does not update real candidate journeys or production data.','Saving updates the isolated SQLite workspace after validation. Historical records remain preserved.'],['This offline preview records filename only.','The original file is uploaded and preserved as a resume version.'],['Demo snapshot as of','Snapshot as of'],['saved locally','saved to SQLite']];
+for(const [a,b] of wording)source=source.replaceAll(a,b);
+// Remove local-document save/read implementations entirely; real services own those operations.
+for(const name of ['storeCandidateDocument','readCandidateDocument','persistCandidateChanges']){
+ const ast=babelParse(source,'integrated.js');let n;traverse(ast,{FunctionDeclaration(p){if(p.node.id.name===name)n=p.node;}});if(n)source=source.slice(0,n.start)+`function ${name}(){throw Error('Use the canonical service adapter.');}`+source.slice(n.end);
+}
+// Keep the approved presentation but replace factually false prototype help paragraphs.
+source=source.replace(/Offline preview: file bytes[\s\S]*?require backend integration\./,'Original resume versions are stored privately by the FastAPI service. Earlier versions and historical references remain preserved.');
+source=source.replace(/This preview reads JSON locally[\s\S]*?confidential candidate data in this demo\./,'Review the extracted professional fields before applying. The service preserves the original JSON text, creates a version and updates only approved fields and search evidence.');
+source=source.replace(/No document filenames in this standalone preview/g,'No resumes recorded');
+if(/localStorage\.|indexedDB\./.test(source))throw Error('Browser persistence remains: '+source.match(/.{0,70}(?:localStorage\.|indexedDB\.).{0,70}/g)?.join('\n'));
+const emailPattern=/const EMAIL_STUDIO_DOCUMENT=("(?:\\.|[^"\\])*");/;
+if(JSON.parse(match[1].match(emailPattern)[1])!==JSON.parse(source.match(emailPattern)[1]))throw Error('Approved embedded Email Studio changed.');
+const generated='// Generated from immutable approved V12 HTML. Source SHA-256: '+hash+'\nimport {native} from "./approved-api.mjs";\nimport {installCandidateDesk} from "./candidate-desk.mjs";\nimport {installCandidateRegisters,registrationDate} from "./candidate-registers.mjs";\n'+source;
+let shell=html.slice(0,match.index)+`<script type="module" src="/static/ats-v2/approved.mjs"></script>\n</body></html>`;
+shell=shell.replace('<body>','<body data-section="{{ workspace_section }}">').replace('INTERACTIVE HTML PREVIEW</b> · Local demo data','SQLITE WORKSPACE</b> · Loading records').replace('<title>','<link rel="icon" href="/static/stage2/favicon.svg" type="image/svg+xml"><title>');
+// CSS selectors such as `{#emailStudioOverlay` are literal CSS, not Jinja comments.
+shell='{% raw %}'+shell.replace('{{ workspace_section }}','{% endraw %}{{ workspace_section }}{% raw %}')+'{% endraw %}';
+const outputs=[['src/jobmitra/static/ats_v2/approved.mjs',generated],['src/jobmitra/templates/v12/approved.html',shell]];
+if(check){
+ for(const [path,contents] of outputs)if(!fs.readFileSync(path).equals(Buffer.from(contents)))throw Error('Generated artifact differs: '+path);
+ console.log('Approved reference and generated artifacts verified byte-for-byte.');
+}else{
+ for(const [path,contents] of outputs)fs.writeFileSync(path,contents);
+ fs.mkdirSync('runtime/v12-parity',{recursive:true});
+fs.writeFileSync('runtime/v12-parity/generation-report.json',JSON.stringify({source:reference,sha256:hash,functionsReplaced:filtered.length,originalBytesUnchanged:fs.readFileSync(reference).equals(bytes)},null,2));
+console.log('Generated approved shell and component runtime. Immutable reference preserved.');
+}

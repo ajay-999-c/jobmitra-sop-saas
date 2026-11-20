@@ -1,0 +1,17 @@
+{
+  "name": "jobmitra-ui-tooling",
+  "version": "0.0.0",
+  "private": true,
+  "engines": {
+    "node": "^22.18.0 || >=24.11.0"
+  },
+  "scripts": {
+    "build:v12": "node scripts/build_approved_v12.mjs",
+    "check:v12": "node scripts/build_approved_v12.mjs --check",
+    "test:js": "node --test tests/*.test.mjs tests/test_resume_studio_privacy.mjs"
+  },
+  "devDependencies": {
+    "@babel/parser": "8.1.2",
+    "@babel/traverse": "8.1.2"
+  }
+}

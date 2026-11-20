@@ -1,0 +1,15 @@
+{
+  "source_sha256": "cb3f47308cb7dac56c48fef38be958a145e9db5faa96575226668767b4b56d40",
+  "clauses": [
+    "The recruitment service fee shall be <b>{percent}% of the candidate's Annual CTC</b> (approximately {days} days' salary, using a 365-day equivalent). The Annual CTC includes basic salary and allowances. Applicable taxes, if any, shall be charged in addition to the fee.",
+    "Payment shall be made within <b>7 days of the candidate joining</b> the Client organization, against the Consultant's invoice duly received by the Client.",
+    "If a candidate introduced by the Consultant is employed by the Client in any capacity within <b>12 months</b> of the introduction, the recruitment service fee shall be payable in accordance with these terms.",
+    "The Client shall not share any candidate information with a person outside the Client organization without prior agreement of both the Consultant and the candidate. If an approved introduction leads to employment with another company, the introduction fee shall be payable by the respective party.",
+    "If the candidate <b>voluntarily resigns within the first 3 months</b> of employment, the Consultant will provide a <b>free replacement</b>, provided the Client notifies the Consultant in writing within <b>7 days</b> of the termination.",
+    "The Consultant shall not be responsible for any cash-related risk or transaction between the Employee and the Employer.",
+    "These terms shall be subject to <b>Indore jurisdiction</b>.",
+    "The Client shall comply with applicable <b>labour laws and all other applicable laws</b>.",
+    "Candidate compensation shall be aligned with prevailing industry norms and the current market scenario.",
+    "The Client shall inform the Consultant within <b>5 working days</b> after a candidate accepts an employment offer and shall provide the relevant offer terms in writing, including the engagement/appointment letter and a copy of the employment contract."
+  ]
+}

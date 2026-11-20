@@ -7,6 +7,7 @@ from zoneinfo import ZoneInfo
 
 from sqlalchemy import text
 
+from . import request_receipts as receipts
 from .common import AtsError, event_record, one, utc_now
 from .database import transaction
 from .schemas import ActivityInput, JobCreate
@@ -56,9 +57,27 @@ JOB_SELECT = """SELECT j.*, (SELECT count(*) FROM jd_candidates l
     FROM job_descriptions j"""
 
 
+def job_select(conn):
+    from .unified import is_v3
+
+    return (
+        JOB_SELECT.replace(
+            "l.stage_code='JOINED'",
+            "l.selection_outcome='JOINED_CONFIRMED' AND l.joined_on IS NOT NULL "
+            "AND l.joining_confirmed_at_utc IS NOT NULL",
+        )
+        if is_v3(conn)
+        else JOB_SELECT
+    )
+
+
 def get_job(engine, job_id):
     with engine.connect() as conn:
-        row = conn.execute(text(JOB_SELECT + " WHERE j.id=:id"), {"id": job_id}).mappings().first()
+        row = (
+            conn.execute(text(job_select(conn) + " WHERE j.id=:id"), {"id": job_id})
+            .mappings()
+            .first()
+        )
         if not row:
             raise AtsError("JD not found.", 404)
         return job_record(row)
@@ -75,14 +94,14 @@ def list_jobs(engine, *, status=None, page=1, page_size=50):
             job_record(row)
             for row in conn.execute(
                 text(
-                    JOB_SELECT
+                    job_select(conn)
                     + where
                     + " ORDER BY j.created_at DESC,j.id DESC LIMIT :limit OFFSET :offset"
                 ),
                 params,
             ).mappings()
         ]
-        all_jobs = [job_record(row) for row in conn.execute(text(JOB_SELECT)).mappings()]
+        all_jobs = [job_record(row) for row in conn.execute(text(job_select(conn))).mappings()]
     summary = {
         "active": sum(j["status"] == "ACTIVE" for j in all_jobs),
         "overdue": sum(j["target_state"] == "OVERDUE" for j in all_jobs),
@@ -104,6 +123,9 @@ def create_job(engine, data, companies):
     values["skills_json"] = json.dumps(values.pop("skills"))
     values["jd_code"] = "JD-" + uuid4().hex[:12].upper()
     with transaction(engine) as conn:
+        prior = receipts.replay(conn, "job-create", data.model_dump(mode="json"))
+        if prior is not None:
+            return get_job(engine, prior)
         columns = ",".join(values)
         result = conn.execute(
             text(
@@ -113,6 +135,7 @@ def create_job(engine, data, companies):
             values,
         )
         job_id = result.lastrowid
+        receipts.record(conn, "job-create", data.model_dump(mode="json"), job_id, job_id=job_id)
     return get_job(engine, job_id)
 
 
@@ -122,12 +145,27 @@ def update_job(engine, job_id, data, companies):
     if "company_id" in changes:
         companies.require(data.company_id)
     with transaction(engine) as conn:
+        request_data = {"job_id": job_id, **changes}
+        if receipts.replay(conn, "job-update", request_data) is not None:
+            return get_job(engine, job_id)
         current = job_record(one(conn, "job_descriptions", job_id))
         merged = {name: current.get(name) for name in JobCreate.model_fields}
         merged.update(changes)
         validated = JobCreate.model_validate(merged)
         # Validate the complete patch, while preserving only fields that were explicitly submitted.
         values = {key: validated.model_dump(mode="json")[key] for key in changes}
+        from .unified import is_v3
+
+        if is_v3(conn) and values.get("company_id", current["company_id"]) != current["company_id"]:
+            values.update(
+                company_contact_id=None,
+                company_contact_name_snapshot=None,
+                company_contact_email_snapshot=None,
+                contact_request_key=None,
+                contact_request_fingerprint=None,
+                contact_actor_name=None,
+                contact_actor_role=None,
+            )
         if "skills" in values:
             values["skills_json"] = json.dumps(values.pop("skills"))
         if values:
@@ -139,6 +177,7 @@ def update_job(engine, job_id, data, companies):
                 ),
                 {**values, "id": job_id},
             )
+        receipts.record(conn, "job-update", request_data, job_id, job_id=job_id)
     return get_job(engine, job_id)
 
 
@@ -179,6 +218,9 @@ def get_workflow(engine, job_id):
 
 def save_workflow(engine, job_id, data):
     with transaction(engine) as conn:
+        request_data = {"job_id": job_id, "workflow": data.model_dump(mode="json")}
+        if receipts.replay(conn, "workflow", request_data) is not None:
+            return workflow(conn, job_id)
         current = workflow(conn, job_id)
         if current["workflow_version"] != data.workflow_version:
             raise AtsError(
@@ -234,10 +276,13 @@ def save_workflow(engine, job_id, data):
                     ),
                     record,
                 )
+        receipts.record(conn, "workflow", request_data, job_id, job_id=job_id)
         return workflow(conn, job_id)
 
 
 def stage_label(link, rounds):
+    if link.get("selection_outcome") in {"NOT_JOINED", "SELECTION_CANCELLED"}:
+        return link["selection_outcome"].replace("_", " ").title()
     if link["stage_code"] == "ROUND":
         return next(
             (r["round_name"] for r in rounds if r["id"] == link["round_id"]),
@@ -247,6 +292,8 @@ def stage_label(link, rounds):
 
 
 def next_stage(link, flow):
+    if link.get("selection_outcome") in {"NOT_JOINED", "SELECTION_CANCELLED"}:
+        return None, None
     code = link["stage_code"]
     if code in {"JOINED", "NOT_SELECTED"}:
         return None, None
@@ -290,6 +337,11 @@ def pipeline(engine, job_id):
             item.pop("added_by", None)
             item.pop("changed_by", None)
             item["stage_label"] = stage_label(item, flow["rounds"])
+            item["effective_status"] = (
+                item.get("selection_outcome")
+                if item.get("selection_outcome") in {"NOT_JOINED", "SELECTION_CANCELLED"}
+                else item["stage_code"]
+            )
             item["next_stage"], item["next_round_id"] = next_stage(item, flow)
             if item["next_stage"]:
                 item["next_stage_label"] = stage_label(
@@ -297,7 +349,9 @@ def pipeline(engine, job_id):
                     flow["rounds"],
                 )
             key = (
-                "ROUND:" + item["round_id"] if item["stage_code"] == "ROUND" else item["stage_code"]
+                "ROUND:" + item["round_id"]
+                if item["stage_code"] == "ROUND"
+                else item["effective_status"]
             )
             counts[key] = counts.get(key, 0) + 1
             items.append(item)
@@ -306,12 +360,20 @@ def pipeline(engine, job_id):
 
 def associate(engine, job_id, candidate_id):
     with transaction(engine) as conn:
+        request_data = [job_id, candidate_id]
+        prior = receipts.replay(conn, "association", request_data)
+        if prior is not None:
+            return one(conn, "jd_candidates", prior)
         job = one(conn, "job_descriptions", job_id)
         candidate = one(conn, "candidates", candidate_id)
         if job["status"] != "ACTIVE":
             raise AtsError("Only ACTIVE JDs can accept candidates.")
         if not candidate["is_active"]:
             raise AtsError("An inactive candidate cannot be added to a JD.")
+        from .unified import is_v3, require_available
+
+        if is_v3(conn):
+            require_available(conn, candidate_id)
         if conn.execute(
             text("SELECT id FROM jd_candidates WHERE job_id=:j AND candidate_id=:c"),
             {"j": job_id, "c": candidate_id},
@@ -320,6 +382,14 @@ def associate(engine, job_id, candidate_id):
         result = conn.execute(
             text("INSERT INTO jd_candidates(job_id,candidate_id) VALUES(:j,:c)"),
             {"j": job_id, "c": candidate_id},
+        )
+        receipts.record(
+            conn,
+            "association",
+            request_data,
+            result.lastrowid,
+            candidate_id=candidate_id,
+            job_id=job_id,
         )
         return one(conn, "jd_candidates", result.lastrowid)
 
@@ -354,6 +424,15 @@ def add_feedback(conn, job, link, feedback, source):
 
 def move_candidate(engine, job_id, link_id, data):
     with transaction(engine) as conn:
+        request_data = [job_id, link_id, data.model_dump(mode="json")]
+        if receipts.replay(conn, "movement", request_data) is not None:
+            return one(conn, "jd_candidates", link_id)
+        from .unified import is_v3
+
+        if is_v3(conn) and data.stage_code in {"SELECTED", "JOINED"}:
+            raise AtsError(
+                "Use the explicit company-selection or actual-joining confirmation action.", 409
+            )
         job = one(conn, "job_descriptions", job_id)
         link = linked(conn, job_id, link_id)
         if job["status"] != "ACTIVE":
@@ -401,6 +480,14 @@ def move_candidate(engine, job_id, link_id, data):
         )
         if data.feedback:
             add_feedback(conn, job, link, data.feedback, data.feedback_source)
+        receipts.record(
+            conn,
+            "movement",
+            request_data,
+            link_id,
+            candidate_id=link["candidate_id"],
+            job_id=job_id,
+        )
         return one(conn, "jd_candidates", link_id)
 
 
@@ -408,7 +495,18 @@ def feedback(engine, job_id, link_id, data):
     with transaction(engine) as conn:
         job = one(conn, "job_descriptions", job_id)
         link = linked(conn, job_id, link_id)
+        request_data = [job_id, link_id, data.model_dump(mode="json")]
+        if receipts.replay(conn, "feedback", request_data) is not None:
+            return {"saved": True}
         add_feedback(conn, job, link, data.feedback, data.feedback_source)
+        receipts.record(
+            conn,
+            "feedback",
+            request_data,
+            link_id,
+            candidate_id=link["candidate_id"],
+            job_id=job_id,
+        )
     return {"saved": True}
 
 
@@ -423,7 +521,10 @@ def history(engine, *, candidate_id=None, job_id=None, jd_candidate_id=None, pag
         ]:
             if record_id:
                 one(conn, table, record_id)
-        clauses, params = [], {"limit": page_size, "offset": (page - 1) * page_size}
+        clauses, params = (
+            ["event_type<>'REQUEST_COMPLETED'"],
+            {"limit": page_size, "offset": (page - 1) * page_size},
+        )
         for key, value in [
             ("candidate_id", candidate_id),
             ("job_id", job_id),
@@ -470,6 +571,10 @@ def activities(engine, candidate_id):
 def save_activity(engine, candidate_id, data, activity_id=None):
     with transaction(engine) as conn:
         one(conn, "candidates", candidate_id)
+        request_data = [candidate_id, activity_id, data.model_dump(mode="json", exclude_unset=True)]
+        prior = receipts.replay(conn, "activity", request_data)
+        if prior is not None:
+            return event_record(one(conn, "candidate_activities", prior))
         if activity_id:
             row = one(conn, "candidate_activities", activity_id)
             if row["candidate_id"] != candidate_id:
@@ -512,4 +617,5 @@ def save_activity(engine, candidate_id, data, activity_id=None):
                 {**values, "candidate_id": candidate_id},
             )
             activity_id = result.lastrowid
+        receipts.record(conn, "activity", request_data, activity_id, candidate_id=candidate_id)
         return event_record(one(conn, "candidate_activities", activity_id))

@@ -11,6 +11,7 @@ from jobmitra.modules.candidates.schemas import mobile_key
 Period = Literal["MONTHLY", "ANNUAL"]
 Basis = Literal["UNKNOWN", "CTC", "GROSS", "IN_HAND"]
 Availability = Literal["AVAILABLE", "TO_CONFIRM", "UNAVAILABLE"]
+Source = Literal["MANUAL", "WALK_IN", "FOUNDIT_PASTE", "RESUME_UPLOAD", "OTHER", "EMAIL"]
 Text = Annotated[str, Field(max_length=1000)]
 
 
@@ -37,7 +38,7 @@ class CandidateFields(BaseModel):
     expected_salary_basis: Basis | None = None
     notice_days: int | None = Field(default=None, ge=0, le=730)
     availability: Availability | None = None
-    source: Literal["MANUAL", "WALK_IN", "FOUNDIT_PASTE", "RESUME_UPLOAD", "OTHER"] | None = None
+    source: Source | None = None
     is_active: bool | None = None
 
     @field_validator("full_name")
@@ -52,6 +53,8 @@ class CandidateFields(BaseModel):
     def phone_format(cls, value):
         if value in (None, ""):
             return None
+        if not isinstance(value, str):
+            raise ValueError("Phone must be text")
         mobile_key(value)
         return value
 
@@ -60,6 +63,8 @@ class CandidateFields(BaseModel):
     def email_format(cls, value):
         if value in (None, ""):
             return None
+        if not isinstance(value, str):
+            raise ValueError("Email must be text")
         if not re.fullmatch(r"[^\s@]+@[^\s@.]+(?:\.[^\s@.]+)+", value.strip()):
             raise ValueError("Enter a valid email address")
         return value.strip().lower()
@@ -97,7 +102,7 @@ class CandidateCreate(CandidateFields):
     preferred_cities: list[Text] = Field(default_factory=list)
     links: dict[str, str] = Field(default_factory=dict)
     availability: Availability = "TO_CONFIRM"
-    source: Literal["MANUAL", "WALK_IN", "FOUNDIT_PASTE", "RESUME_UPLOAD", "OTHER"] = "MANUAL"
+    source: Source = "MANUAL"
     is_active: bool = True
 
 

@@ -2,6 +2,7 @@ from datetime import timedelta
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request
+from fastapi.responses import RedirectResponse
 from sqlalchemy import func, select
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -119,6 +120,10 @@ def shortlist(job_id: UUID, data: RecordedAction, request: Request, session: Dat
 
 @router.get("/overview", include_in_schema=False)
 def overview(request: Request, session: Database):
+    if request.app.state.settings.unified_v12_enabled:
+        return RedirectResponse(
+            "/workspace-v12/companies", status_code=303, headers={"Cache-Control": "no-store"}
+        )
     today = office_today(request.app.state.settings.office_timezone)
     module_counts = []
     for label, href, model in [

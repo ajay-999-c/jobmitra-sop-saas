@@ -14,6 +14,7 @@ from xml.etree import ElementTree
 
 from sqlalchemy import text
 
+from . import request_receipts as receipts
 from .candidate_schemas import GenerateResumeInput, ParsedResumeInput
 from .candidates import rebuild_search
 from .common import AtsError, one
@@ -154,17 +155,85 @@ def _publish(root, candidate_id, kind, data, suffix):
     return relative, path
 
 
-def upload_resume(engine, candidate_id, root, data, filename, max_bytes, kind="ORIGINAL"):
+def upload_resume(
+    engine,
+    candidate_id,
+    root,
+    data,
+    filename,
+    max_bytes,
+    kind="ORIGINAL",
+    metadata=None,
+    reuse_existing=False,
+):
     filename = _filename(filename)
     suffix = _validate(data, filename, max_bytes)
     if kind not in {"ORIGINAL", "JOBMITRA_STANDARD"}:
         raise AtsError("Choose ORIGINAL or JOBMITRA_STANDARD resume kind.")
     root = _root(root)
+    metadata = metadata or {}
     path = None
     try:
         with transaction(engine) as conn:
             one(conn, "candidates", candidate_id)
-            relative, path = _publish(root, candidate_id, kind, data, suffix)
+            request_data = [
+                candidate_id,
+                filename,
+                kind,
+                hashlib.sha256(data).hexdigest(),
+                metadata,
+            ]
+            if reuse_existing:
+                request_data.append("REUSE_EXISTING")
+            prior = receipts.replay(conn, "resume-upload", request_data)
+            if prior is not None:
+                result = get_resume(engine, candidate_id, prior)
+                return (
+                    {**result, "reused_existing": True, "replayed": True}
+                    if reuse_existing
+                    else result
+                )
+            if metadata.get("source_original_id"):
+                original = one(conn, "candidate_resumes", metadata["source_original_id"])
+                if (
+                    original["candidate_id"] != candidate_id
+                    or original["resume_kind"] != "ORIGINAL"
+                ):
+                    raise AtsError("Source original must belong to this candidate.", 422)
+            relative = None
+            if reuse_existing and kind == "JOBMITRA_STANDARD":
+                rows = conn.execute(
+                    text(
+                        "SELECT * FROM candidate_resumes WHERE candidate_id=:c "
+                        "AND resume_kind='JOBMITRA_STANDARD' AND storage_path IS NOT NULL "
+                        "ORDER BY is_current DESC,id DESC"
+                    ),
+                    {"c": candidate_id},
+                ).mappings()
+                for existing in rows:
+                    old = json.loads(existing["parsed_json"] or "{}")
+                    if old.get("sha256") != hashlib.sha256(data).hexdigest():
+                        continue
+                    stored, _, _ = download_resume(engine, candidate_id, existing["id"], root)
+                    if stored.read_bytes() != data:
+                        raise AtsError("Existing resume bytes differ from their checksum.", 409)
+                    relative = existing["storage_path"]
+                    if all(
+                        (old.get(k) in (None, "") and metadata.get(k) in (None, ""))
+                        or old.get(k) == metadata.get(k)
+                        for k in ("preparation_source", "source_original_id", "upload_notes")
+                    ):
+                        receipts.record(
+                            conn,
+                            "resume-upload",
+                            request_data,
+                            existing["id"],
+                            candidate_id=candidate_id,
+                        )
+                        return {**_resume_public(existing), "reused_existing": True}
+                    break
+            if relative is None:
+                relative, path = _publish(root, candidate_id, kind, data, suffix)
             resume_id = _version(
                 conn,
                 candidate_id,
@@ -173,18 +242,22 @@ def upload_resume(engine, candidate_id, root, data, filename, max_bytes, kind="O
                 original_filename=filename,
                 storage_path=relative,
                 parsed_json=json.dumps(
-                    {"sha256": hashlib.sha256(data).hexdigest(), "size": len(data)}
+                    {**metadata, "sha256": hashlib.sha256(data).hexdigest(), "size": len(data)}
                 ),
             )
             if kind == "ORIGINAL":
                 conn.execute(
                     text(
                         "UPDATE candidate_resumes SET is_current=0 WHERE candidate_id=:id "
-                        "AND resume_kind IN ('PARSED_TEXT','JOBMITRA_STANDARD') AND is_current=1"
+                        "AND (resume_kind='PARSED_TEXT' OR (resume_kind='JOBMITRA_STANDARD' "
+                        "AND source_type='GENERATED')) AND is_current=1"
                     ),
                     {"id": candidate_id},
                 )
                 rebuild_search(conn, candidate_id)
+            receipts.record(
+                conn, "resume-upload", request_data, resume_id, candidate_id=candidate_id
+            )
         return get_resume(engine, candidate_id, resume_id)
     except Exception:
         if path is not None:
@@ -202,6 +275,13 @@ def _resume_public(row):
     imported = bool(result.get("legacy_postgres_id"))
     result["source_legacy"] = "postgresql" if imported else None
     if result["resume_kind"] == "PARSED_TEXT":
+        result["review_status"] = parsed.get("status") or (
+            "REVIEWED" if parsed.get("facts_reviewed") else "HISTORICAL_REVIEW_REQUIRED"
+        )
+        result["source_resume_id"] = parsed.get("source_resume_id")
+        result["source_sha256"] = parsed.get("source_sha256")
+        result["reviewed_draft_id"] = parsed.get("reviewed_draft_id")
+        result["artifact_sha256"] = parsed.get("artifact_sha256")
         if imported:
             result["historical_parsed_json"] = parsed
             result["requires_review"] = True
@@ -211,11 +291,81 @@ def _resume_public(row):
             result["candidate_name_snapshot"] = parsed.get("candidate_name_snapshot")
             result["requires_review"] = not bool(parsed.get("facts_reviewed"))
     else:
+        for key in (
+            "sha256",
+            "size",
+            "uploaded_by",
+            "actor_role",
+            "preparation_source",
+            "source_original_id",
+            "upload_notes",
+        ):
+            result[key] = parsed.get(key)
         result["file_status"] = parsed.get("migration_file_status") or (
             "stored" if result["downloadable"] else "unavailable"
         )
     result["is_current"] = bool(result["is_current"])
     return result
+
+
+def set_current(engine, candidate_id, resume_id, expected_current_id, actor_name, role):
+    with transaction(engine) as conn:
+        row = one(conn, "candidate_resumes", resume_id)
+        if row["candidate_id"] != candidate_id or row["resume_kind"] not in {
+            "ORIGINAL",
+            "JOBMITRA_STANDARD",
+        }:
+            raise AtsError(
+                "Choose an original or altered version belonging to this candidate.", 404
+            )
+        request_data = [candidate_id, resume_id, expected_current_id, actor_name]
+        if receipts.replay(conn, "resume-current", request_data) is not None:
+            return get_resume(engine, candidate_id, resume_id)
+        current = conn.execute(
+            text(
+                "SELECT id FROM candidate_resumes WHERE candidate_id=:c AND "
+                "resume_kind=:k AND is_current=1"
+            ),
+            {"c": candidate_id, "k": row["resume_kind"]},
+        ).scalar()
+        if current != expected_current_id:
+            raise AtsError("Current resume changed. Reload before selecting a version.", 409)
+        if not row["storage_path"]:
+            raise AtsError("This historical file is unavailable; it cannot become current.", 409)
+        conn.execute(
+            text(
+                "UPDATE candidate_resumes SET is_current=0 WHERE candidate_id=:c AND resume_kind=:k"
+            ),
+            {"c": candidate_id, "k": row["resume_kind"]},
+        )
+        conn.execute(
+            text("UPDATE candidate_resumes SET is_current=1 WHERE id=:r"), {"r": resume_id}
+        )
+        if row["resume_kind"] == "ORIGINAL":
+            conn.execute(
+                text(
+                    "UPDATE candidate_resumes SET is_current=0 WHERE candidate_id=:c AND "
+                    "(resume_kind='PARSED_TEXT' OR (resume_kind='JOBMITRA_STANDARD' AND "
+                    "source_type='GENERATED'))"
+                ),
+                {"c": candidate_id},
+            )
+        conn.execute(
+            text(
+                "INSERT INTO "
+                "recruitment_events(candidate_id,event_type,before_json,after_json,payload_json) "
+                "VALUES(:c,'RESUME_CURRENT_CHANGED',:before,:after,:payload)"
+            ),
+            {
+                "c": candidate_id,
+                "before": json.dumps({"current_resume_id": current}),
+                "after": json.dumps({"current_resume_id": resume_id, "kind": row["resume_kind"]}),
+                "payload": json.dumps({"actor_name": actor_name, "actor_role": role}),
+            },
+        )
+        rebuild_search(conn, candidate_id)
+        receipts.record(conn, "resume-current", request_data, resume_id, candidate_id=candidate_id)
+    return get_resume(engine, candidate_id, resume_id)
 
 
 def get_resume(engine, candidate_id, resume_id):
@@ -242,6 +392,10 @@ def list_resumes(engine, candidate_id):
 
 def save_parsed_resume(engine, candidate_id, data: ParsedResumeInput):
     with transaction(engine) as conn:
+        request_data = [candidate_id, data.model_dump(mode="json")]
+        prior = receipts.replay(conn, "parsed-version", request_data)
+        if prior is not None:
+            return get_resume(engine, candidate_id, prior)
         candidate = one(conn, "candidates", candidate_id)
         source = one(conn, "candidate_resumes", data.source_resume_id)
         if (
@@ -264,6 +418,7 @@ def save_parsed_resume(engine, candidate_id, data: ParsedResumeInput):
             parsed_json=json.dumps(payload, ensure_ascii=False),
         )
         rebuild_search(conn, candidate_id)
+        receipts.record(conn, "parsed-version", request_data, resume_id, candidate_id=candidate_id)
     return get_resume(engine, candidate_id, resume_id)
 
 
@@ -286,6 +441,10 @@ def generate_resume(engine, candidate_id, root, data: GenerateResumeInput):
     root, path = _root(root), None
     try:
         with transaction(engine) as conn:
+            request_data = [candidate_id, data.model_dump(mode="json")]
+            prior = receipts.replay(conn, "standard-resume", request_data)
+            if prior is not None:
+                return get_resume(engine, candidate_id, prior)
             candidate = one(conn, "candidates", candidate_id)
             parsed = one(conn, "candidate_resumes", data.parsed_resume_id)
             if (
@@ -344,6 +503,9 @@ def generate_resume(engine, candidate_id, root, data: GenerateResumeInput):
                         "sha256": hashlib.sha256(document).hexdigest(),
                     }
                 ),
+            )
+            receipts.record(
+                conn, "standard-resume", request_data, resume_id, candidate_id=candidate_id
             )
         return get_resume(engine, candidate_id, resume_id)
     except Exception:

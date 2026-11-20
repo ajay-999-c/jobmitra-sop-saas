@@ -19,6 +19,8 @@ from sqlalchemy.orm import Session
 
 APPLICATION_ID = 1246576980
 SCHEMA_VERSION = 2
+UNIFIED_SCHEMA_VERSION = 3
+UNIFIED_UPGRADE_PATH = Path(__file__).with_name("upgrade_v2_to_v3.sql")
 SCHEMA_PATH = Path(__file__).with_name("schema.sql")
 SCHEMA_V1_PATH = Path(__file__).with_name("schema_v1.sql")
 UPGRADE_PATH = Path(__file__).with_name("upgrade_v1_to_v2.sql")
@@ -84,6 +86,8 @@ def _expected_objects(version: int = SCHEMA_VERSION) -> dict[tuple[str, str], st
     path = SCHEMA_V1_PATH if version == 1 else SCHEMA_PATH
     with sqlite3.connect(":memory:") as connection:
         connection.executescript(path.read_text(encoding="utf-8"))
+        if version == UNIFIED_SCHEMA_VERSION:
+            connection.executescript(UNIFIED_UPGRADE_PATH.read_text(encoding="utf-8"))
         return _objects(connection.execute("SELECT type,name,sql FROM sqlite_master"))
 
 
@@ -94,9 +98,35 @@ def _check(connection: Connection, *, allow_v1: bool = False) -> bool:
     version = connection.exec_driver_sql("PRAGMA user_version").scalar_one()
     if not objects and application_id == 0 and version == 0:
         return False
-    if application_id != APPLICATION_ID or version not in {1, SCHEMA_VERSION}:
+    if application_id != APPLICATION_ID or version not in {
+        1,
+        SCHEMA_VERSION,
+        UNIFIED_SCHEMA_VERSION,
+    }:
         raise RuntimeError("Unsupported SQLite database. Use a new ATS V2 database path.")
-    if objects != _expected_objects(version):
+    expected = _expected_objects(version)
+    if (
+        version == UNIFIED_SCHEMA_VERSION
+        and ("table", "candidate_registration_extension") in objects
+    ):
+        from .registration_store import email_table
+        from .registration_store import extension_objects as registration_objects
+
+        expected = {**expected, **registration_objects()}
+        expected[("table", "candidates")] = email_table(expected[("table", "candidates")])
+        if connection.exec_driver_sql(
+            "SELECT version FROM candidate_registration_extension"
+        ).all() != [(1,)]:
+            raise RuntimeError("Unsupported candidate registration extension version.")
+    if version == UNIFIED_SCHEMA_VERSION and ("table", "company_proposals") in objects:
+        from .proposal_store import extension_objects
+
+        expected = {**expected, **extension_objects()}
+    if version == UNIFIED_SCHEMA_VERSION and ("table", "candidate_profile_versions") in objects:
+        from .profile_store import extension_objects as profile_objects
+
+        expected = {**expected, **profile_objects()}
+    if objects != expected:
         raise RuntimeError("ATS V2 schema differs from its version. No migration was applied.")
     if connection.exec_driver_sql("PRAGMA quick_check").scalar_one() != "ok":
         raise RuntimeError("ATS V2 database integrity check failed.")
@@ -114,6 +144,32 @@ def validate(engine: Engine, *, allow_v1: bool = False) -> None:
     with engine.connect() as connection:
         if not _check(connection, allow_v1=allow_v1):
             raise RuntimeError("ATS V2 database is not initialized. Run its explicit initializer.")
+
+
+def upgrade_unified(store: Engine | Connection) -> None:
+    """Explicit V2 -> V3 only; no runtime startup or legacy importer calls this.
+
+    All DDL and the version marker roll back together. Existing field values are
+    verified before commit; new nullable facts remain unknown for historic rows.
+    """
+    if isinstance(store, Engine):
+        with transaction(store) as connection:
+            upgrade_unified(connection)
+        return
+    if store.dialect.name != "sqlite" or not store.in_transaction():
+        raise ValueError("Pass an active SQLite transaction.")
+    if not store.connection.driver_connection.in_transaction:
+        store.exec_driver_sql("BEGIN IMMEDIATE")
+    _check(store)
+    if store.exec_driver_sql("PRAGMA user_version").scalar_one() == UNIFIED_SCHEMA_VERSION:
+        return
+    from .master_import import local_state, preserve_existing
+
+    before = local_state(store)
+    for statement in _statements(UNIFIED_UPGRADE_PATH):
+        store.exec_driver_sql(statement)
+    preserve_existing(store, before)
+    _check(store)
 
 
 def upgrade(store: Engine | Connection) -> None:
@@ -140,7 +196,7 @@ def upgrade(store: Engine | Connection) -> None:
     if not _check(store, allow_v1=True):
         raise RuntimeError("Initialize a new ATS store before requesting an upgrade.")
     version = store.exec_driver_sql("PRAGMA user_version").scalar_one()
-    if version == SCHEMA_VERSION:
+    if version >= SCHEMA_VERSION:
         return
     for statement in _statements(UPGRADE_PATH):
         store.exec_driver_sql(statement)

@@ -1,4 +1,4 @@
-{% extends 'ats_v2/base.html' %}
+{% extends base_template | default('ats_v2/base.html') %}
 {% block title %}Candidate Desk (New){% endblock %}
 {% block layout_class %}ats-candidate-desk{% endblock %}
 {% block sidebar %}{% endblock %}

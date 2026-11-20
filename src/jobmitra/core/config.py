@@ -39,6 +39,12 @@ class Settings(BaseSettings):
     ats_v2_enabled: bool = False
     ats_v2_database: Path | None = None
     ats_v2_resume_storage_root: Path | None = None
+    unified_v12_enabled: bool = False
+    unified_v12_local_direct_editing: bool = False
+    unified_v12_proposals_enabled: bool = False
+    unified_v12_proposal_storage_root: Path | None = None
+    unified_v12_operator_token: SecretStr | None = None
+    unified_v12_supervisor_token: SecretStr | None = None
     office_timezone: str = "Asia/Kolkata"
 
     @field_validator("office_timezone")
@@ -65,4 +71,10 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
+    import os
+
+    if os.environ.get("JOBMITRA_LOCAL_V12") == "1":
+        from .local_v12 import local_settings
+
+        return local_settings()
     return Settings()

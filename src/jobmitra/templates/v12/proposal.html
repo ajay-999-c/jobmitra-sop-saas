@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jobmitra · Company Proposal</title>
+<link rel="stylesheet" href="/static/ats-v2/v12-shell.css">
+<script type="module" src="/static/ats-v2/proposal-workflow.mjs"></script></head>
+<body id="proposalWorkspace" data-company-id="{{ company_id }}" data-today="{{ today }}"><main>
+ <header><span class="eyebrow">COMPANY PROPOSAL</span><h1>Recruitment Services Proposal &amp; Terms of Engagement</h1>
+ <p>Prepare a formal PDF, download it, then prepare a short email. Attach the PDF manually in your mail application.</p></header>
+ <p id="notice" role="status" aria-live="polite">Loading company details…</p>
+ <div class="layout"><section class="card"><h2>Proposal details</h2><form id="proposalForm">
+  <label>Company name<input id="company" readonly></label>
+  <label>Active company contact<select id="contact" aria-label="Proposal company contact"></select></label>
+  <label>Recipient email · editable<input id="recipient" type="email" maxlength="254" placeholder="Enter email if not recorded" aria-label="Proposal recipient email"></label>
+  <label>Consultant legal name<input id="consultant" required maxlength="200" value="e - Friend Solutions India (Jobmitra.com)"></label>
+  <div class="fields"><label>Proposal issue date<input id="issueDate" type="date" required value="{{ today }}"></label>
+   <label>Proposal reference<input id="reference" maxlength="80" placeholder="Assigned on generation"></label></div>
+  <fieldset><legend>Recruitment service fee</legend><label class="radio"><input type="radio" name="fee" value="6" checked>6% of Annual CTC <small>21 whole days · illustration only</small></label>
+   <label class="radio"><input type="radio" name="fee" value="8.33">8.33% of Annual CTC <small>30 whole days · illustration only</small></label></fieldset>
+  <label>Illustrative Annual CTC in INR · optional<input id="annualCtc" type="number" min="0.01" step="0.01" placeholder="Optional amount"></label>
+  <p class="hint">Contractual fees use the exact percentage of Annual CTC. Each generated PDF is a separate, preserved version.</p>
+  <button id="generate" type="submit" class="primary" disabled>Generate PDF</button>
+ </form></section>
+ <section class="card preview"><h2>PDF preview</h2><p id="versionNote">No PDF generated yet. Form details are an unsaved draft.</p>
+  <div class="actions"><a id="download" class="button" hidden>Download PDF</a><button id="prepareEmail" type="button" disabled>Prepare Email</button></div>
+  <iframe id="pdfPreview" title="Recruitment proposal PDF preview" hidden></iframe>
+  <p class="hint">If your browser cannot display PDFs here, use Download PDF. Unsigned proposals contain blank acknowledgement and signature fields.</p>
+ </section></div>
+ <section id="emailSection" class="card" hidden><h2>Prepare Email</h2><p class="warning">The PDF is not attached automatically. Download the selected version and attach it manually before sending. Nothing has been sent.</p>
+  <label>To · editable<input id="emailTo" type="email" placeholder="Enter recipient email"></label><button id="copyTo" type="button">Copy To</button>
+  <label>Subject<input id="emailSubject" readonly></label><button id="copySubject" type="button">Copy subject</button>
+  <label>Short email body<textarea id="emailBody" rows="15" readonly></textarea></label><button id="copyBody" type="button">Copy email body</button>
+ </section>
+ <section class="card"><div class="actions"><h2>Proposal History</h2><button id="unlock" type="button">Unlock / refresh history</button></div>
+  <p class="hint">Only saved PDF versions and explicitly recorded facts appear here. Prepared does not mean Sent. An uploaded document does not mean Accepted.</p><div id="history"></div>
+ </section>
+ <section id="evidenceSection" class="card" hidden><h2>Signed copies &amp; status evidence</h2><p id="selectedReference"></p>
+  <form id="signedForm"><label>Upload Signed Copy · PDF up to 10 MB<input id="signedFile" type="file" accept="application/pdf,.pdf" required></label><button type="submit">Upload signed copy</button></form>
+  <p class="hint">Upload only a copy actually received from the company. Every upload is preserved separately. Uploading does not verify a signature or record acceptance.</p><div id="signedList"></div>
+  <form id="statusForm"><div class="fields"><label>Explicit status action<select id="status"><option value="SENT">Record Sent</option><option value="ACCEPTED">Record Accepted</option><option value="DECLINED">Record Declined</option></select></label>
+   <label>Evidence date<input id="effectiveDate" type="date" value="{{ today }}" max="{{ today }}" required></label></div>
+   <label>Evidence / confirmation details<textarea id="evidence" minlength="5" maxlength="3000" required placeholder="Describe the verified communication or signed acceptance"></textarea></label>
+   <div id="acceptanceFields" hidden><label>Signed PDF supporting acceptance<select id="signedChoice"></select></label><label>Authorized signatory<input id="signatory" maxlength="200"></label></div>
+   <label class="radio"><input id="confirmStatus" type="checkbox" required>I confirm this explicit action is supported by the evidence above.</label><button type="submit">Record status evidence</button>
+  </form><div id="eventList"></div>
+ </section>
+</main></body></html>

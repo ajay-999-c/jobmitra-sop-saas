@@ -8,8 +8,10 @@ export const pretty = value => String(value || '').toLowerCase().replaceAll('_',
 export const pill = (value,tone='') => `<span class="ats-pill ${esc(tone)}">${esc(value)}</span>`;
 export const empty = (title,detail='') => `<div class="ats-empty"><strong>${esc(title)}</strong>${esc(detail)}</div>`;
 export const list = value => Array.isArray(value)?value:[];
+let activeRequestKey=null;
 export async function api(path,options={}) {
-  const response=await fetch('/api/ats-v2'+path,{credentials:'same-origin',cache:'no-store',...options,headers:{'X-Jobmitra-UI':'1',...options.headers}});
+  const retryHeaders=['POST','PATCH','PUT','DELETE'].includes(options.method)?{'Idempotency-Key':activeRequestKey||crypto.randomUUID()}:{};
+  const response=await fetch(path.startsWith('/api/')?path:'/api/ats-v2'+path,{credentials:'same-origin',cache:'no-store',...options,headers:{'X-Jobmitra-UI':'1',...retryHeaders,...options.headers}});
   let data;
   try {data=await response.json();} catch {throw Error('The server returned an unreadable response. Reload and try again.');}
   if(!response.ok) {
@@ -18,7 +20,7 @@ export async function api(path,options={}) {
   }
   return data;
 }
-export const save = (path,data,method='POST') => api(path,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+export const save = (path,data,method='POST',headers={}) => api(path,{method,headers:{'Content-Type':'application/json',...headers},body:JSON.stringify(data)});
 export function error(err){$('#ats-error').textContent=err.message||String(err);$('#ats-error').hidden=false;$('#ats-error').scrollIntoView({behavior:'smooth',block:'nearest'});}
 export function clear(){ $('#ats-error').hidden=true;$('#ats-notice').hidden=true; }
 export function notice(message){$('#ats-notice').textContent=message;$('#ats-notice').hidden=false;}
@@ -38,7 +40,8 @@ export function dialog(title,body,submitLabel='Save',handler=null){
   const host=$('#ats-dialog');
   $('#ats-dialog-content').innerHTML=`<div class="ats-dialog-head"><h2 id="ats-dialog-title">${esc(title)}</h2><button type="button" class="ats-btn ats-secondary ats-small" id="ats-dialog-close" aria-label="Close dialog">✕</button></div><form id="ats-dialog-form" class="ats-dialog-body">${body}<p id="ats-dialog-error" class="ats-alert ats-error" role="alert" hidden></p><div class="ats-form-footer"><span class="ats-hint">Changes are saved to the new workspace.</span><div class="ats-actions"><button type="button" class="ats-btn ats-secondary" id="ats-dialog-cancel">Cancel</button>${handler?`<button class="ats-btn" type="submit">${esc(submitLabel)}</button>`:''}</div></div></form>`;
   $('#ats-dialog-close').onclick=()=>host.close();$('#ats-dialog-cancel').onclick=()=>host.close();
-  if(handler) $('#ats-dialog-form').onsubmit=async event=>{event.preventDefault();const button=event.submitter;button.disabled=true;$('#ats-dialog-error').hidden=true;try {await handler(values(event.target),event.target);host.close();}catch(err){$('#ats-dialog-error').textContent=err.message;$('#ats-dialog-error').hidden=false;}finally{button.disabled=false;}};
+  const requestKey=crypto.randomUUID();
+  if(handler) $('#ats-dialog-form').onsubmit=async event=>{event.preventDefault();const button=event.submitter;button.disabled=true;$('#ats-dialog-error').hidden=true;try {activeRequestKey=requestKey;await handler(values(event.target),event.target);host.close();}catch(err){$('#ats-dialog-error').textContent=err.message;$('#ats-dialog-error').hidden=false;}finally{activeRequestKey=null;button.disabled=false;}};
   if(!host.open)host.showModal();
   return host;
 }

@@ -275,3 +275,30 @@ The shared top navigation and self-selected Working as selector are available in
 all modules. The Windows database is verified at Stage 3 revision 0004.
 Unavailable sections retain a navigable setup-pending page; startup never applies
 migrations. See [routes, changed files and verification](docs/unified-portal-review.md).
+
+## Unified Workspace V12 — development only
+
+The opt-in Companies, Candidate Desk and JD Tracking workspace requires an explicitly
+rehearsed SQLite V3 upgrade. It is disabled by default; startup never migrates the
+database. Production remains V2 pending separate approval. See the
+[implementation review, clone rehearsal and legacy migration plan](docs/unified-v12.md).
+
+For the prepared isolated V12 local database on port 8000:
+
+```bash
+JOBMITRA_LOCAL_V12=1 .venv/bin/python -m uvicorn jobmitra.main:app --app-dir src --host 127.0.0.1 --port 8000 --workers 1 --no-access-log
+```
+
+This explicit profile enables `unified_v12_local_direct_editing`: no editing keys or
+login prompts, with audit actor `Local development user (unverified)`. Direct loopback
+access and isolated `runtime/` SQLite/file paths are required; non-loopback Uvicorn CLI
+bindings and LAN/proxy requests are refused. Normal configuration keeps its capability
+checks. Restart an older local process to load these changes.
+
+Open `/`; explicit V12 mode lands on Companies. This profile refuses a missing or V2
+database and never migrates it. See [local startup, URL history and Company Proposal
+integration](docs/v12-startup-proposal.md) for configuration, verification and limits.
+
+Company Proposal now uses **Generate PDF → Prepare Email → Upload Signed Copy**.
+See the [isolated PDF workflow, examples, API mapping and verification](docs/v12-pdf-proposal.md).
+PDF attachment/delivery is manual; preview and copy do not record Sent.

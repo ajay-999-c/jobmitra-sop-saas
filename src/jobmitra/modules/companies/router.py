@@ -71,8 +71,13 @@ def same_origin(request: Request):
 
 
 @router.get("/", include_in_schema=False)
-def home():
-    return RedirectResponse("/overview", status_code=303, headers={"Cache-Control": "no-store"})
+def home(request: Request):
+    target = (
+        "/workspace-v12/companies"
+        if request.app.state.settings.unified_v12_enabled
+        else "/overview"
+    )
+    return RedirectResponse(target, status_code=303, headers={"Cache-Control": "no-store"})
 
 
 @router.get("/companies", response_class=HTMLResponse)

@@ -1,0 +1,53 @@
+{% raw %}<!DOCTYPE html>
+<!-- saved from url=(0090)file:///Users/mac/Downloads/Jobmitra_Recruitment_Workspace_V10_Email_Integrated%20(2).html -->
+<html lang="en" style="--jm-header-height: 66px;"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="/static/stage2/favicon.svg" type="image/svg+xml"><title>Jobmitra · Unified Workspace V12 · Companies, Candidates & JD Tracking</title>
+<style>
+:root{--jm-red:#d51e29;--jm-ink:#213047;--jm-line:#e6eaf1;--jm-bg:#f6f8fb}
+*{box-sizing:border-box}body{margin:0;background:var(--jm-bg);font-family:Inter,"Segoe UI",Arial,sans-serif;color:var(--jm-ink)}
+.unified-header{display:flex;justify-content:space-between;align-items:center;gap:20px;min-height:66px;padding:11px clamp(16px,2.4vw,36px);background:white;border-bottom:1px solid var(--jm-line);position:sticky;top:0;z-index:10}
+.unified-brand{font-size:23px;letter-spacing:-.8px;font-weight:850;white-space:nowrap}.unified-brand .job{color:#d51e29}.unified-brand small{display:block;color:#8290a0;font-weight:600;font-size:9px;letter-spacing:.3px;text-align:center;margin-top:3px}
+.unified-switcher{display:flex;align-items:center;gap:5px;background:#f4f6f9;padding:4px;border-radius:10px}
+.unified-switcher button{border:0;background:transparent;color:#5e6d81;font-size:12px;font-weight:750;padding:9px 15px;border-radius:7px;cursor:pointer;white-space:nowrap}
+.unified-switcher button[aria-selected="true"]{background:white;color:#c32230;box-shadow:0 1px 4px #1523371c}
+.unified-trailing{font-size:11px;color:#8191a4;white-space:nowrap}
+.unified-trailing b{color:#50627b}
+.app-shell{display:block;min-width:0}.app-shell[hidden]{display:none!important}
+@media(max-width:680px){.unified-header{gap:6px;flex-wrap:wrap;padding:9px 13px}.unified-brand{font-size:19px}.unified-switcher{order:3;flex:1 1 100%;}.unified-switcher button{flex:1;font-size:11px}.unified-trailing{font-size:10px}}
+
+  #emailStudioOverlay[hidden]{display:none!important}
+  #emailStudioOverlay{position:fixed;inset:0;z-index:500;display:flex;align-items:stretch;justify-content:center;background:rgba(15,23,42,.66);padding:22px}
+  #emailStudioOverlay .studio-shell{width:min(1440px,100%);height:100%;min-height:0;border-radius:14px;background:#fff;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 24px 70px rgba(0,0,0,.28)}
+  #emailStudioOverlay .studio-head{min-height:54px;background:#fff;border-bottom:1px solid #dfe5eb;padding:8px 16px;display:flex;justify-content:space-between;align-items:center;gap:12px}
+  #emailStudioOverlay .studio-head strong{font-size:15px;color:#243448}
+  #emailStudioOverlay .studio-head small{font-size:11px;color:#718096;display:block;margin-top:2px}
+  #emailStudioOverlay #closeEmailStudio{padding:8px 12px;background:#fff;border-radius:8px;border:1px solid #d9e0e9;color:#344155;font-weight:700;font-size:12px;cursor:pointer}
+  #emailStudioOverlay iframe{width:100%;height:100%;min-height:0;border:0;background:#f4f6f8;flex:1}
+  @media(max-width:630px){#emailStudioOverlay{padding:0}#emailStudioOverlay .studio-shell{border-radius:0}#emailStudioOverlay .studio-head{min-height:49px}}
+
+
+/* V12: three independent workspaces, single shared navigation */
+.unified-switcher{max-width:100%;overflow-x:auto;scrollbar-width:thin}
+.unified-switcher button{min-height:36px}
+@media(max-width:520px){.unified-switcher button{font-size:11px;padding:9px 8px}.unified-trailing{display:none}}
+</style></head><body data-section="{% endraw %}{{ workspace_section }}{% raw %}">
+<header class="unified-header">
+ <div class="unified-brand"><span class="job">Job</span>mitra<span class="job">.com</span><small>Your online job friend</small></div>
+ <div role="tablist" class="unified-switcher" aria-label="Recruitment workspaces">
+   <button id="unifiedCompaniesTab" type="button" role="tab" aria-selected="false">Companies</button>
+    <button id="unifiedCandidateTab" type="button" role="tab" aria-selected="true">Candidate Desk</button>
+   <button id="unifiedJDTab" type="button" role="tab" aria-selected="false">JD Tracking</button>
+ </div>
+ <div class="unified-trailing"><b>SQLITE WORKSPACE</b> · Loading records</div>
+</header>
+<section class="app-shell" id="companiesHost" hidden aria-label="Companies and Placement Analytics"></section>
+<section class="app-shell" id="candidateHost" aria-label="Candidate Desk"></section>
+<section id="jdHost" class="app-shell" hidden=""></section>
+<div id="emailStudioOverlay" hidden="" role="dialog" aria-modal="true" aria-label="Jobmitra Email Studio">
+  <div class="studio-shell">
+    <div class="studio-head"><div><strong>Email Studio · Candidate &amp; JD Communications</strong><small>Auto-filled preview · Review before copying · No email is sent</small></div><button id="closeEmailStudio" type="button" aria-label="Close Email Studio">✕ &nbsp;Close</button></div>
+    <iframe id="emailStudioFrame" title="Jobmitra Email Studio" allow="clipboard-write; clipboard-read"></iframe>
+  </div>
+</div>
+<script type="module" src="/static/ats-v2/approved.mjs"></script>
+</body></html>{% endraw %}

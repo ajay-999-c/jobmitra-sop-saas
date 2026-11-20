@@ -48,10 +48,20 @@ class AtsRoute(APIRoute):
         original = super().get_route_handler()
 
         async def handle(request):
+            from .request_receipts import request_key, set_key
+
+            context_token = None
             try:
+                context_token = set_key(request.headers.get("Idempotency-Key"))
+                from .unified_access import guard_write
+
+                guard_write(request)
                 response = await original(request)
             except AtsError as error:
-                response = JSONResponse({"detail": error.message}, status_code=error.status)
+                response = JSONResponse(
+                    {"detail": error.message, **({"code": error.code} if error.code else {})},
+                    status_code=error.status,
+                )
             except (RequestValidationError, ValidationError) as error:
                 response = JSONResponse(
                     {
@@ -73,6 +83,9 @@ class AtsRoute(APIRoute):
                     {"detail": "ATS storage is unavailable. No change was confirmed."},
                     status_code=503,
                 )
+            finally:
+                if context_token is not None:
+                    request_key.reset(context_token)
             response.headers.update(
                 {
                     "Cache-Control": "no-store",
@@ -141,7 +154,8 @@ def search_page(request: Request):
 def health(engine: Store):
     with engine.connect() as conn:
         conn.execute(text("SELECT 1"))
-    return {"status": "ok", "storage": "sqlite", "schema": "ats-v2-2"}
+        version = conn.exec_driver_sql("PRAGMA user_version").scalar_one()
+    return {"status": "ok", "storage": "sqlite", "schema": f"ats-v2-{version}"}
 
 
 @api.get("/companies")
@@ -257,12 +271,33 @@ async def resume_upload(
     ] = "ORIGINAL",
 ):
     settings = request.app.state.settings
+    metadata = {}
+    from .unified import is_v3
+
+    with engine.connect() as conn:
+        v3 = is_v3(conn)
+    if v3:
+        from .resume_inputs import ResumeMetadata
+        from .unified_access import access
+
+        raw = unquote(request.headers.get("X-Resume-Metadata", "{}"))
+        if len(raw) > 8000:
+            raise AtsError("Resume metadata is too large.")
+        try:
+            metadata = ResumeMetadata.model_validate_json(raw).model_dump(exclude_none=True)
+        except ValueError:
+            raise AtsError("Check preparation source, original link and upload notes.") from None
+        metadata["actor_role"] = access(request)
     data = bytearray()
     async for chunk in request.stream():
         if len(data) + len(chunk) > settings.resume_max_bytes:
             raise AtsError("Resume exceeds the configured upload limit.", 413)
         data.extend(chunk)
-    return await run_in_threadpool(
+    if metadata and unquote(filename).lower().endswith(".pdf"):
+        from .proposal_documents import validate_pdf
+
+        validate_pdf(bytes(data), unquote(filename))
+    result = await run_in_threadpool(
         resumes.upload_resume,
         engine,
         candidate_id,
@@ -271,11 +306,22 @@ async def resume_upload(
         unquote(filename),
         settings.resume_max_bytes,
         kind,
+        metadata,
+        request.headers.get("X-Resume-Reuse-Existing") == "1",
     )
+    if result.get("reused_existing"):
+        return JSONResponse(result, status_code=200)
+    return result
 
 
 @api.get("/candidates/{candidate_id}/resumes/{resume_id}/download")
 def resume_download(candidate_id: int, resume_id: int, request: Request, engine: Store):
+    from .unified import is_v3
+    from .unified_access import access
+
+    with engine.connect() as conn:
+        if is_v3(conn):
+            access(request)
     path, media, filename = resumes.download_resume(
         engine, candidate_id, resume_id, request.app.state.settings.ats_v2_resume_storage_root
     )

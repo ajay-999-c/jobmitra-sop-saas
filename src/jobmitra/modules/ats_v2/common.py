@@ -19,10 +19,11 @@ TABLES = frozenset(
 
 
 class AtsError(Exception):
-    def __init__(self, message, status=422):
+    def __init__(self, message, status=422, code=None):
         super().__init__(message)
         self.status = status
         self.message = message
+        self.code = code
 
 
 def one(connection, table, record_id):
