@@ -73,8 +73,9 @@ class Settings(BaseSettings):
 def get_settings() -> Settings:
     import os
 
-    if os.environ.get("JOBMITRA_LOCAL_V12") == "1":
-        from .local_v12 import local_settings
+    from .local_v12 import default_local_startup, local_settings
 
+    mode = os.environ.get("JOBMITRA_LOCAL_V12")
+    if mode == "1" or (mode is None and default_local_startup()):
         return local_settings()
     return Settings()

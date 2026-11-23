@@ -4,6 +4,7 @@ import ipaddress
 import os
 import sqlite3
 import sys
+from pathlib import Path
 
 from starlette.datastructures import URL
 from starlette.responses import JSONResponse
@@ -12,6 +13,37 @@ from .config import PROJECT_ENV_FILE, Settings
 
 LOCAL_ROOT = PROJECT_ENV_FILE.parent / "runtime" / "v12-local"
 LOCAL_ACTOR = "Local development user (unverified)"
+
+
+def default_local_startup():
+    """Recognize the source-checkout Uvicorn command with an explicit loopback bind."""
+    program = sys.argv[0].replace("\\", "/").lower()
+    if (
+        not (
+            program.rsplit("/", 1)[-1] in {"uvicorn", "uvicorn.exe"}
+            or program.endswith("/uvicorn/__main__.py")
+        )
+        or "jobmitra.main:app" not in sys.argv[1:]
+    ):
+        return False
+
+    def option(name, default=None):
+        value = default
+        for index, arg in enumerate(sys.argv[1:], 1):
+            if arg == name:
+                value = sys.argv[index + 1] if index + 1 < len(sys.argv) else None
+            elif arg.startswith(name + "="):
+                value = arg.split("=", 1)[1]
+        return value
+
+    directory = option("--app-dir")
+    host = option("--host", os.environ.get("UVICORN_HOST"))
+    return bool(
+        directory
+        and host
+        and loopback(host)
+        and Path(directory.replace("\\", "/")).resolve() == PROJECT_ENV_FILE.parent / "src"
+    )
 
 
 def loopback(host):
@@ -26,6 +58,10 @@ def loopback(host):
         return False
 
 
+def redirected(path):
+    return path.is_symlink() or bool(getattr(path.lstat(), "st_file_attributes", 0) & 0x400)
+
+
 def validate_direct_editing(settings):
     """No implicit production/path fallback, migration, or network-wide access."""
     if not settings.unified_v12_local_direct_editing:
@@ -38,7 +74,7 @@ def validate_direct_editing(settings):
     if (
         not path.resolve().is_relative_to(runtime.resolve())
         or not path.is_file()
-        or any(part.is_symlink() for part in [path, *path.parents])
+        or any(redirected(part) for part in [path, *path.parents])
         or path.stat().st_nlink != 1
     ):
         raise RuntimeError(
@@ -102,9 +138,20 @@ class LocalPreviewGuard:
 
 def local_settings() -> Settings:
     path = LOCAL_ROOT / "ats-v3.sqlite3"
-    if not path.is_file() or path.is_symlink() or path.stat().st_nlink != 1:
+    if (LOCAL_ROOT / ".preparing").exists():
         raise RuntimeError(
-            "Local V12 requires its existing isolated runtime/v12-local/ats-v3.sqlite3 copy."
+            "Local V12 data preparation is incomplete; no production fallback was used."
+        )
+    if (
+        not path.is_file()
+        or path.stat().st_nlink != 1
+        or any(redirected(part) for part in [path, *path.parents])
+    ):
+        raise RuntimeError(
+            "Local V12 requires its existing isolated runtime/v12-local/ats-v3.sqlite3 copy. "
+            "Prepare it with: uv run --no-sync python scripts/prepare_local_v12.py --from-config. "
+            "This copies existing data; startup never creates an empty database "
+            "or migrates production."
         )
     with sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True) as conn:
         conn.execute("PRAGMA query_only=ON")

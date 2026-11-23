@@ -278,25 +278,50 @@ migrations. See [routes, changed files and verification](docs/unified-portal-rev
 
 ## Unified Workspace V12 — development only
 
-The opt-in Companies, Candidate Desk and JD Tracking workspace requires an explicitly
-rehearsed SQLite V3 upgrade. It is disabled by default; startup never migrates the
-database. Production remains V2 pending separate approval. See the
+The Companies, Candidate Desk and JD Tracking workspace requires a prepared SQLite V3
+development copy. Normal service/LAN configuration remains opt-in; startup never migrates
+production. See the
 [implementation review, clone rehearsal and legacy migration plan](docs/unified-v12.md).
 
-For the prepared isolated V12 local database on port 8000:
+For local development on Windows, macOS or Linux, run from the project root:
 
 ```bash
-JOBMITRA_LOCAL_V12=1 .venv/bin/python -m uvicorn jobmitra.main:app --app-dir src --host 127.0.0.1 --port 8000 --workers 1 --no-access-log
+uv run --no-sync python -m uvicorn jobmitra.main:app --app-dir src --host 127.0.0.1 --port 8002 --workers 1
 ```
 
-This explicit profile enables `unified_v12_local_direct_editing`: no editing keys or
+An explicit loopback Uvicorn launch with `--app-dir src` selects the isolated V12 profile
+automatically. `/` and `/overview` open `/workspace-v12/companies`; Candidate Desk and
+JD Tracking are `/workspace-v12/candidates` and `/workspace-v12/jobs`. The old Candidate
+Desk/JD Workspace menu URLs redirect to these approved screens. No original UI was redesigned.
+
+This local profile enables `unified_v12_local_direct_editing`: no editing keys or
 login prompts, with audit actor `Local development user (unverified)`. Direct loopback
 access and isolated `runtime/` SQLite/file paths are required; non-loopback Uvicorn CLI
 bindings and LAN/proxy requests are refused. Normal configuration keeps its capability
-checks. Restart an older local process to load these changes.
+checks. Set the process environment variable `JOBMITRA_LOCAL_V12=0` only when explicitly
+choosing the legacy/service configuration. `JOBMITRA_LOCAL_V12=1` remains supported for
+an explicit isolated preview. Restart an older local process to load these changes.
 
-Open `/`; explicit V12 mode lands on Companies. This profile refuses a missing or V2
-database and never migrates it. See [local startup, URL history and Company Proposal
+**A Git pull does not include private candidate databases or resumes.** If the local copy
+does not exist yet, prepare it once using the existing Windows machine's `.env` paths:
+
+```bash
+uv run --no-sync python scripts/prepare_local_v12.py --from-config
+```
+
+This explicit command requires `JOBMITRA_ATS_V2_DATABASE` to identify the actual populated
+Windows ATS SQLite file and its configured document roots. It opens that source read-only,
+takes a WAL-aware SQLite backup into a new `runtime/v12-local/ats-v3.sqlite3`, upgrades only
+that copy if it is V2, installs the existing V12 extensions, and verifies every original row
+and copied document checksum. V3 sources are validated without repeating the V2 upgrade.
+Original resumes, proposal PDFs and legacy documents are copied into the private local
+workspace; nothing is uploaded to Git. The source database is never migrated or overwritten.
+The command refuses an existing local destination, missing source/storage paths or an
+unrecognized/empty source; it never creates an empty replacement. A failed partial copy
+remains marked `.preparing` and cannot be opened as a ready workspace.
+
+Then open <http://127.0.0.1:8002/>. Missing/incompatible local data produces a setup error,
+with no fallback to production or an older UI. See [local startup, URL history and Company Proposal
 integration](docs/v12-startup-proposal.md) for configuration, verification and limits.
 
 Company Proposal now uses **Generate PDF → Prepare Email → Upload Signed Copy**.

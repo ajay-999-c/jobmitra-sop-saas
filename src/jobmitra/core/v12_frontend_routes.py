@@ -15,8 +15,10 @@ class V12FrontendRoutes:
             and scope["method"] == "GET"
             and self.settings.unified_v12_enabled
         ):
-            path = scope["path"]
+            path = scope["path"].rstrip("/") or "/"
             target = {
+                "/": "/workspace-v12/companies",
+                "/overview": "/workspace-v12/companies",
                 "/companies": "/workspace-v12/companies",
                 "/candidate-desk": "/workspace-v12/candidates",
                 "/candidates": "/workspace-v12/candidates?section=candidates",
