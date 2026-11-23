@@ -48,7 +48,9 @@ def details(candidate_id: int, draft_id: int, request: Request, engine: Store):
 def download(candidate_id: int, draft_id: int, request: Request, engine: Store):
     access(request)
     return Response(
-        documents.download(engine, candidate_id, draft_id),
+        documents.download(
+            engine, candidate_id, draft_id, request.app.state.settings.ats_v2_resume_storage_root
+        ),
         media_type="application/json",
         headers={"Content-Disposition": f'attachment; filename="parsed-resume-{draft_id}.json"'},
     )

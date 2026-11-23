@@ -10,7 +10,7 @@ from jobmitra.modules.candidates.schemas import mobile_key
 from . import request_receipts as receipts
 from .candidate_schemas import CandidateCreate, CandidatePatch, SearchParams
 from .common import AtsError, one
-from .database import transaction
+from .database import insert_result, transaction
 
 JSON_FIELDS = {
     "skills": "skills_json",
@@ -188,8 +188,8 @@ def create_candidate(engine, data: CandidateCreate):
         values["candidate_code"] = "ATS-" + uuid.uuid4().hex[:16].upper()
         columns = ",".join(values)
         placeholders = ",".join(":" + key for key in values)
-        candidate_id = conn.execute(
-            text(f"INSERT INTO candidates({columns}) VALUES({placeholders})"), values
+        candidate_id = insert_result(
+            conn, text(f"INSERT INTO candidates({columns}) VALUES({placeholders})"), values
         ).lastrowid
         rebuild_search(conn, candidate_id)
         receipts.record(

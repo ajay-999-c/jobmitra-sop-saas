@@ -15,7 +15,7 @@ from sqlalchemy import text
 from . import candidates, profile_store
 from .candidate_schemas import CandidateCreate, CandidatePatch
 from .common import AtsError, one, utc_now
-from .database import transaction
+from .database import insert_result, transaction
 
 
 class Strict(BaseModel):
@@ -157,11 +157,7 @@ def _latest(conn, cid):
     )
 
 
-def _state(conn, cid):
-    ensure(conn)
-    row = one(conn, "candidates", cid)
-    candidate = candidates.candidate_dict(row)
-    latest = _latest(conn, cid)
+def _reviewed_extra(candidate, profile_json, registration_json, evidence):
     extra = {
         k: candidate.get(k)
         for k in [
@@ -173,40 +169,14 @@ def _state(conn, cid):
         ]
         if candidate.get(k) is not None
     }
-    if latest:
-        extra.update(json.loads(latest["profile_json"]))
-    if "registration_purpose" not in extra:
-        original = conn.execute(
-            text(
-                "SELECT payload_json FROM recruitment_events WHERE candidate_id=:c "
-                "AND event_type='REGISTRATION_DETAILS' ORDER BY id LIMIT 1"
-            ),
-            {"c": cid},
-        ).scalar()
-        if original:
-            extra["registration_purpose"] = json.loads(original).get("registration_purpose")
-    if "notice_period_text" not in extra:
-        notice = conn.execute(
-            text(
-                "SELECT payload_json FROM recruitment_events "
-                "WHERE candidate_id=:c AND event_type='REGISTRATION_DETAILS' ORDER BY id LIMIT 1"
-            ),
-            {"c": cid},
-        ).scalar()
-        if notice and json.loads(notice).get("notice_text"):
-            extra["notice_period_text"] = json.loads(notice)["notice_text"]
-    # Preserve reviewed JSON as independent evidence; never coerce arbitrary legacy structures.
-    evidence = []
-    for (parsed,) in conn.execute(
-        text(
-            "SELECT parsed_json FROM candidate_resumes WHERE candidate_id=:c AND "
-            "resume_kind='PARSED_TEXT' AND is_current=1"
-        ),
-        {"c": cid},
-    ):
-        value = json.loads(parsed or "{}")
-        if value.get("facts_reviewed"):
-            evidence.append(value.get("profile", {}))
+    if profile_json:
+        extra.update(json.loads(profile_json))
+    if registration_json:
+        original = json.loads(registration_json)
+        if "registration_purpose" not in extra:
+            extra["registration_purpose"] = original.get("registration_purpose")
+        if "notice_period_text" not in extra and original.get("notice_text"):
+            extra["notice_period_text"] = original["notice_text"]
     for item in evidence:
         for name, aliases in {
             "employment_history": ["employment_history", "work_experience"],
@@ -224,8 +194,37 @@ def _state(conn, cid):
                         name
                     ]
                 except ValueError:
-                    pass  # Retain incompatible historical evidence without coercion.
+                    pass  # Preserve incompatible historical evidence without coercion.
                 break
+    return extra
+
+
+def _state(conn, cid):
+    ensure(conn)
+    row = one(conn, "candidates", cid)
+    candidate = candidates.candidate_dict(row)
+    latest = _latest(conn, cid)
+    original = conn.execute(
+        text(
+            "SELECT payload_json FROM recruitment_events WHERE candidate_id=:c "
+            "AND event_type='REGISTRATION_DETAILS' ORDER BY id LIMIT 1"
+        ),
+        {"c": cid},
+    ).scalar()
+    evidence = []
+    for (parsed,) in conn.execute(
+        text(
+            "SELECT parsed_json FROM candidate_resumes WHERE candidate_id=:c "
+            "AND resume_kind='PARSED_TEXT' AND is_current=1"
+        ),
+        {"c": cid},
+    ):
+        value = json.loads(parsed or "{}")
+        if value.get("facts_reviewed"):
+            evidence.append(value.get("profile", {}))
+    extra = _reviewed_extra(
+        candidate, latest["profile_json"] if latest else None, original, evidence
+    )
     for key in ["current_salary_inr", "expected_salary_inr"]:
         if candidate[key] is not None:
             candidate[key] = str(candidate[key])
@@ -238,6 +237,46 @@ def _state(conn, cid):
         "revision": revision,
         "reviewed_resume_evidence": evidence,
         "profile_version_id": latest["id"] if latest else None,
+    }
+
+
+def postgres_bootstrap_extras(conn, people):
+    """Three bounded reads replace the per-person queries over a networked store."""
+    if conn.dialect.name != "postgresql":
+        raise ValueError("PostgreSQL bootstrap only")
+    latest = dict(
+        conn.execute(
+            text(
+                "SELECT DISTINCT ON (candidate_id) candidate_id,profile_json "
+                "FROM candidate_profile_versions "
+                "ORDER BY candidate_id,id DESC"
+            )
+        ).all()
+    )
+    registrations = dict(
+        conn.execute(
+            text(
+                "SELECT DISTINCT ON (candidate_id) candidate_id,payload_json "
+                "FROM recruitment_events "
+                "WHERE event_type='REGISTRATION_DETAILS' ORDER BY candidate_id,id"
+            )
+        ).all()
+    )
+    evidence = {}
+    for cid, parsed in conn.execute(
+        text(
+            "SELECT candidate_id,parsed_json FROM candidate_resumes "
+            "WHERE resume_kind='PARSED_TEXT' AND is_current=1 ORDER BY id"
+        )
+    ):
+        value = json.loads(parsed or "{}")
+        if value.get("facts_reviewed"):
+            evidence.setdefault(cid, []).append(value.get("profile", {}))
+    return {
+        p["id"]: _reviewed_extra(
+            p, latest.get(p["id"]), registrations.get(p["id"]), evidence.get(p["id"], [])
+        )
+        for p in people
     }
 
 
@@ -297,7 +336,8 @@ def _salary_check(conn, cid, person):
         if key in person.model_fields_set and getattr(person, key) is not None:
             if Decimal(str(row[key])) != getattr(person, key):
                 raise AtsError(
-                    "This salary exceeds lossless SQLite precision. No changes were saved."
+                    "This salary could not be stored without losing precision. "
+                    "No changes were saved."
                 )
 
 
@@ -439,7 +479,8 @@ def intake(engine, data, role):
             )
         values = _values(data.candidate)
         values["candidate_code"] = "ATS-" + uuid4().hex[:16].upper()
-        cid = conn.execute(
+        cid = insert_result(
+            conn,
             text(
                 "INSERT INTO candidates("
                 + ",".join(values)

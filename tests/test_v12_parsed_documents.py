@@ -381,3 +381,46 @@ def test_parsed_upload_reuses_standard_version_or_immutable_bytes_without_duplic
     assert response.json()["id"] != doc["id"]
     assert len(complete.get(path).json()) == 2
     assert {p: p.read_bytes() for p in root.rglob("*") if p.is_file()} == original_files
+
+
+def test_unified_parent_paths_exact_json_and_tamper_rejection(complete, store):
+    from sqlalchemy import text
+
+    original, _ = source(complete, store, kind="ORIGINAL")
+    altered, _ = source(complete, store)
+    raw = '\ufeff { "skills" : ["UnifiedParentSkill"] }\r\n'
+    parsed = draft(complete, store, altered["id"], raw)
+    root = store[-1] / "resumes"
+    with store[0].connect() as conn:
+        paths = dict(conn.execute(text("SELECT id,storage_path FROM candidate_resumes")).all())
+    cid = store[3]
+    for row, category in [(original, "original"), (altered, "altered"), (parsed, "parsed")]:
+        assert paths[row["id"]].split("/")[:2] == [category, f"candidate_{cid}"]
+    artifact = root / paths[parsed["id"]]
+    assert artifact.read_bytes() == raw.encode()
+    download = base(store) + f"/parsed-drafts/{parsed['id']}/download"
+    assert complete.get(download).content == raw.encode()
+    artifact.write_bytes(b'{"tampered":true}')
+    assert complete.get(download).status_code == 409
+
+
+def test_parsed_file_cleanup_after_failed_transaction(complete, store):
+    from unittest.mock import patch
+
+    from jobmitra.modules.ats_v2 import parsed_documents
+
+    altered, _ = source(complete, store)
+    root = store[-1] / "resumes"
+    before = {p: p.read_bytes() for p in root.rglob("*") if p.is_file()}
+    with patch.object(parsed_documents.receipts, "record", side_effect=OSError("fixture failure")):
+        response = post(
+            complete,
+            base(store) + "/parsed-drafts",
+            {
+                "source_resume_id": altered["id"],
+                "raw_json": '{"skills":["Rollback"]}',
+                "actor_name": "Synthetic reviewer",
+            },
+        )
+    assert response.status_code == 503
+    assert {p: p.read_bytes() for p in root.rglob("*") if p.is_file()} == before

@@ -68,10 +68,18 @@ def validate_direct_editing(settings):
         return
     runtime = PROJECT_ENV_FILE.parent / "runtime"
     path = settings.ats_v2_database
-    if not settings.unified_v12_enabled or not settings.ats_v2_enabled or path is None:
+    postgres = settings.v12_backend == "postgresql"
+    if not settings.unified_v12_enabled or not settings.ats_v2_enabled:
         raise RuntimeError("Direct editing requires the isolated local V12 preview.")
-    path = path.expanduser().absolute()
-    if (
+    if postgres:
+        from jobmitra.modules.ats_v2.postgres import validate_configuration
+
+        validate_configuration(settings)
+    elif path is None:
+        raise RuntimeError("Direct editing requires an isolated SQLite file.")
+    else:
+        path = path.expanduser().absolute()
+    if not postgres and (
         not path.resolve().is_relative_to(runtime.resolve())
         or not path.is_file()
         or any(redirected(part) for part in [path, *path.parents])
@@ -89,13 +97,16 @@ def validate_direct_editing(settings):
             runtime.resolve()
         ):
             raise RuntimeError("Direct editing requires isolated file storage under runtime/.")
-    with sqlite3.connect(path.as_uri() + "?mode=ro", uri=True) as conn:
-        conn.execute("PRAGMA query_only=ON")
-        if (
-            conn.execute("PRAGMA user_version").fetchone()[0] != 3
-            or conn.execute("PRAGMA application_id").fetchone()[0] != 1246576980
-        ):
-            raise RuntimeError("Direct editing requires existing SQLite V3; no migration was run.")
+    if not postgres:
+        with sqlite3.connect(path.as_uri() + "?mode=ro", uri=True) as conn:
+            conn.execute("PRAGMA query_only=ON")
+            if (
+                conn.execute("PRAGMA user_version").fetchone()[0] != 3
+                or conn.execute("PRAGMA application_id").fetchone()[0] != 1246576980
+            ):
+                raise RuntimeError(
+                    "Direct editing requires existing SQLite V3; no migration was run."
+                )
     # Uvicorn CLI binding is known before startup; programmatic servers are also
     # guarded on every request using the actual peer and local socket addresses.
     host = os.environ.get("UVICORN_HOST", "127.0.0.1")

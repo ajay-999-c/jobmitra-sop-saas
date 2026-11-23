@@ -18,11 +18,9 @@ def extension_objects():
 
 
 def installed(conn):
-    return bool(
-        conn.exec_driver_sql(
-            "SELECT 1 FROM sqlite_master WHERE name='candidate_profile_versions' AND type='table'"
-        ).first()
-    )
+    from .database import has_table
+
+    return has_table(conn, "candidate_profile_versions")
 
 
 def install(engine):

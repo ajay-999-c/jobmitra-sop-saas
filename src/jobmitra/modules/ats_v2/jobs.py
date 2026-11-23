@@ -9,7 +9,7 @@ from sqlalchemy import text
 
 from . import request_receipts as receipts
 from .common import AtsError, event_record, one, utc_now
-from .database import transaction
+from .database import insert_result, transaction
 from .schemas import ActivityInput, JobCreate
 
 FIXED = {
@@ -127,7 +127,8 @@ def create_job(engine, data, companies):
         if prior is not None:
             return get_job(engine, prior)
         columns = ",".join(values)
-        result = conn.execute(
+        result = insert_result(
+            conn,
             text(
                 f"INSERT INTO job_descriptions({columns}) "
                 f"VALUES({','.join(':' + k for k in values)})"
@@ -379,7 +380,8 @@ def associate(engine, job_id, candidate_id):
             {"j": job_id, "c": candidate_id},
         ).first():
             raise AtsError("Already associated. View Existing JD Pool.", 409)
-        result = conn.execute(
+        result = insert_result(
+            conn,
             text("INSERT INTO jd_candidates(job_id,candidate_id) VALUES(:j,:c)"),
             {"j": job_id, "c": candidate_id},
         )
@@ -606,7 +608,8 @@ def save_activity(engine, candidate_id, data, activity_id=None):
                 {**values, "id": activity_id},
             )
         else:
-            result = conn.execute(
+            result = insert_result(
+                conn,
                 text(
                     "INSERT INTO candidate_activities(candidate_id,"
                     + ",".join(values)

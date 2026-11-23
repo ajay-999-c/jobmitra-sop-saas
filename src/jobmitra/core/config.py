@@ -10,6 +10,15 @@ from sqlalchemy import URL
 PROJECT_ENV_FILE = Path(__file__).resolve().parents[3] / ".env"
 
 
+class _V12BackendChoice(BaseSettings):
+    """Read one selector without requiring legacy credentials for SQLite preview."""
+
+    model_config = SettingsConfigDict(
+        env_prefix="JOBMITRA_", env_file_encoding="utf-8", extra="ignore"
+    )
+    v12_backend: str | None = None
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_prefix="JOBMITRA_", env_file=PROJECT_ENV_FILE, env_file_encoding="utf-8", extra="ignore"
@@ -40,6 +49,10 @@ class Settings(BaseSettings):
     ats_v2_database: Path | None = None
     ats_v2_resume_storage_root: Path | None = None
     unified_v12_enabled: bool = False
+    v12_backend: Literal["sqlite", "postgresql"] = "sqlite"
+    v12_postgres_development: bool = False
+    v12_postgres_trusted_lan: bool = False
+    v12_postgres_schema: str | None = None
     unified_v12_local_direct_editing: bool = False
     unified_v12_proposals_enabled: bool = False
     unified_v12_proposal_storage_root: Path | None = None
@@ -75,6 +88,16 @@ def get_settings() -> Settings:
 
     from .local_v12 import default_local_startup, local_settings
 
+    # Explicit PostgreSQL selection must never enter the automatic SQLite profile.
+    backend = os.environ.get("JOBMITRA_V12_BACKEND")
+    if backend is None and PROJECT_ENV_FILE.is_file():
+        backend = _V12BackendChoice(_env_file=PROJECT_ENV_FILE).v12_backend
+    if backend not in {None, "sqlite", "postgresql"}:
+        raise RuntimeError("Choose a supported V12 backend explicitly.")
+    if backend == "postgresql":
+        if os.environ.get("JOBMITRA_LOCAL_V12") == "1":
+            raise RuntimeError("Choose PostgreSQL or the SQLite local profile explicitly.")
+        return Settings()
     mode = os.environ.get("JOBMITRA_LOCAL_V12")
     if mode == "1" or (mode is None and default_local_startup()):
         return local_settings()

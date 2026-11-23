@@ -1,10 +1,10 @@
 """Explicit input contracts; legacy PostgreSQL models are never used for ATS writes."""
 
 from datetime import date, datetime
-from typing import Literal
+from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, field_validator, model_validator
 
 Period = Literal["MONTHLY", "ANNUAL"]
 Basis = Literal["UNKNOWN", "CTC", "GROSS", "IN_HAND"]
@@ -19,6 +19,18 @@ Stage = Literal[
     "NOT_SELECTED",
 ]
 FeedbackSource = Literal["COMPANY", "JOBMITRA", "CANDIDATE", "NOT_SPECIFIED"]
+
+
+def _round_key(value):
+    # Imported rounds use opaque stable stage keys (e.g. 1-r1), not only UUIDs.
+    if isinstance(value, UUID):
+        value = str(value)
+    if not isinstance(value, str) or any(ord(c) < 32 or ord(c) == 127 for c in value):
+        raise ValueError("Use the canonical interview-round key returned by this JD")
+    return value
+
+
+RoundKey = Annotated[str, Field(min_length=1, max_length=200), BeforeValidator(_round_key)]
 
 
 class Input(BaseModel):
@@ -92,7 +104,7 @@ class JobPatch(Input):
 
 
 class RoundInput(Input):
-    id: UUID | None = None
+    id: RoundKey | None = None
     round_name: str = Field(min_length=3, max_length=80)
     mode: Literal["FLEXIBLE", "FACE_TO_FACE", "VIDEO", "PHONE"] = "FLEXIBLE"
     is_active: bool = True
@@ -110,11 +122,11 @@ class LinkInput(Input):
 
 class MoveInput(Input):
     stage_code: Stage
-    round_id: UUID | None = None
+    round_id: RoundKey | None = None
     feedback: str | None = Field(default=None, max_length=1500)
     feedback_source: FeedbackSource = "NOT_SPECIFIED"
     expected_stage: Stage | None = None
-    expected_round_id: UUID | None = None
+    expected_round_id: RoundKey | None = None
     workflow_version: int | None = Field(default=None, ge=0)
 
 

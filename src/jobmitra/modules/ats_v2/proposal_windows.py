@@ -283,7 +283,8 @@ class Win32:
 
 
 class WindowsStore:
-    def __init__(self, api=None):
+    def __init__(self, api=None, key_validator=checked_key):
+        self.key_validator = key_validator
         try:
             self.api = api or Win32()
         except (OSError, AttributeError):
@@ -313,7 +314,7 @@ class WindowsStore:
 
     @contextmanager
     def document(self, root, key, create=False, delete=False):
-        key = checked_key(key)
+        key = self.key_validator(key)
         try:
             with self.root(root, create=create) as canonical:
                 expected = canonical + "\\" + key

@@ -40,7 +40,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.ats_v2_engine = None
         ats_engine = None
         try:
-            if config.ats_v2_enabled and config.ats_v2_database:
+            if config.v12_backend == "postgresql":
+                from jobmitra.modules.ats_v2.postgres import build_postgres_engine
+
+                # PostgreSQL is explicit and fail-closed: no legacy/SQLite fallback.
+                ats_engine = build_postgres_engine(config)
+                validate_ats_database(ats_engine)
+                app.state.ats_v2_engine = ats_engine
+            elif config.ats_v2_enabled and config.ats_v2_database:
                 try:
                     path = config.ats_v2_database.expanduser().resolve()
                     if path.is_file():
@@ -130,7 +137,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/health/ready", tags=["Health"])
     def ready(request: Request):
         try:
-            check_database(request.app.state.engine)
+            if config.v12_backend == "postgresql":
+                validate_ats_database(request.app.state.ats_v2_engine)
+            else:
+                check_database(request.app.state.engine)
         except (SQLAlchemyError, RuntimeError):
             # Never return driver errors, URLs or credentials to clients.
             return JSONResponse(status_code=503, content={"status": "unavailable"})

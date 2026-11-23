@@ -13,7 +13,7 @@ from . import candidates, jobs, resumes, unified
 from . import request_receipts as receipts
 from .candidate_schemas import CandidateCreate, CandidatePatch
 from .common import AtsError, event_record, one, utc_now
-from .database import transaction
+from .database import begin_read, insert_result, transaction
 
 
 class Input(BaseModel):
@@ -53,7 +53,8 @@ def register(engine, data, root):
                 return {"id": prior, "replayed": True}
             if not data.allow_duplicate:
                 candidates._duplicates(conn, values)
-            cid = conn.execute(
+            cid = insert_result(
+                conn,
                 text(
                     "INSERT INTO candidates("
                     + ",".join(values)
@@ -99,7 +100,7 @@ def register(engine, data, root):
         return {"id": cid, "replayed": False}
     except Exception:
         if path is not None:
-            path.unlink(missing_ok=True)
+            resumes.discard_unreferenced(engine, root, path)
         raise
 
 
@@ -109,17 +110,41 @@ def company_revision(row):
 
 def state(engine):
     with engine.connect() as conn:
+        postgres = conn.dialect.name == "postgresql"
+        if postgres:
+            begin_read(conn)
         people = [
             candidates.candidate_dict(r)
             for r in conn.execute(text("SELECT * FROM candidates ORDER BY id")).mappings()
         ]
+        allocation = (
+            dict(
+                conn.execute(
+                    text(
+                        "SELECT candidate_id,allocation_eligibility FROM "
+                        "v_candidate_allocation_eligibility"
+                    )
+                ).all()
+            )
+            if postgres
+            else None
+        )
         for person in people:
-            person.update(unified.eligibility(conn, person["id"]))
+            person.update(
+                unified.eligibility_value(allocation.get(person["id"]))
+                if postgres
+                else unified.eligibility(conn, person["id"])
+            )
         from . import candidate_profiles, profile_store
 
         if profile_store.installed(conn):
+            bulk = candidate_profiles.postgres_bootstrap_extras(conn, people) if postgres else None
             for person in people:
-                person["reviewed_details"] = candidate_profiles._state(conn, person["id"])["extra"]
+                person["reviewed_details"] = (
+                    bulk[person["id"]]
+                    if postgres
+                    else candidate_profiles._state(conn, person["id"])["extra"]
+                )
         visible_company_fields = (
             "id",
             "company_name",

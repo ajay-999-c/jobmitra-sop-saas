@@ -28,12 +28,11 @@ def extension_objects():
 
 
 def installed(conn):
-    return bool(
-        conn.exec_driver_sql(
-            "SELECT 1 FROM sqlite_master WHERE type='table' "
-            "AND name='candidate_registration_extension'"
-        ).first()
-    )
+    from .database import has_table
+
+    if conn.dialect.name == "postgresql":
+        return True  # EMAIL is part of the explicit PostgreSQL development schema.
+    return has_table(conn, "candidate_registration_extension")
 
 
 def ensure_source(conn, values):

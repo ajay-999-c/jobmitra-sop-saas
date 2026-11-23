@@ -5,6 +5,7 @@ import hashlib
 import io
 import json
 import re
+from contextlib import contextmanager
 from uuid import UUID, uuid5
 
 from pydantic import ConfigDict, Field, model_validator
@@ -15,7 +16,7 @@ from . import candidate_profiles as profiles
 from . import candidates, resumes
 from . import request_receipts as receipts
 from .common import AtsError, one, utc_now
-from .database import transaction
+from .database import insert_result, transaction
 
 PROFESSIONAL = {
     "job_title",
@@ -71,10 +72,9 @@ def _source(engine, cid, rid, root, *, pdf=False):
             raise AtsError("Source resume must belong to this canonical candidate.", 404)
         if pdf and row["resume_kind"] != "JOBMITRA_STANDARD":
             raise AtsError("Choose a Jobmitra Altered / Standardized PDF for extraction.")
-    path, _, _ = resumes.download_resume(engine, cid, rid, root)
-    if pdf and path.suffix.casefold() != ".pdf":
+    blob, media, _ = resumes.download_bytes(engine, cid, rid, root)
+    if pdf and media != "application/pdf":
         raise AtsError("This altered version is not a PDF.")
-    blob = path.read_bytes()
     if len(blob) > 10 * 1024 * 1024:
         raise AtsError("Source exceeds the 10 MB limit.", 413)
     return row, blob, hashlib.sha256(blob).hexdigest()
@@ -189,19 +189,38 @@ def extract_labelled(text):
     return proposed, evidence, warnings + invalid
 
 
-def _insert_draft(conn, cid, source, sha, actor, role, artifact, metadata, filename, source_type):
-    rid = conn.execute(
+@contextmanager
+def _artifact_transaction(engine, root):
+    published = []
+    try:
+        with transaction(engine) as conn:
+            yield conn, published
+    except Exception:
+        for path in published:
+            resumes.discard_unreferenced(engine, root, path)
+        raise
+
+
+def _insert_draft(
+    conn, cid, source, sha, actor, role, artifact, metadata, filename, source_type, root, published
+):
+    blob = artifact.encode("utf-8")
+    relative, path = resumes._publish(root, cid, "PARSED_TEXT", blob, ".json")
+    published.append(path)
+    rid = insert_result(
+        conn,
         text(
             "INSERT INTO "
             "candidate_resumes(candidate_id,resume_kind,source_type,original_filename,"
-            "raw_text,parsed_json,is_current) "
-            "VALUES(:c,'PARSED_TEXT',:type,:filename,:raw,:meta,0)"
+            "raw_text,parsed_json,storage_path,is_current) "
+            "VALUES(:c,'PARSED_TEXT',:type,:filename,:raw,:meta,:path,0)"
         ),
         {
             "c": cid,
             "type": source_type,
             "filename": filename,
             "raw": artifact,
+            "path": relative,
             "meta": json.dumps(
                 {
                     "workflow": "NATIVE_PARSED_V1",
@@ -211,6 +230,8 @@ def _insert_draft(conn, cid, source, sha, actor, role, artifact, metadata, filen
                     "created_by": actor,
                     "actor_role": role,
                     "artifact_sha256": hashlib.sha256(artifact.encode("utf-8")).hexdigest(),
+                    "sha256": hashlib.sha256(blob).hexdigest(),
+                    "size": len(blob),
                     **metadata,
                 }
             ),
@@ -239,7 +260,7 @@ def json_draft(engine, cid, data, role, root):
         raise AtsError("Upload UTF-8 JSON containing an object (maximum 256 KB).") from None
     proposed, evidence, warnings = _normalize(payload)
     key = [cid, data.model_dump(), sha]
-    with transaction(engine) as conn:
+    with _artifact_transaction(engine, root) as (conn, published):
         prior = receipts.replay(conn, "parsed-json-draft", key)
         if prior:
             return get(engine, cid, prior)
@@ -262,6 +283,8 @@ def json_draft(engine, cid, data, role, root):
             },
             filename,
             "UPLOADED",
+            root,
+            published,
         )
         receipts.record(conn, "parsed-json-draft", key, rid, candidate_id=cid)
     return get(engine, cid, rid)
@@ -318,7 +341,7 @@ def extract(engine, cid, rid, data, role, root):
         ensure_ascii=False,
         indent=2,
     )
-    with transaction(engine) as conn:
+    with _artifact_transaction(engine, root) as (conn, published):
         prior = receipts.replay(conn, "parsed-pdf-draft", key)
         if prior:
             return get(engine, cid, prior)
@@ -340,6 +363,8 @@ def extract(engine, cid, rid, data, role, root):
             },
             "pdf-extraction-" + str(rid) + ".json",
             "GENERATED",
+            root,
+            published,
         )
         receipts.record(conn, "parsed-pdf-draft", key, draft_id, candidate_id=cid)
     return get(engine, cid, draft_id)
@@ -428,9 +453,18 @@ def _artifact(conn, cid, rid):
     return blob
 
 
-def download(engine, cid, rid):
+def download(engine, cid, rid, root=None):
     with engine.connect() as conn:
-        return _artifact(conn, cid, rid)
+        blob = _artifact(conn, cid, rid)
+        row, meta = _draft(conn, cid, rid)
+        if meta.get("reviewed_draft_id"):
+            row, _ = _draft(conn, cid, meta["reviewed_draft_id"])
+        stored_id = row["id"] if row["storage_path"] else None
+    if stored_id is not None:
+        stored, _, _ = resumes.download_bytes(engine, cid, stored_id, root)
+        if stored != blob:
+            raise AtsError("Preserved JSON file and database evidence disagree.", 409)
+    return blob
 
 
 def approve(engine, cid, rid, data, role):

@@ -188,7 +188,7 @@ def _public(conn, row):
             {"id": row["id"]},
         ).mappings()
     ]
-    private = {"storage_key", "request_hash", "request_key"}
+    private = {"storage_key", "request_hash", "request_key", "_record_order"}
     return {
         **{k: v for k, v in row.items() if k not in private | {"pdf_key", "snapshot_json"}},
         "snapshot": json.loads(row["snapshot_json"]),

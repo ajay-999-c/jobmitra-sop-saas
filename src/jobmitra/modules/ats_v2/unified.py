@@ -15,7 +15,7 @@ from sqlalchemy.engine import Connection
 
 from .candidate_schemas import ParsedResumeInput
 from .common import AtsError, event_record, one, utc_now
-from .database import transaction
+from .database import schema_version, transaction
 
 
 class Action(BaseModel):
@@ -228,7 +228,7 @@ def office_today():
 
 
 def is_v3(conn):
-    return conn.exec_driver_sql("PRAGMA user_version").scalar_one() == 3
+    return schema_version(conn) == 3
 
 
 def eligibility(conn, candidate_id, exclude_link=None):
@@ -236,7 +236,7 @@ def eligibility(conn, candidate_id, exclude_link=None):
         conn.execute(
             text(
                 "SELECT id,job_id,stage_code FROM jd_candidates WHERE candidate_id=:id "
-                "AND (:exclude IS NULL OR id<>:exclude) AND "
+                "AND (CAST(:exclude AS BIGINT) IS NULL OR id<>:exclude) AND "
                 "((stage_code='JOINED' AND eligibility_released_at_utc IS NULL) OR "
                 "(stage_code='SELECTED' AND (selection_outcome IS NULL OR "
                 "selection_outcome='PENDING_JOINING'))) "
@@ -249,11 +249,7 @@ def eligibility(conn, candidate_id, exclude_link=None):
     )
     if locks:
         placed = locks[0]["stage_code"] == "JOINED"
-        return {
-            "allocation_eligibility": "PLACED_LOCKED" if placed else "SELECTED_ON_HOLD",
-            "can_allocate": False,
-            "reason_code": "CANDIDATE_PLACED" if placed else "CANDIDATE_SELECTED_ON_HOLD",
-        }
+        return eligibility_value("PLACED_LOCKED" if placed else "SELECTED_ON_HOLD")
     status = conn.scalar(
         text(
             "SELECT allocation_eligibility FROM "
@@ -261,10 +257,21 @@ def eligibility(conn, candidate_id, exclude_link=None):
         ),
         {"id": candidate_id},
     )
+    # The view includes the candidate's own current milestone. With exclude_link,
+    # no OTHER unresolved link was found, so selection -> joining remains allowed.
     return {
         "allocation_eligibility": status or "AVAILABLE",
         "can_allocate": True,
         "reason_code": None,
+    }
+
+
+def eligibility_value(status):
+    reason = {"PLACED_LOCKED": "CANDIDATE_PLACED", "SELECTED_ON_HOLD": "CANDIDATE_SELECTED_ON_HOLD"}
+    return {
+        "allocation_eligibility": status or "AVAILABLE",
+        "can_allocate": status not in reason,
+        "reason_code": reason.get(status),
     }
 
 
@@ -567,7 +574,8 @@ def report(engine, period="month", start=None, end=None, company_id=None):
             dict(r)
             for r in conn.execute(
                 text(
-                    "SELECT * FROM v_company_placement_register WHERE (:company IS NULL "
+                    "SELECT * FROM v_company_placement_register "
+                    "WHERE (CAST(:company AS TEXT) IS NULL "
                     "OR company_id=:company) ORDER BY COALESCE(joined_on,selected_on) "
                     "DESC,jd_candidate_id DESC"
                 ),

@@ -141,6 +141,11 @@ def _check(connection: Connection, *, allow_v1: bool = False) -> bool:
 
 def validate(engine: Engine, *, allow_v1: bool = False) -> None:
     """Validate the existing store without initializing or altering its schema."""
+    if engine.dialect.name == "postgresql":
+        from .postgres import validate_postgres
+
+        validate_postgres(engine)
+        return
     with engine.connect() as connection:
         if not _check(connection, allow_v1=allow_v1):
             raise RuntimeError("ATS V2 database is not initialized. Run its explicit initializer.")
@@ -234,13 +239,65 @@ def initialize(engine: Engine) -> None:
 def transaction(engine: Engine) -> Iterator[Connection]:
     """Serialize short write transactions and roll back every failure."""
     with engine.connect() as connection:
-        connection.exec_driver_sql("BEGIN IMMEDIATE")
+        if engine.dialect.name == "postgresql":
+            from .postgres import begin_write
+
+            begin_write(connection)
+        else:
+            connection.exec_driver_sql("BEGIN IMMEDIATE")
         try:
             yield connection
             connection.commit()
         except Exception:
             connection.rollback()
             raise
+
+
+def schema_version(connection):
+    if connection.dialect.name == "postgresql":
+        return 3  # The PostgreSQL engine is startup-validated against its own manifest.
+    return connection.exec_driver_sql("PRAGMA user_version").scalar_one()
+
+
+def begin_read(connection):
+    if connection.dialect.name == "postgresql":
+        connection.exec_driver_sql("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
+    else:
+        connection.exec_driver_sql("BEGIN")
+
+
+def has_table(connection, name):
+    if connection.dialect.name == "postgresql":
+        from sqlalchemy import text
+
+        return bool(
+            connection.scalar(
+                text(
+                    "SELECT 1 FROM information_schema.tables WHERE table_schema=:schema "
+                    "AND table_name=:name AND table_type='BASE TABLE'"
+                ),
+                {"schema": connection.engine._v12_schema, "name": name},
+            )
+        )
+    from sqlalchemy import text
+
+    return bool(
+        connection.scalar(
+            text("SELECT 1 FROM sqlite_master WHERE type='table' AND name=:name"), {"name": name}
+        )
+    )
+
+
+def insert_result(connection, statement, values):
+    """Explicit INSERT RETURNING for PostgreSQL; SQLite keeps its native result."""
+    if connection.dialect.name != "postgresql":
+        return connection.execute(statement, values)
+    from types import SimpleNamespace
+
+    from sqlalchemy import text
+
+    identifier = connection.execute(text(str(statement) + " RETURNING id"), values).scalar_one()
+    return SimpleNamespace(lastrowid=identifier)
 
 
 def get_ats_session(request: Request) -> Iterator[Session]:

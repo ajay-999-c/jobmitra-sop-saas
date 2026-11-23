@@ -85,6 +85,31 @@ def test_explicit_legacy_override_and_equal_flags(monkeypatch):
         assert config.get_settings() is expected
 
 
+def test_dotenv_postgres_selection_precedes_automatic_sqlite_profile(tmp_path, monkeypatch):
+    env = tmp_path / ".env"
+    env.write_text("JOBMITRA_V12_BACKEND=postgresql\n")
+    monkeypatch.setattr(config, "PROJECT_ENV_FILE", env)
+    monkeypatch.delenv("JOBMITRA_V12_BACKEND", raising=False)
+    monkeypatch.setenv("JOBMITRA_LOCAL_V12", "0")
+    expected = object()
+    with (
+        patch.object(config, "Settings", return_value=expected),
+        patch.object(local_v12, "default_local_startup", return_value=True),
+        patch.object(local_v12, "local_settings") as sqlite,
+    ):
+        assert config.get_settings() is expected
+        sqlite.assert_not_called()
+
+
+@pytest.mark.parametrize("backend,local", [("unknown", "0"), ("postgresql", "1")])
+def test_invalid_or_conflicting_backend_selection_fails_closed(backend, local, monkeypatch):
+    monkeypatch.setenv("JOBMITRA_V12_BACKEND", backend)
+    monkeypatch.setenv("JOBMITRA_LOCAL_V12", local)
+    with pytest.raises(RuntimeError), patch.object(local_v12, "local_settings") as sqlite:
+        config.get_settings()
+    sqlite.assert_not_called()
+
+
 def test_missing_local_database_never_falls_back_or_creates_empty_file(tmp_path, monkeypatch):
     monkeypatch.delenv("JOBMITRA_LOCAL_V12", raising=False)
     monkeypatch.setattr(local_v12, "LOCAL_ROOT", tmp_path / "missing")

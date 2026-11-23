@@ -10,6 +10,7 @@ from sqlalchemy import text
 
 from .candidate_schemas import Source
 from .candidates import candidate_dict
+from .database import begin_read
 from .registration_store import installed
 
 INDIA = ZoneInfo("Asia/Kolkata")
@@ -118,7 +119,7 @@ def directory(engine, filters, now=None):
     where, params, calendar = clauses(filters, now)
     with engine.connect() as conn:
         # Count and page share a read snapshot, even during concurrent registration.
-        conn.exec_driver_sql("BEGIN")
+        begin_read(conn)
         total = conn.scalar(text("SELECT count(*) FROM candidates c WHERE " + where), params)
         rows = conn.execute(
             text(
@@ -146,7 +147,7 @@ def directory(engine, filters, now=None):
 def dashboard(engine, filters, now=None):
     where, params, calendar = clauses(filters, now)
     with engine.connect() as conn:
-        conn.exec_driver_sql("BEGIN")
+        begin_read(conn)
         total = conn.scalar(text("SELECT count(*) FROM candidates"))
         count = conn.scalar(text("SELECT count(*) FROM candidates c WHERE " + where), params)
         recent = conn.execute(

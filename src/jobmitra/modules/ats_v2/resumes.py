@@ -3,7 +3,6 @@
 import hashlib
 import html
 import json
-import os
 import stat
 import uuid
 import zipfile
@@ -13,19 +12,24 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 from xml.etree import ElementTree
 
 from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 
 from . import request_receipts as receipts
+from . import resume_storage
 from .candidate_schemas import GenerateResumeInput, ParsedResumeInput
 from .candidates import rebuild_search
 from .common import AtsError, one
-from .database import transaction
+from .database import insert_result, transaction
 
 
 def _root(root):
     if root is None:
         raise AtsError("Configure the private ATS V2 resume storage root.", 503)
     root = Path(root).expanduser()
-    if not root.is_absolute() or root.is_symlink():
+    if not root.is_absolute() or any(
+        p.is_symlink() or (p.exists() and getattr(p.lstat(), "st_file_attributes", 0) & 0x400)
+        for p in [root, *root.parents]
+    ):
         raise AtsError("ATS resume storage must be an absolute private directory.", 503)
     root = root.resolve()
     if {"static", "templates"} & {part.casefold() for part in root.parts}:
@@ -130,7 +134,8 @@ def _version(conn, candidate_id, kind, **values):
     )
     values.update(candidate_id=candidate_id, resume_kind=kind)
     columns = list(values)
-    result = conn.execute(
+    result = insert_result(
+        conn,
         text(
             "INSERT INTO candidate_resumes ("
             + ",".join(columns)
@@ -144,15 +149,27 @@ def _version(conn, candidate_id, kind, **values):
 
 
 def _publish(root, candidate_id, kind, data, suffix):
-    relative = f"{candidate_id}/{kind.lower()}/{uuid.uuid4().hex}{suffix}"
-    path = safe_resume_path(root, relative)
-    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-    with path.open("xb") as handle:
-        handle.write(data)
-        handle.flush()
-        os.fsync(handle.fileno())
-    path.chmod(0o600)
+    category = {"ORIGINAL": "original", "JOBMITRA_STANDARD": "altered", "PARSED_TEXT": "parsed"}[
+        kind
+    ]
+    relative = f"{category}/candidate_{candidate_id}/{uuid.uuid4().hex}{suffix}"
+    path = resume_storage.publish(root, relative, data)
     return relative, path
+
+
+def discard_unreferenced(engine, root, path):
+    """Retain bytes on uncertain commit; cleanup only a proven unreferenced key."""
+    try:
+        relative = path.relative_to(_root(root)).as_posix()
+        with engine.connect() as conn:
+            if conn.scalar(
+                text("SELECT 1 FROM candidate_resumes WHERE storage_path=:p LIMIT 1"),
+                {"p": relative},
+            ):
+                return
+        resume_storage.remove(root, relative)
+    except (AtsError, OSError, SQLAlchemyError, ValueError):
+        return
 
 
 def upload_resume(
@@ -214,8 +231,8 @@ def upload_resume(
                     old = json.loads(existing["parsed_json"] or "{}")
                     if old.get("sha256") != hashlib.sha256(data).hexdigest():
                         continue
-                    stored, _, _ = download_resume(engine, candidate_id, existing["id"], root)
-                    if stored.read_bytes() != data:
+                    stored, _, _ = download_bytes(engine, candidate_id, existing["id"], root)
+                    if stored != data:
                         raise AtsError("Existing resume bytes differ from their checksum.", 409)
                     relative = existing["storage_path"]
                     if all(
@@ -261,7 +278,7 @@ def upload_resume(
         return get_resume(engine, candidate_id, resume_id)
     except Exception:
         if path is not None:
-            path.unlink(missing_ok=True)
+            discard_unreferenced(engine, root, path)
         raise
 
 
@@ -463,11 +480,9 @@ def generate_resume(engine, candidate_id, root, data: GenerateResumeInput):
                 raise AtsError(
                     "Identity or original resume changed. Review professional data again.", 409
                 )
-            original_path = safe_resume_path(root, original["storage_path"])
             original_meta = json.loads(original["parsed_json"] or "{}")
-            if not original_path.is_file() or hashlib.sha256(
-                original_path.read_bytes()
-            ).hexdigest() != original_meta.get("sha256"):
+            original_blob = resume_storage.read(root, original["storage_path"])
+            if hashlib.sha256(original_blob).hexdigest() != original_meta.get("sha256"):
                 raise AtsError("Original resume integrity review required.", 409)
             profile = payload["profile"]
             body = "".join(
@@ -510,29 +525,52 @@ def generate_resume(engine, candidate_id, root, data: GenerateResumeInput):
         return get_resume(engine, candidate_id, resume_id)
     except Exception:
         if path is not None:
-            path.unlink(missing_ok=True)
+            discard_unreferenced(engine, root, path)
         raise
 
 
-def download_resume(engine, candidate_id, resume_id, root):
+def _download(engine, candidate_id, resume_id, root):
     with engine.connect() as conn:
         one(conn, "candidates", candidate_id)
         row = one(conn, "candidate_resumes", resume_id)
         if row["candidate_id"] != candidate_id:
             raise AtsError("Resume not found.", 404)
         if not row["storage_path"]:
+            if row.get("legacy_source_table") in {"candidate_resumes", "candidate_documents"}:
+                raise AtsError("Historical resume file is unavailable; metadata is preserved.", 404)
             raise AtsError("This version contains professional JSON; use the resume history API.")
         path = safe_resume_path(root, row["storage_path"])
-        if not path.is_file():
-            raise AtsError("Stored resume file is unavailable.", 404)
+        try:
+            blob = resume_storage.read(root, row["storage_path"], 100 * 1024 * 1024 + 1)
+        except FileNotFoundError:
+            raise AtsError("Stored resume file is unavailable.", 404) from None
         metadata = json.loads(row["parsed_json"] or "{}")
-        if metadata.get("sha256") != hashlib.sha256(path.read_bytes()).hexdigest():
+        origin = json.loads(row.get("source_json") or "{}")
+        expected = metadata.get("sha256") or origin.get("file_hash") or origin.get("sha256")
+        size = metadata.get("size") or origin.get("file_size") or origin.get("size_bytes")
+        if (
+            len(blob) > 100 * 1024 * 1024
+            or expected != hashlib.sha256(blob).hexdigest()
+            or (size is not None and size != len(blob))
+        ):
             raise AtsError("Stored resume integrity review required.", 409)
         media = {
             ".pdf": "application/pdf",
             ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             ".html": "text/html",
+            ".json": "application/json",
         }.get(path.suffix.lower())
         if not media:
             raise AtsError("Unsupported stored resume type.")
-        return path, media, row["original_filename"] or path.name
+        return blob, path, media, row["original_filename"] or path.name
+
+
+def download_resume(engine, candidate_id, resume_id, root):
+    """Compatibility path API; HTTP/extraction use the already verified bytes below."""
+    _, path, media, filename = _download(engine, candidate_id, resume_id, root)
+    return path, media, filename
+
+
+def download_bytes(engine, candidate_id, resume_id, root):
+    blob, _, media, filename = _download(engine, candidate_id, resume_id, root)
+    return blob, media, filename

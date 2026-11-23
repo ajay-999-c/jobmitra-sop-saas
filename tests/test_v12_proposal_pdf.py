@@ -441,8 +441,11 @@ def test_status_stale_cross_document_confirm_dates_and_integrity(pdf_client, sto
         == 409
     )
     with store[0].connect() as conn:
-        assert conn.exec_driver_sql("PRAGMA integrity_check").scalar_one() == "ok"
-        assert not conn.exec_driver_sql("PRAGMA foreign_key_check").fetchall()
+        if conn.dialect.name == "sqlite":
+            assert conn.exec_driver_sql("PRAGMA integrity_check").scalar_one() == "ok"
+            assert not conn.exec_driver_sql("PRAGMA foreign_key_check").fetchall()
+        else:
+            validate(store[0])
     root = pdf_client.app.state.settings.unified_v12_proposal_storage_root
     (root / (a["id"] + ".pdf")).write_bytes(b"corrupt")
     assert pdf_client.get(p + "/pdf").status_code == 503

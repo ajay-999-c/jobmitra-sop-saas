@@ -5,7 +5,7 @@ from urllib.parse import unquote
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import JSONResponse, Response
 from fastapi.routing import APIRoute
 from pydantic import ValidationError
 from sqlalchemy import text
@@ -26,6 +26,7 @@ from .candidate_schemas import (
 )
 from .common import AtsError, one
 from .companies import CompanyGateway, resolve_companies
+from .database import schema_version
 from .schemas import (
     ActivityInput,
     ActivityPatch,
@@ -154,8 +155,8 @@ def search_page(request: Request):
 def health(engine: Store):
     with engine.connect() as conn:
         conn.execute(text("SELECT 1"))
-        version = conn.exec_driver_sql("PRAGMA user_version").scalar_one()
-    return {"status": "ok", "storage": "sqlite", "schema": f"ats-v2-{version}"}
+        version = schema_version(conn)
+    return {"status": "ok", "storage": engine.dialect.name, "schema": f"ats-v2-{version}"}
 
 
 @api.get("/companies")
@@ -322,15 +323,17 @@ def resume_download(candidate_id: int, resume_id: int, request: Request, engine:
     with engine.connect() as conn:
         if is_v3(conn):
             access(request)
-    path, media, filename = resumes.download_resume(
+    blob, media, filename = resumes.download_bytes(
         engine, candidate_id, resume_id, request.app.state.settings.ats_v2_resume_storage_root
     )
-    return FileResponse(
-        path,
+    from urllib.parse import quote
+
+    return Response(
+        blob,
         media_type=media,
-        filename=filename,
         headers={
-            "Content-Security-Policy": "sandbox; default-src 'none'; style-src 'unsafe-inline'"
+            "Content-Disposition": "attachment; filename*=UTF-8''" + quote(filename, safe=""),
+            "Content-Security-Policy": "sandbox; default-src 'none'; style-src 'unsafe-inline'",
         },
     )
 

@@ -15,7 +15,7 @@ from .common import AtsError
 
 class CompanyGateway:
     def __init__(self, engine):
-        if engine.dialect.name != "sqlite":
+        if engine.dialect.name not in {"sqlite", "postgresql"}:
             raise AtsError("ATS Company Master requires the configured SQLite store.", 503)
         self.sqlite_engine = engine
 

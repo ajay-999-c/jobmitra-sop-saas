@@ -67,16 +67,17 @@ def _posix_root(root, create=False):
             os.close(fd)
 
 
-def _windows():
+def _windows(key_validator=checked_key):
     from .proposal_windows import WindowsStore
 
-    return WindowsStore()
+    return WindowsStore(key_validator=key_validator)
 
 
-def publish(root, key, blob):
-    root, key = checked_root(root), checked_key(key)
+def publish(root, key, blob, *, key_validator=checked_key):
+    root, key = checked_root(root), key_validator(key)
     if PLATFORM == "nt":
-        _windows().publish(root, key, blob)
+        store = _windows() if key_validator is checked_key else _windows(key_validator)
+        store.publish(root, key, blob)
     elif PLATFORM == "posix":
         with _posix_root(root, create=True) as directory:
             fd = None
@@ -111,10 +112,11 @@ def publish(root, key, blob):
     return root / key
 
 
-def read(root, key, limit):
-    root, key = checked_root(root), checked_key(key)
+def read(root, key, limit, *, key_validator=checked_key):
+    root, key = checked_root(root), key_validator(key)
     if PLATFORM == "nt":
-        return _windows().read(root, key, limit)
+        store = _windows() if key_validator is checked_key else _windows(key_validator)
+        return store.read(root, key, limit)
     if PLATFORM != "posix":
         raise AtsError("Secure proposal storage is unavailable on this platform.", 503)
     with _posix_root(root) as directory:
@@ -126,11 +128,12 @@ def read(root, key, limit):
             return stream.read(limit)
 
 
-def remove(root, key):
+def remove(root, key, *, key_validator=checked_key):
     """Only for proven-unreferenced keys, never historical/uncertain database references."""
-    root, key = checked_root(root), checked_key(key)
+    root, key = checked_root(root), key_validator(key)
     if PLATFORM == "nt":
-        _windows().remove(root, key)
+        store = _windows() if key_validator is checked_key else _windows(key_validator)
+        store.remove(root, key)
     elif PLATFORM == "posix":
         with _posix_root(root) as directory:
             info = os.stat(key, dir_fd=directory, follow_symlinks=False)
@@ -139,3 +142,16 @@ def remove(root, key):
             os.fsync(directory)
     else:
         raise AtsError("Secure proposal storage is unavailable on this platform.", 503)
+
+
+def ensure_private_directory(root):
+    """Create a new private leaf only; never repair existing permissions/ACLs."""
+    root = checked_root(root)
+    if PLATFORM == "nt":
+        with _windows().root(root, create=True):
+            pass
+    elif PLATFORM == "posix":
+        with _posix_root(root, create=True):
+            pass
+    else:
+        raise AtsError("Secure private document storage is unavailable.", 503)

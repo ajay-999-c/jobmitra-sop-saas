@@ -9,6 +9,7 @@ import hmac
 import time
 
 from .common import AtsError
+from .database import schema_version
 
 COOKIE = "jobmitra_v12_access"
 
@@ -62,7 +63,7 @@ def guard_write(request):
     engine = getattr(request.app.state, "ats_v2_engine", None)
     if engine is not None:
         with engine.connect() as conn:
-            version = conn.exec_driver_sql("PRAGMA user_version").scalar_one()
+            version = schema_version(conn)
         if version == 3:
             access(request)
             if (

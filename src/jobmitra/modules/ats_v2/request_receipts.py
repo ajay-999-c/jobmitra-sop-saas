@@ -12,6 +12,7 @@ from uuid import UUID
 from sqlalchemy import text
 
 from .common import AtsError
+from .database import schema_version
 
 request_key = ContextVar("ats_request_key", default=None)
 
@@ -33,7 +34,7 @@ def digest(scope, data):
 
 def replay(conn, scope, data):
     key = request_key.get()
-    if not key or conn.exec_driver_sql("PRAGMA user_version").scalar_one() != 3:
+    if not key or schema_version(conn) != 3:
         return None
     row = conn.execute(
         text(
@@ -52,7 +53,7 @@ def replay(conn, scope, data):
 
 def record(conn, scope, data, resource_id, *, candidate_id=None, job_id=None):
     key = request_key.get()
-    if key and conn.exec_driver_sql("PRAGMA user_version").scalar_one() == 3:
+    if key and schema_version(conn) == 3:
         conn.execute(
             text(
                 "INSERT INTO recruitment_events(candidate_id,job_id,event_type,payload_json) "

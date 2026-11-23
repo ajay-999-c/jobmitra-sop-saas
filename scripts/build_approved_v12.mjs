@@ -122,6 +122,18 @@ source=source.replace('<div class="span2 resume-upload">', '<div class="field sp
 // These are truthful integration wording changes, not alternate UI components.
 const wording=[['Reset preview data','Reload records'],['Current demo associations','Current canonical associations'],['All milestones are manual records in this prototype.','All milestones are manual records in this workspace.'],['↻ Reset preview','↻ Reload records'],['Reset local preview','Reload records'],['Reset demo','Reload records'],['＋ Simulate JD selection','＋ Record JD selection'],['Demo job requirements','Job requirements'],['Available (demo)','Available'],['Stored on this device','Stored on the server'],['Saving is local to this browser. This prototype does not update real candidate journeys or production data.','Saving updates the isolated SQLite workspace after validation. Historical records remain preserved.'],['This offline preview records filename only.','The original file is uploaded and preserved as a resume version.'],['Demo snapshot as of','Snapshot as of'],['saved locally','saved to SQLite']];
 for(const [a,b] of wording)source=source.replaceAll(a,b);
+// Backend-neutral statuses keep the approved presentation valid for either store.
+const storageWording=[
+ ['Canonical company records from SQLite.','Canonical company records from the workspace.'],
+ ['· SQLite workspace ·','· Unified workspace ·'],
+ ['Saved. Candidate and JD history reconciled from SQLite.','Saved. Candidate and JD history reconciled from the workspace.'],
+ ['Saving updates the isolated SQLite workspace after validation.','Saving updates the workspace after validation.'],
+ ['JD details saved to canonical SQLite.','JD details saved.'],
+ ['Candidate registered in canonical SQLite','Candidate registered'],
+ ['· Canonical SQLite','· Canonical workspace'],
+ ['Company saved in canonical SQLite.','Company saved.'],
+];
+for(const [a,b] of storageWording)source=source.replaceAll(a,b);
 // Remove local-document save/read implementations entirely; real services own those operations.
 for(const name of ['storeCandidateDocument','readCandidateDocument','persistCandidateChanges']){
  const ast=babelParse(source,'integrated.js');let n;traverse(ast,{FunctionDeclaration(p){if(p.node.id.name===name)n=p.node;}});if(n)source=source.slice(0,n.start)+`function ${name}(){throw Error('Use the canonical service adapter.');}`+source.slice(n.end);
@@ -136,6 +148,8 @@ if(JSON.parse(match[1].match(emailPattern)[1])!==JSON.parse(source.match(emailPa
 const generated='// Generated from immutable approved V12 HTML. Source SHA-256: '+hash+'\nimport {native} from "./approved-api.mjs";\nimport {installCandidateDesk} from "./candidate-desk.mjs";\nimport {installCandidateRegisters,registrationDate} from "./candidate-registers.mjs";\n'+source;
 let shell=html.slice(0,match.index)+`<script type="module" src="/static/ats-v2/approved.mjs"></script>\n</body></html>`;
 shell=shell.replace('<body>','<body data-section="{{ workspace_section }}">').replace('INTERACTIVE HTML PREVIEW</b> · Local demo data','SQLITE WORKSPACE</b> · Loading records').replace('<title>','<link rel="icon" href="/static/stage2/favicon.svg" type="image/svg+xml"><title>');
+// Approved position-only change: keep logo, dimensions and tab styling intact.
+shell=shell.replace('.unified-header{display:flex;justify-content:space-between;', '.unified-header{display:flex;justify-content:flex-start;');
 // CSS selectors such as `{#emailStudioOverlay` are literal CSS, not Jinja comments.
 shell='{% raw %}'+shell.replace('{{ workspace_section }}','{% endraw %}{{ workspace_section }}{% raw %}')+'{% endraw %}';
 const outputs=[['src/jobmitra/static/ats_v2/approved.mjs',generated],['src/jobmitra/templates/v12/approved.html',shell]];

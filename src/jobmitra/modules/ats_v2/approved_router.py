@@ -15,7 +15,7 @@ from . import approved, candidate_registers, candidates, jobs, proposal, unified
 from . import request_receipts as receipts
 from .candidate_schemas import SearchParams
 from .common import AtsError, event_record, one
-from .database import transaction
+from .database import insert_result, transaction
 from .parsed_router import router as parsed_router
 from .profile_router import router as profile_router
 from .proposal_router import router as proposal_pdf_router
@@ -130,7 +130,8 @@ def record_activity(candidate_id: int, data: Activity, request: Request, engine:
                 raise AtsError("Candidate must belong to the specified JD.", 409)
         values = data.model_dump(mode="json", exclude={"details"})
         values.update(candidate_id=candidate_id, details_json=json.dumps(data.details))
-        aid = conn.execute(
+        aid = insert_result(
+            conn,
             text(
                 "INSERT INTO candidate_activities("
                 + ",".join(values)
