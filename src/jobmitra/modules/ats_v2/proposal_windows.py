@@ -10,6 +10,7 @@ import re
 from contextlib import ExitStack, contextmanager
 from pathlib import PureWindowsPath
 
+from . import storage_diagnostics as diagnostic
 from .common import AtsError
 from .proposal_storage import checked_key
 
@@ -58,6 +59,7 @@ class Acl(c.Structure):
     ]
 
 
+@diagnostic.stage("path_parts")
 def path_parts(root):
     path = PureWindowsPath(str(root))
     if not re.fullmatch(r"[A-Za-z]:", path.drive) or path.root != "\\":
@@ -75,19 +77,38 @@ def path_parts(root):
     return path.anchor, parts
 
 
+@diagnostic.stage("private_acl")
 def private_acl(owner, protected, entries, actor):
     """Accept only standard allow/deny ACEs for the actor, SYSTEM and administrators."""
     allowed = {actor, SYSTEM, ADMINS}
+    diagnostic.note(
+        process_sid=actor, owner_sid=owner, owner_valid=owner in allowed, acl_protected=protected
+    )
     if owner not in allowed or not protected or not entries:
+        diagnostic.note(
+            validation_reason=(
+                "untrusted_owner"
+                if owner not in allowed
+                else "unprotected_dacl"
+                if not protected
+                else "empty_dacl"
+            )
+        )
         raise AtsError("Windows proposal storage requires a protected private ACL.", 503)
     for kind, mask, sid in entries:
         if kind not in {0, 1} or (kind == 0 and mask and sid not in allowed):
+            diagnostic.note(
+                validation_reason="unsupported_ace_type"
+                if kind not in {0, 1}
+                else "untrusted_allow_ace"
+            )
             raise AtsError("Windows proposal storage ACL grants untrusted access.", 503)
 
 
 class Win32:
     """Small native API boundary; declarations use pointer-sized HANDLEs and Win32 DWORDs."""
 
+    @diagnostic.stage("Win32.__init__")
     def __init__(self):
         if os.name != "nt":
             raise AtsError("Native Windows storage APIs are unavailable.", 503)
@@ -121,6 +142,7 @@ class Win32:
         self.bind(self.a, "IsValidSid", [P], B)
         self.bind(self.a, "GetLengthSid", [P], D)
         self.actor = self.current_sid()
+        diagnostic.note(process_sid=self.actor)
 
     @staticmethod
     def bind(dll, name, args, result):
@@ -128,30 +150,45 @@ class Win32:
         function.argtypes, function.restype = args, result
 
     @staticmethod
-    def check(ok):
+    def check(ok, *, native_api=None, error_code=None):
         if not ok:
+            diagnostic.native_failure(
+                native_api, c.get_last_error() if error_code is None else error_code
+            )
             raise OSError(c.get_last_error(), "Windows private storage operation failed")
 
+    @diagnostic.stage("Win32.sid")
     def sid(self, pointer):
-        self.check(self.a.IsValidSid(pointer))
+        self.check(self.a.IsValidSid(pointer), native_api="IsValidSid")
         text = P()
-        self.check(self.a.ConvertSidToStringSidW(pointer, c.byref(text)))
+        self.check(
+            self.a.ConvertSidToStringSidW(pointer, c.byref(text)),
+            native_api="ConvertSidToStringSidW",
+        )
         try:
             return c.wstring_at(text)
         finally:
             self.k.LocalFree(text)
 
+    @diagnostic.stage("Win32.current_sid")
     def current_sid(self):
         token, size = P(), D()
-        self.check(self.a.OpenProcessToken(self.k.GetCurrentProcess(), 8, c.byref(token)))
+        self.check(
+            self.a.OpenProcessToken(self.k.GetCurrentProcess(), 8, c.byref(token)),
+            native_api="OpenProcessToken",
+        )
         try:
             self.a.GetTokenInformation(token, 1, None, 0, c.byref(size))
             buffer = c.create_string_buffer(size.value)
-            self.check(self.a.GetTokenInformation(token, 1, buffer, size, c.byref(size)))
+            self.check(
+                self.a.GetTokenInformation(token, 1, buffer, size, c.byref(size)),
+                native_api="GetTokenInformation",
+            )
             return self.sid(P.from_buffer(buffer))
         finally:
             self.k.CloseHandle(token)
 
+    @diagnostic.context_stage("Win32.security")
     @contextmanager
     def security(self):
         descriptor = P()
@@ -159,13 +196,15 @@ class Win32:
         self.check(
             self.a.ConvertStringSecurityDescriptorToSecurityDescriptorW(
                 sddl, 1, c.byref(descriptor), None
-            )
+            ),
+            native_api="ConvertStringSecurityDescriptorToSecurityDescriptorW",
         )
         try:
             yield SecurityAttributes(c.sizeof(SecurityAttributes), descriptor, False)
         finally:
             self.k.LocalFree(descriptor)
 
+    @diagnostic.context_stage("Win32.open")
     @contextmanager
     def open(self, path, directory=False, create=False, delete=False):
         access = READ_CONTROL | (0x80 if directory else READ)
@@ -184,80 +223,108 @@ class Win32:
                 flags,
                 None,
             )
+            # LocalFree on leaving security() can overwrite GetLastError.
+            open_error = c.get_last_error() if handle in {None, P(-1).value} else None
         if handle == P(-1).value or handle is None:
-            self.check(False)
+            self.check(False, native_api="CreateFileW", error_code=open_error)
         try:
             yield handle
         finally:
             self.k.CloseHandle(handle)
 
+    @diagnostic.stage("Win32.mkdir")
     def mkdir(self, path):
         with self.security() as security:
             if not self.k.CreateDirectoryW(str(path), c.byref(security)):
                 if c.get_last_error() != 183:  # Existing roots are validated, never re-ACL'd.
-                    self.check(False)
+                    self.check(False, native_api="CreateDirectoryW")
 
+    @diagnostic.stage("Win32.info")
     def info(self, handle, directory=False):
         info = Info()
-        self.check(self.k.GetFileType(handle) == 1)
-        self.check(self.k.GetFileInformationByHandle(handle, c.byref(info)))
+        self.check(self.k.GetFileType(handle) == 1, native_api="GetFileType")
+        self.check(
+            self.k.GetFileInformationByHandle(handle, c.byref(info)),
+            native_api="GetFileInformationByHandle",
+        )
         if info.attributes & REPARSE or bool(info.attributes & DIRECTORY) != directory:
+            diagnostic.note(validation_reason="reparse_point_or_wrong_type")
             raise AtsError(
                 "Windows proposal storage refuses reparse points or wrong file types.", 503
             )
         if not directory and info.links != 1:
+            diagnostic.note(validation_reason="hard_linked_document")
             raise AtsError("Windows proposal storage refuses hard-linked documents.", 503)
         return info
 
+    @diagnostic.stage("Win32.final")
     def final(self, handle):
         buffer = c.create_unicode_buffer(32768)
         length = self.k.GetFinalPathNameByHandleW(handle, buffer, len(buffer), 1)
-        self.check(0 < length < len(buffer))
+        self.check(0 < length < len(buffer), native_api="GetFinalPathNameByHandleW")
         path = buffer.value
         if not path.startswith("\\\\?\\Volume{"):
+            diagnostic.note(validation_reason="non_local_volume")
             raise AtsError("Windows proposal storage requires a local volume.", 503)
         return path.rstrip("\\")
 
+    @diagnostic.stage("Win32.volume")
     def volume(self, handle):
         flags = D()
         name = c.create_unicode_buffer(32)
         self.check(
             self.k.GetVolumeInformationByHandleW(
                 handle, None, 0, None, None, c.byref(flags), name, len(name)
-            )
+            ),
+            native_api="GetVolumeInformationByHandleW",
         )
         if name.value != "NTFS" or not flags.value & 8:
+            diagnostic.note(validation_reason="not_ntfs_or_no_persistent_acls")
             raise AtsError("Windows proposals require local NTFS with persistent ACLs.", 503)
 
+    @diagnostic.stage("Win32.private")
     def private(self, handle):
+        diagnostic.note(owner_sid=None, owner_valid=None, acl_protected=None)
         owner, dacl, descriptor = P(), P(), P()
         result = self.a.GetSecurityInfo(
             handle, 1, 5, c.byref(owner), None, c.byref(dacl), None, c.byref(descriptor)
         )
-        self.check(result == 0)
+        # This API returns its error directly; GetLastError is not authoritative.
+        self.check(result == 0, native_api="GetSecurityInfo", error_code=result)
         try:
             control, revision = c.c_uint16(), D()
             self.check(
-                self.a.GetSecurityDescriptorControl(descriptor, c.byref(control), c.byref(revision))
+                self.a.GetSecurityDescriptorControl(
+                    descriptor, c.byref(control), c.byref(revision)
+                ),
+                native_api="GetSecurityDescriptorControl",
+            )
+            diagnostic.note(acl_protected=bool(control.value & 0x1000))
+            owner_sid = self.sid(owner)
+            diagnostic.note(
+                owner_sid=owner_sid, owner_valid=owner_sid in {self.actor, SYSTEM, ADMINS}
             )
             if not dacl:
+                diagnostic.note(validation_reason="null_dacl")
                 raise AtsError("Windows proposal storage refuses a NULL DACL.", 503)
             entries = []
             for index in range(c.cast(dacl, c.POINTER(Acl)).contents.count):
                 ace = P()
-                self.check(self.a.GetAce(dacl, index, c.byref(ace)))
+                self.check(self.a.GetAce(dacl, index, c.byref(ace)), native_api="GetAce")
                 kind = c.c_ubyte.from_address(ace.value).value
                 size = c.c_uint16.from_address(ace.value + 2).value
                 if kind not in {0, 1} or size < 16:
+                    diagnostic.note(validation_reason="unsupported_ace")
                     raise AtsError("Unsupported Windows proposal ACL entry.", 503)
                 sid = P(ace.value + 8)
                 self.check(self.a.IsValidSid(sid))
                 self.check(8 + self.a.GetLengthSid(sid) <= size)
                 entries.append((kind, D.from_address(ace.value + 4).value, self.sid(sid)))
-            private_acl(self.sid(owner), bool(control.value & 0x1000), entries, self.actor)
+            private_acl(owner_sid, bool(control.value & 0x1000), entries, self.actor)
         finally:
             self.k.LocalFree(descriptor)
 
+    @diagnostic.stage("Win32.write")
     def write(self, handle, blob):
         buffer = c.create_string_buffer(blob)
         offset = 0
@@ -266,20 +333,28 @@ class Win32:
             self.check(
                 self.k.WriteFile(
                     handle, c.byref(buffer, offset), len(blob) - offset, c.byref(count), None
-                )
+                ),
+                native_api="WriteFile",
             )
             self.check(count.value > 0)
             offset += count.value
-        self.check(self.k.FlushFileBuffers(handle))
+        self.check(self.k.FlushFileBuffers(handle), native_api="FlushFileBuffers")
 
+    @diagnostic.stage("Win32.read")
     def read(self, handle, limit):
         buffer, count = c.create_string_buffer(limit), D()
-        self.check(self.k.ReadFile(handle, buffer, limit, c.byref(count), None))
+        self.check(
+            self.k.ReadFile(handle, buffer, limit, c.byref(count), None), native_api="ReadFile"
+        )
         return buffer.raw[: count.value]
 
+    @diagnostic.stage("Win32.delete")
     def delete(self, handle):
         flag = c.c_ubyte(1)  # FILE_DISPOSITION_INFO.DeleteFile, BOOLEAN (one byte).
-        self.check(self.k.SetFileInformationByHandle(handle, 4, c.byref(flag), c.sizeof(flag)))
+        self.check(
+            self.k.SetFileInformationByHandle(handle, 4, c.byref(flag), c.sizeof(flag)),
+            native_api="SetFileInformationByHandle",
+        )
 
 
 class WindowsStore:
@@ -290,37 +365,51 @@ class WindowsStore:
         except (OSError, AttributeError):
             raise AtsError("Secure Windows proposal storage APIs are unavailable.", 503) from None
 
+    @diagnostic.context_stage("WindowsStore.root")
     @contextmanager
     def root(self, root, create=False):
+        if getattr(self.api, "actor", None):
+            diagnostic.note(process_sid=self.api.actor)
+        diagnostic.note(storage_step="validate_root_path")
         anchor, parts = path_parts(root)
         with ExitStack() as handles:
             # Share READ only: held ancestor handles deny write/delete/rename while traversing.
+            diagnostic.note(storage_step="open_volume", directory_depth=0)
             handle = handles.enter_context(self.api.open(anchor, directory=True))
             self.api.info(handle, directory=True)
             self.api.volume(handle)
             canonical = self.api.final(handle)
             for index, part in enumerate(parts):
+                diagnostic.note(storage_step="open_directory", directory_depth=index + 1)
                 expected = canonical + "\\" + part
                 if create and index == len(parts) - 1:
                     # Parents must already exist. Only the new root gets an explicit private DACL.
+                    diagnostic.note(storage_step="create_private_leaf")
                     self.api.mkdir(expected)
+                diagnostic.note(storage_step="open_directory")
                 handle = handles.enter_context(self.api.open(expected, directory=True))
                 self.api.info(handle, directory=True)
                 canonical = self.api.final(handle)
                 if canonical.casefold() != expected.casefold():
                     raise AtsError("Windows proposal directory identity changed.", 503)
+            diagnostic.note(acl_target="directory", storage_step="directory_acl")
             self.api.private(handle)
             yield canonical
 
+    @diagnostic.context_stage("WindowsStore.document")
     @contextmanager
     def document(self, root, key, create=False, delete=False):
+        diagnostic.note(storage_step="validate_document_key")
         key = self.key_validator(key)
         try:
             with self.root(root, create=create) as canonical:
                 expected = canonical + "\\" + key
+                diagnostic.note(storage_step="create_document" if create else "open_document")
                 with self.api.open(expected, create=create, delete=delete) as handle:
                     try:
+                        diagnostic.note(storage_step="document_info")
                         self.api.info(handle)
+                        diagnostic.note(acl_target="document", storage_step="document_acl")
                         self.api.private(handle)
                         if self.api.final(handle).casefold() != expected.casefold():
                             raise AtsError("Windows proposal document identity changed.", 503)
@@ -336,6 +425,7 @@ class WindowsStore:
 
     def publish(self, root, key, blob):
         with self.document(root, key, create=True) as handle:
+            diagnostic.note(storage_step="write_document")
             self.api.write(handle, blob)
 
     def read(self, root, key, limit):

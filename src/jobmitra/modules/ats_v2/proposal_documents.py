@@ -15,7 +15,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pypdf import PdfReader
 from sqlalchemy import text
 
-from . import proposal, proposal_pdf, proposal_storage, proposal_store, unified
+from . import proposal, proposal_pdf, proposal_storage, proposal_store, storage_diagnostics, unified
 from .common import AtsError, utc_now
 from .database import transaction
 
@@ -288,7 +288,8 @@ def generate(engine, company_id, data, role, root):
             _insert(conn, "company_proposals", row)
             result = _public(conn, row)
         return result
-    except Exception:
+    except Exception as error:
+        storage_diagnostics.capture("proposal_documents.generate", error)
         if path is not None:
             _discard_unreferenced(engine, path)
         raise
@@ -381,7 +382,8 @@ def upload_signed(engine, company_id, proposal_id, data, role, root):
                 )
             result = _public(conn, _get(conn, company_id, proposal_id))
         return result
-    except Exception:
+    except Exception as error:
+        storage_diagnostics.capture("proposal_documents.upload_signed", error)
         if path is not None:
             _discard_unreferenced(engine, path)
         raise

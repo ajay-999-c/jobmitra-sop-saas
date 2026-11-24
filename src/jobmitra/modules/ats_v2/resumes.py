@@ -15,7 +15,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
 from . import request_receipts as receipts
-from . import resume_storage
+from . import resume_storage, storage_diagnostics
 from .candidate_schemas import GenerateResumeInput, ParsedResumeInput
 from .candidates import rebuild_search
 from .common import AtsError, one
@@ -276,7 +276,8 @@ def upload_resume(
                 conn, "resume-upload", request_data, resume_id, candidate_id=candidate_id
             )
         return get_resume(engine, candidate_id, resume_id)
-    except Exception:
+    except Exception as error:
+        storage_diagnostics.capture("resumes.upload_resume", error)
         if path is not None:
             discard_unreferenced(engine, root, path)
         raise
@@ -523,7 +524,8 @@ def generate_resume(engine, candidate_id, root, data: GenerateResumeInput):
                 conn, "standard-resume", request_data, resume_id, candidate_id=candidate_id
             )
         return get_resume(engine, candidate_id, resume_id)
-    except Exception:
+    except Exception as error:
+        storage_diagnostics.capture("resumes.generate_resume", error)
         if path is not None:
             discard_unreferenced(engine, root, path)
         raise

@@ -16,7 +16,7 @@ from starlette.concurrency import run_in_threadpool
 from jobmitra.core.pages import templates
 from jobmitra.core.workflow import same_origin
 
-from . import candidates, jobs, resumes
+from . import candidates, jobs, resumes, storage_diagnostics
 from .candidate_schemas import (
     CandidateCreate,
     CandidatePatch,
@@ -52,6 +52,7 @@ class AtsRoute(APIRoute):
             from .request_receipts import request_key, set_key
 
             context_token = None
+            diagnostic_token = storage_diagnostics.begin(request, self.path)
             try:
                 context_token = set_key(request.headers.get("Idempotency-Key"))
                 from .unified_access import guard_write
@@ -59,6 +60,8 @@ class AtsRoute(APIRoute):
                 guard_write(request)
                 response = await original(request)
             except AtsError as error:
+                if error.status == 503:
+                    storage_diagnostics.emit(error)
                 response = JSONResponse(
                     {
                         "detail": error.message,
@@ -86,12 +89,14 @@ class AtsRoute(APIRoute):
                     },
                     status_code=409,
                 )
-            except (SQLAlchemyError, OSError):
+            except (SQLAlchemyError, OSError) as error:
+                storage_diagnostics.emit(error)
                 response = JSONResponse(
                     {"detail": "ATS storage is unavailable. No change was confirmed."},
                     status_code=503,
                 )
             finally:
+                storage_diagnostics.end(diagnostic_token)
                 if context_token is not None:
                     request_key.reset(context_token)
             response.headers.update(
