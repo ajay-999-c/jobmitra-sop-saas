@@ -103,7 +103,8 @@ def _duplicates(conn, values, candidate_id=None):
         found = (
             conn.execute(
                 text(
-                    "SELECT id,candidate_code FROM candidates WHERE id<>:candidate_id AND ("
+                    "SELECT id,phone_normalized,email_normalized FROM candidates "
+                    "WHERE id<>:candidate_id AND ("
                     + " OR ".join(clauses)
                     + ") LIMIT 1"
                 ),
@@ -113,10 +114,15 @@ def _duplicates(conn, values, candidate_id=None):
             .first()
         )
         if found:
+            phone_match = values.get("phone_normalized") and (
+                values["phone_normalized"] == found["phone_normalized"]
+            )
             raise AtsError(
-                f"Potential duplicate candidate {found['candidate_code'] or found['id']}: "
-                "phone or email already exists. Review the existing profile.",
+                "Potential duplicate: a candidate with this "
+                + ("mobile number" if phone_match else "email")
+                + " already exists. Review the existing profile.",
                 409,
+                code="DUPLICATE_PHONE" if phone_match else "DUPLICATE_EMAIL",
             )
 
 

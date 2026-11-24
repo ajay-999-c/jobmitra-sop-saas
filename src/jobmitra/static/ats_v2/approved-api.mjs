@@ -5,10 +5,10 @@ import {installWorkspaceShell} from './v12-shell.mjs';
 const keys=new WeakMap();
 export const native={snapshot:null,people:[],jobs:[],companies:[],placements:[],actor:'',version:0,
  key(owner,scope='default'){if(!owner||typeof owner!=='object')return uuid();if(!keys.has(owner))keys.set(owner,new Map());const scoped=keys.get(owner);if(!scoped.has(scope))scoped.set(scope,uuid());return scoped.get(scope);},
- async api(path,body,method='GET',owner){
-  const headers={'X-Jobmitra-UI':'1'};if(method!=='GET'){headers['Idempotency-Key']=body?.idempotency_key||this.key(owner);if(!(body instanceof Blob))headers['Content-Type']='application/json';}
+ async api(path,body,method='GET',owner,requestScope='default'){
+  const headers={'X-Jobmitra-UI':'1'};if(method!=='GET'){headers['Idempotency-Key']=body?.idempotency_key||this.key(owner,requestScope);if(!(body instanceof Blob))headers['Content-Type']='application/json';}
   const response=await fetch(path,{method,credentials:'same-origin',cache:'no-store',headers,...(body===undefined?{}:{body:body instanceof Blob?body:JSON.stringify(body)})});
-  const result=await response.json();if(!response.ok)throw Error(typeof result.detail==='string'?result.detail:'Check the required fields and valid values.');return result;
+  const result=await response.json();if(!response.ok){const error=Error(typeof result.detail==='string'?result.detail:'Check the required fields and valid values.');error.userFacing=true;error.fieldErrors=result.field_errors||[];if(result.code==='DUPLICATE_PHONE')error.fieldErrors=[{field:'phone',message:'A candidate with this mobile number already exists.'}];if(result.code==='DUPLICATE_EMAIL')error.fieldErrors=[{field:'email',message:'A candidate with this email already exists.'}];if(result.code==='CURRENT_SALARY_PERIOD_REQUIRED'||result.code==='EXPECTED_SALARY_PERIOD_REQUIRED')error.fieldErrors=[{field:result.code.startsWith('CURRENT')?'current_salary_period':'expected_salary_period',message:error.message}];throw error;}return result;
  },
  renderAccess(){
   const label=document.querySelector('.unified-trailing');if(!label)return;

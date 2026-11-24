@@ -64,10 +64,13 @@ class AtsRoute(APIRoute):
                     status_code=error.status,
                 )
             except (RequestValidationError, ValidationError) as error:
+                from .validation_feedback import field_feedback
+
                 response = JSONResponse(
                     {
                         "detail": "Check the required fields and valid values.",
                         "fields": [list(e["loc"]) for e in error.errors()],
+                        "field_errors": field_feedback(error),
                     },
                     status_code=422,
                 )

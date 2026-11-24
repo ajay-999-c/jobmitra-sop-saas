@@ -31,6 +31,15 @@ class Registration(Input):
 
 
 def register(engine, data, root):
+    for prefix in ("current", "expected"):
+        if (
+            getattr(data.candidate, f"{prefix}_salary_inr") is not None
+            and getattr(data.candidate, f"{prefix}_salary_period") is None
+        ):
+            raise AtsError(
+                f"Please select the {prefix} salary period.",
+                code=f"{prefix.upper()}_SALARY_PERIOD_REQUIRED",
+            )
     values = candidates._db_values(data.candidate)
     values["candidate_code"] = "ATS-" + uuid4().hex[:16].upper()
     path = None
