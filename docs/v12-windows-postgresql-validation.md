@@ -68,6 +68,60 @@ and restores loopback development editing for the application.
 
 ## 3. Select the isolated profile in this CMD window only
 
+For the separately configured password-free office network policy, see
+[Office LAN mode](v12-office-lan.md). It requires an explicit verified CIDR list
+and `JOBMITRA_UNIFIED_V12_LOCAL_DIRECT_EDITING=false`; the loopback examples below
+continue to use the original local-only policy.
+
+### Preferred: a separate private environment file
+
+From the project root in an interactive Windows CMD prompt:
+
+```cmd
+if not exist .env.v12.postgres copy .env.v12.postgres.example .env.v12.postgres
+notepad .env.v12.postgres
+```
+
+Fill the existing private database username/password, keep credentials quoted,
+and save/close the editor. The absolute storage paths assume the checkout shown
+above; adjust them if needed, keeping all roots inside its `runtime` directory.
+Parsed storage shares the resume root; no additional parsed-root variable exists.
+
+Clear old process overrides so `uv` loads the selected profile consistently. These
+commands clear only the current CMD environment and do not change `.env`, system
+settings or services. Use single `%V` interactively; a `.bat` file needs `%%V`.
+
+```cmd
+for /f "tokens=1 delims==" %V in ('set JOBMITRA_ 2^>nul') do @set "%V="
+for /f "tokens=1 delims==" %V in ('set UVICORN_ 2^>nul') do @set "%V="
+set "UV_NO_ENV_FILE="
+set "UV_ENV_FILE="
+uv run --env-file .env.v12.postgres --no-sync python -c "from jobmitra.core.config import get_settings; from jobmitra.modules.ats_v2.postgres import validate_configuration; from jobmitra.core.local_v12 import validate_direct_editing; s=get_settings(); validate_configuration(s); validate_direct_editing(s); print('Backend:',s.v12_backend,'Development:',s.v12_postgres_development,'Schema:',s.v12_postgres_schema)"
+uv run --env-file .env.v12.postgres --no-sync python -m uvicorn jobmitra.main:app --app-dir src --host 127.0.0.1 --port 8002 --workers 1
+```
+
+The preflight must print `postgresql`, `True`, and
+`jobmitra_v12_dev_20261123_integration`. It does not test passwords or write data.
+Application startup subsequently authenticates and validates the existing schema.
+`uv` puts file values into the process environment, which overrides corresponding
+settings in the project's legacy `.env`; that file need not be modified. Unspecified
+optional settings can still come from `.env`. There is no SQLite fallback.
+Never use a production/LAN bind with this development profile.
+
+In another CMD window after startup:
+
+```cmd
+curl --fail http://127.0.0.1:8002/health/ready
+curl --fail http://127.0.0.1:8002/api/ats-v2/health
+```
+
+Readiness must succeed and the ATS response must report `storage=postgresql`.
+The preflight above confirms the schema without exposing credentials. Then open
+`http://127.0.0.1:8002/`. Git ignores `.env.v12.postgres`; only the placeholder
+example can be tracked. Git pull does not transfer private documents.
+
+### Alternative: set individual process variables
+
 Reuse the existing private database username/password configuration. Never paste
 passwords into commands, Git, screenshots or terminal results. These are the exact
 supported settings; they do not rewrite `.env` or Windows services:

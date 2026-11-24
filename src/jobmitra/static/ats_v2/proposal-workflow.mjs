@@ -1,3 +1,4 @@
+import {uuid} from './crypto.mjs';
 // Company PDF workflow in the existing Email Studio overlay. No browser persistence or delivery.
 const $=id=>document.getElementById(id),companyId=document.body.dataset.companyId;
 const base='/api/v12/approved/companies/'+encodeURIComponent(companyId),requests=new Map();
@@ -15,7 +16,7 @@ async function authorize(){
 }
 async function write(path,body){
  body.actor_name=await authorize();
- const fingerprint=JSON.stringify([path,body]);if(!requests.has(fingerprint))requests.set(fingerprint,crypto.randomUUID());
+ const fingerprint=JSON.stringify([path,body]);if(!requests.has(fingerprint))requests.set(fingerprint,uuid());
  return api(path,{...body,idempotency_key:requests.get(fingerprint)});
 }
 async function run(fn){

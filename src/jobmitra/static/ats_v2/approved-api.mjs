@@ -1,9 +1,10 @@
+import {uuid,sha256} from './crypto.mjs';
 // Canonical data and service boundary for the immutable approved V12 presentation.
 // No demo masters, browser storage, name-based identity joins, or optimistic success.
 import {installWorkspaceShell} from './v12-shell.mjs';
 const keys=new WeakMap();
 export const native={snapshot:null,people:[],jobs:[],companies:[],placements:[],actor:'',version:0,
- key(owner,scope='default'){if(!owner||typeof owner!=='object')return crypto.randomUUID();if(!keys.has(owner))keys.set(owner,new Map());const scoped=keys.get(owner);if(!scoped.has(scope))scoped.set(scope,crypto.randomUUID());return scoped.get(scope);},
+ key(owner,scope='default'){if(!owner||typeof owner!=='object')return uuid();if(!keys.has(owner))keys.set(owner,new Map());const scoped=keys.get(owner);if(!scoped.has(scope))scoped.set(scope,uuid());return scoped.get(scope);},
  async api(path,body,method='GET',owner){
   const headers={'X-Jobmitra-UI':'1'};if(method!=='GET'){headers['Idempotency-Key']=body?.idempotency_key||this.key(owner);if(!(body instanceof Blob))headers['Content-Type']='application/json';}
   const response=await fetch(path,{method,credentials:'same-origin',cache:'no-store',headers,...(body===undefined?{}:{body:body instanceof Blob?body:JSON.stringify(body)})});
@@ -11,17 +12,17 @@ export const native={snapshot:null,people:[],jobs:[],companies:[],placements:[],
  },
  renderAccess(){
   const label=document.querySelector('.unified-trailing');if(!label)return;
-  label.hidden=!!this.localDevelopment;label.style.display=this.localDevelopment?'none':'';label.onclick=this.localDevelopment?null:()=>this.run(()=>this.authorize());
-  if(this.localDevelopment){label.removeAttribute('role');label.removeAttribute('tabindex');}
+  label.hidden=!!this.directAccess;label.style.display=this.directAccess?'none':'';label.onclick=this.directAccess?null:()=>this.run(()=>this.authorize());
+  if(this.directAccess){label.removeAttribute('role');label.removeAttribute('tabindex');}
   else{label.textContent='SQLITE WORKSPACE · '+(this.actor||'Unlock editing');label.tabIndex=0;label.setAttribute('role','button');}
  },
  async loadAccess(){
-  const access=await this.api('/api/v12/access');this.localDevelopment=!!access.local_development;
-  if(this.localDevelopment)this.actor=access.actor_name;this.renderAccess();return access;
+  const access=await this.api('/api/v12/access');this.localDevelopment=!!access.local_development;this.officeLAN=!!access.office_lan;this.directAccess=this.localDevelopment||this.officeLAN;
+  if(this.directAccess)this.actor=access.actor_name;this.renderAccess();return access;
  },
  async authorize(){
   const access=await this.loadAccess();
-  if(this.localDevelopment)return this.actor;
+  if(this.directAccess)return this.actor;
   if(!access.editing){const token=prompt('Unlock workspace editing · operator or supervisor access key');if(!token)throw Error('Editing remains locked.');await this.api('/api/v12/access',{token},'POST');}
   if(!this.actor){this.actor=(prompt('Recorded by · your declared name')||'').trim();if(!this.actor)throw Error('A declared actor name is required.');}
   this.renderAccess();
@@ -46,7 +47,7 @@ export const native={snapshot:null,people:[],jobs:[],companies:[],placements:[],
  histories(cid){return this.jobs.filter(j=>j.candidates.some(c=>c.id===cid)).map(j=>{const c=j.candidates.find(c=>c.id===cid);return{jobId:j.id,title:j.title,company:j.company,stage:c.stageId?'ROUND:'+c.stageId:c.stageKey,addedAt:c.addedAt,journey:c.journey,rounds:j.rounds,rejection:c.rejection};});},
  async upload(cid,file,owner,kind='ORIGINAL',metadata={},options={}){
   const actor=await this.authorize();if(!file||!/\.(pdf|docx)$/i.test(file.name)||!file.size||file.size>10*1024*1024)throw Error('Choose a PDF or DOCX up to 10 MB.');
-  const digest=[...new Uint8Array(await crypto.subtle.digest('SHA-256',await file.arrayBuffer()))].map(x=>x.toString(16).padStart(2,'0')).join('');
+  const digest=await sha256(await file.arrayBuffer());
   const details={...metadata,uploaded_by:actor};
   const response=await fetch('/api/ats-v2/candidates/'+cid+'/resumes',{method:'POST',credentials:'same-origin',headers:{'X-Jobmitra-UI':'1','Idempotency-Key':this.key(owner,kind+digest+JSON.stringify(details)+JSON.stringify(options)),'X-Resume-Filename':encodeURIComponent(file.name),'X-Resume-Kind':kind,'X-Resume-Reuse-Existing':options.reuseExisting?'1':'0','X-Resume-Metadata':encodeURIComponent(JSON.stringify(details)),'Content-Type':'application/octet-stream'},body:file});
   const data=await response.json();if(!response.ok)throw Error(data.detail||'Resume was not saved.');

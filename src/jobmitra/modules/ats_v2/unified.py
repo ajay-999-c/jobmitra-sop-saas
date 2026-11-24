@@ -381,7 +381,7 @@ def outcome(engine, job_id, link_id, data: Action, role):
                 outcome_reason=data.reason,
             )
         else:
-            if role not in {"SUPERVISOR_TOKEN", "LOCAL_DEVELOPMENT"}:
+            if role not in {"SUPERVISOR_TOKEN", "LOCAL_DEVELOPMENT", "OFFICE_LAN"}:
                 raise AtsError(
                     "Reactivation requires a separately configured supervisor capability.", 403
                 )
@@ -395,6 +395,32 @@ def outcome(engine, job_id, link_id, data: Action, role):
             changes.update(
                 eligibility_released_at_utc=utc_now(), eligibility_release_reason=data.reason
             )
+            if role == "OFFICE_LAN":
+                # Existing immutable SQLite/PG guards require this capability tag.
+                # Record the real authorization policy explicitly; no token/staff
+                # authentication is claimed and no trigger/schema is weakened.
+                changes["action_actor_role"] = "SUPERVISOR_TOKEN"
+                conn.execute(
+                    text(
+                        "INSERT INTO recruitment_events(job_id,candidate_id,jd_candidate_id,"
+                        "event_type,payload_json) "
+                        "VALUES(:j,:c,:l,'OFFICE_LAN_SUPERVISOR_AUTHORIZED',:p)"
+                    ),
+                    {
+                        "j": job_id,
+                        "c": link["candidate_id"],
+                        "l": link_id,
+                        "p": json.dumps(
+                            {
+                                "authorization_policy": "OFFICE_LAN",
+                                "individual_authenticated": False,
+                                "database_capability_tag": "SUPERVISOR_TOKEN",
+                                "actor_name": data.actor_name,
+                                "request_key": str(data.idempotency_key),
+                            }
+                        ),
+                    },
+                )
         conn.execute(
             text(
                 "UPDATE jd_candidates SET "

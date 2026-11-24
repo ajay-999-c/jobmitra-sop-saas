@@ -17,6 +17,7 @@ class _V12BackendChoice(BaseSettings):
         env_prefix="JOBMITRA_", env_file_encoding="utf-8", extra="ignore"
     )
     v12_backend: str | None = None
+    office_lan_enabled: bool = False
 
 
 class Settings(BaseSettings):
@@ -54,6 +55,9 @@ class Settings(BaseSettings):
     v12_postgres_trusted_lan: bool = False
     v12_postgres_schema: str | None = None
     unified_v12_local_direct_editing: bool = False
+    office_lan_enabled: bool = False
+    office_lan_cidrs: str = ""
+    office_lan_hosts: str = ""
     unified_v12_proposals_enabled: bool = False
     unified_v12_proposal_storage_root: Path | None = None
     unified_v12_operator_token: SecretStr | None = None
@@ -94,6 +98,10 @@ def get_settings() -> Settings:
         backend = _V12BackendChoice(_env_file=PROJECT_ENV_FILE).v12_backend
     if backend not in {None, "sqlite", "postgresql"}:
         raise RuntimeError("Choose a supported V12 backend explicitly.")
+    if _V12BackendChoice(_env_file=PROJECT_ENV_FILE).office_lan_enabled:
+        if os.environ.get("JOBMITRA_LOCAL_V12") == "1":
+            raise RuntimeError("Office LAN mode conflicts with the local SQLite profile.")
+        return Settings()
     if backend == "postgresql":
         if os.environ.get("JOBMITRA_LOCAL_V12") == "1":
             raise RuntimeError("Choose PostgreSQL or the SQLite local profile explicitly.")

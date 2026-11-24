@@ -35,6 +35,12 @@ def issue(settings, token):
 
 def access(request, supervisor=False):
     settings = request.app.state.settings
+    if settings.office_lan_enabled:
+        from jobmitra.core.office_lan import VERIFIED
+
+        if not getattr(request.state, VERIFIED, False):
+            raise AtsError("Office LAN network authorization is required.", 403)
+        return "OFFICE_LAN"
     if settings.unified_v12_local_direct_editing:
         # LocalPreviewGuard checks peer, socket, Host and proxy headers first.
         return "LOCAL_DEVELOPMENT"

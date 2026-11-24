@@ -31,7 +31,9 @@ from jobmitra.modules.worklog.router import router as worklog_router
 def create_app(settings: Settings | None = None) -> FastAPI:
     config = settings if settings is not None else get_settings()
     from jobmitra.core.local_v12 import LocalPreviewGuard, validate_direct_editing
+    from jobmitra.core.office_lan import OfficeLANGuard, OfficePolicy
 
+    office_policy = OfficePolicy.from_settings(config)
     validate_direct_editing(config)
 
     @asynccontextmanager
@@ -59,6 +61,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     if ats_engine is not None:
                         ats_engine.dispose()
                     ats_engine = None
+            if office_policy.enabled:
+                from jobmitra.modules.ats_v2.database import schema_version
+
+                if ats_engine is None:
+                    raise RuntimeError("Office LAN mode requires an existing valid V12 store.")
+                with ats_engine.connect() as connection:
+                    if schema_version(connection) != 3:
+                        raise RuntimeError(
+                            "Office LAN mode requires existing V12 schema version 3."
+                        )
             yield
         finally:
             if ats_engine is not None:
@@ -110,6 +122,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(ats_v2_router)
     app.include_router(unified_v12_router)
     app.add_middleware(LocalPreviewGuard, settings=config)
+    app.add_middleware(OfficeLANGuard, policy=office_policy)
 
     @app.exception_handler(HTTPException)
     async def portal_error(request: Request, error: HTTPException):

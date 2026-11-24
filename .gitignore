@@ -133,3 +133,5 @@ venv/
 
 # Keep the finalized Candidate Updates page in GitHub/deployment source.
 !/Jobmitra_Email_Studio_Final_Management_Confirmed.html
+# Public configuration template only; .env.v12.postgres stays private/ignored.
+!/.env.v12.postgres.example

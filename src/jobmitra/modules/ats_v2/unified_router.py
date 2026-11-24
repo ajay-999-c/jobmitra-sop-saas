@@ -87,6 +87,10 @@ def current_access(request: Request):
     try:
         role = access(request)
         result = {"editing": True, "role": role}
+        if role == "OFFICE_LAN":
+            from jobmitra.core.office_lan import OFFICE_ACTOR
+
+            result.update(office_lan=True, authentication_required=False, actor_name=OFFICE_ACTOR)
         if role == "LOCAL_DEVELOPMENT":
             from jobmitra.core.local_v12 import LOCAL_ACTOR
 

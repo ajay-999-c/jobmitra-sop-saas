@@ -1,9 +1,10 @@
+import {uuid} from './crypto.mjs';
 import {$,$$,api,save,esc,field,dialog,notice,error,bindErrors} from './shared.mjs';
 
 export const unified=Boolean(document.body.dataset.unifiedV12!==undefined);
 export const v12=(path,options={})=>api('/api/v12'+path,options);
 export const v12save=(path,data,method='POST')=>save('/api/v12'+path,data,method);
-export const key=()=>crypto.randomUUID();
+export const key=()=>uuid();
 export const actorField=()=>field('actor_name','Recorded by · declared name','',{required:true});
 
 function rewriteLinks(){

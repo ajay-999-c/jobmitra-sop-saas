@@ -1,3 +1,4 @@
+import {uuid} from './crypto.mjs';
 export const $ = (selector, root=document) => root.querySelector(selector);
 export const $$ = (selector, root=document) => [...root.querySelectorAll(selector)];
 export const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
@@ -10,7 +11,7 @@ export const empty = (title,detail='') => `<div class="ats-empty"><strong>${esc(
 export const list = value => Array.isArray(value)?value:[];
 let activeRequestKey=null;
 export async function api(path,options={}) {
-  const retryHeaders=['POST','PATCH','PUT','DELETE'].includes(options.method)?{'Idempotency-Key':activeRequestKey||crypto.randomUUID()}:{};
+  const retryHeaders=['POST','PATCH','PUT','DELETE'].includes(options.method)?{'Idempotency-Key':activeRequestKey||uuid()}:{};
   const response=await fetch(path.startsWith('/api/')?path:'/api/ats-v2'+path,{credentials:'same-origin',cache:'no-store',...options,headers:{'X-Jobmitra-UI':'1',...retryHeaders,...options.headers}});
   let data;
   try {data=await response.json();} catch {throw Error('The server returned an unreadable response. Reload and try again.');}
@@ -40,7 +41,7 @@ export function dialog(title,body,submitLabel='Save',handler=null){
   const host=$('#ats-dialog');
   $('#ats-dialog-content').innerHTML=`<div class="ats-dialog-head"><h2 id="ats-dialog-title">${esc(title)}</h2><button type="button" class="ats-btn ats-secondary ats-small" id="ats-dialog-close" aria-label="Close dialog">✕</button></div><form id="ats-dialog-form" class="ats-dialog-body">${body}<p id="ats-dialog-error" class="ats-alert ats-error" role="alert" hidden></p><div class="ats-form-footer"><span class="ats-hint">Changes are saved to the new workspace.</span><div class="ats-actions"><button type="button" class="ats-btn ats-secondary" id="ats-dialog-cancel">Cancel</button>${handler?`<button class="ats-btn" type="submit">${esc(submitLabel)}</button>`:''}</div></div></form>`;
   $('#ats-dialog-close').onclick=()=>host.close();$('#ats-dialog-cancel').onclick=()=>host.close();
-  const requestKey=crypto.randomUUID();
+  const requestKey=uuid();
   if(handler) $('#ats-dialog-form').onsubmit=async event=>{event.preventDefault();const button=event.submitter;button.disabled=true;$('#ats-dialog-error').hidden=true;try {activeRequestKey=requestKey;await handler(values(event.target),event.target);host.close();}catch(err){$('#ats-dialog-error').textContent=err.message;$('#ats-dialog-error').hidden=false;}finally{activeRequestKey=null;button.disabled=false;}};
   if(!host.open)host.showModal();
   return host;

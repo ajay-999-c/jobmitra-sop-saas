@@ -491,3 +491,46 @@ def test_untrusted_transport_rejected_before_connecting(pg_store):
 def test_readiness_checks_selected_postgres_store(pg_client):
     assert pg_client.get("/health/ready").status_code == 200
     assert pg_client.get("/api/ats-v2/health").json()["storage"] == "postgresql"
+
+
+@pytest.mark.parametrize(
+    "workflow_name",
+    [
+        "test_approved_registration_upload_is_atomic_and_retry_safe",
+        "test_company_contact_edits_retain_identity_and_removed_evidence",
+        "test_complete_fields_precision_months_audit_and_search",
+        "test_pdf_labelled_partial_extraction_is_draft_until_explicit_approval",
+        "test_json_raw_bytes_bom_unapproved_information_versions_and_source",
+        "test_signed_versions_and_explicit_acceptance_do_not_overwrite",
+        "test_company_jd_creation_edits_and_supervisor_reactivation",
+        "test_resume_versions_download_without_cookie_and_keep_ownership",
+        "test_protected_mode_still_requires_operator_and_supervisor",
+    ],
+)
+def test_office_policy_workflows_on_postgres(pg_store, workflow_name):
+    import test_v12_office_lan as office_tests
+
+    config = pg_store[1].model_copy(
+        update={
+            "office_lan_enabled": True,
+            "office_lan_cidrs": "192.168.1.0/24,127.0.0.1/32,::1/128",
+            "unified_v12_operator_token": None,
+            "unified_v12_supervisor_token": None,
+        }
+    )
+    workflows = {f.__name__: f for f in office_tests.WORKFLOWS}
+    workflow = workflows.get(workflow_name) or getattr(office_tests, workflow_name)
+    with patch("jobmitra.main.build_engine", return_value=Mock()):
+        with TestClient(
+            create_app(config), base_url=office_tests.BASE, client=("192.168.1.25", 5000)
+        ) as c:
+            c.headers.update({"Origin": office_tests.BASE, "X-Jobmitra-UI": "1"})
+            fixtures = {
+                "store": pg_store[0],
+                "client": c,
+                "complete": c,
+                "pdf_client": c,
+                "office_client": c,
+                "office_settings": config,
+            }
+            workflow(**{key: fixtures[key] for key in inspect.signature(workflow).parameters})

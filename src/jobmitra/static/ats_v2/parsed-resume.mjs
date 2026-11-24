@@ -1,3 +1,4 @@
+import {sha256} from './crypto.mjs';
 // Private versioned JSON/PDF review inside the approved Candidate Desk. No external AI.
 const escape=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const selectedDrafts=new Map(),selectedPdfs=new Map();
@@ -12,7 +13,7 @@ export function parsedResume(native,bridge){
    <label for="parsedJsonSource">Exact source resume version</label><select class="control" id="parsedJsonSource"><option value="">Choose a source version</option>${docs.filter(r=>r.downloadable).map(r=>`<option value="${r.id}">#${r.id} · ${escape(r.resume_kind)} · ${escape(r.original_filename)} · ${escape(r.created_at)}</option>`).join('')}</select>
    <label for="profileParsedFile">Upload structured JSON (.json)</label><input id="profileParsedFile" class="profile-v9-file" type="file" accept=".json,application/json">
    <label for="profileParsedText">Or paste JSON below</label><textarea id="profileParsedText" class="profile-v9-textarea" spellcheck="false" placeholder='{"skills":["Python"],"current_job_title":"Reviewed role"}'></textarea>
-   <div class="profile-v9-inline"><button class="btn primary" type="button" id="profilePreviewParsed">Preview extracted details</button><button class="btn outline" type="button" id="parsedUnlock" ${native.localDevelopment?'hidden style="display:none"':''}>Unlock private history</button></div>
+   <div class="profile-v9-inline"><button class="btn primary" type="button" id="profilePreviewParsed">Preview extracted details</button><button class="btn outline" type="button" id="parsedUnlock" ${native.directAccess?'hidden style="display:none"':''}>Unlock private history</button></div>
    <p class="profile-v9-prep">Preview saves a preserved, unapproved draft linked to the exact source. Missing and unselected fields do not replace the candidate profile.</p></section>
    <section class="profile-v9-card"><h3>Jobmitra Altered Resume PDF</h3><label for="parsedPdfSource">Select existing altered PDF</label><select class="control" id="parsedPdfSource"><option value="">Choose an altered PDF</option>${docs.filter(r=>r.resume_kind==='JOBMITRA_STANDARD'&&r.downloadable&&/\.pdf$/i.test(r.original_filename||'')).map(r=>`<option value="${r.id}">#${r.id} · ${escape(r.original_filename)} · ${escape(r.created_at)}</option>`).join('')}</select>
    <p class="profile-v9-prep">Selecting a PDF extracts local text and prepares a review draft. Existing Resumes-tab files are reused; no PDF copy is created.</p>
@@ -38,7 +39,7 @@ export function parsedResume(native,bridge){
   }
   async function download(url,filename,expected){
    await native.authorize();const response=await fetch(url,{credentials:'same-origin',cache:'no-store'});if(!response.ok){let e=await response.json();throw Error(e.detail||'Download was not confirmed.');}
-   const blob=await response.blob();const hash=[...new Uint8Array(await crypto.subtle.digest('SHA-256',await blob.arrayBuffer()))].map(x=>x.toString(16).padStart(2,'0')).join('');
+   const blob=await response.blob();const hash=await sha256(await blob.arrayBuffer());
    if(expected&&hash!==expected)throw Error('Downloaded bytes differ from the stored checksum.');
    const a=node('a'),object=URL.createObjectURL(blob);a.href=object;a.download=filename;a.hidden=true;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(object),1000);
   }
