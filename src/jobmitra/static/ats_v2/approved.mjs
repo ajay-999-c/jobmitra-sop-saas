@@ -1,5 +1,6 @@
 // Generated from immutable approved V12 HTML. Source SHA-256: a4c9a21cef040457fce8c4872d09d490962f5b98301703d7e1287fdcbf32340e
 import {native} from "./approved-api.mjs";
+import {canComposePipelineEmail,pipelineEmailContext} from "./pipeline-email.mjs";
 import {submitCreation,nativeFieldErrors,candidatePeriodErrors} from "./creation-forms.mjs";
 import {installCandidateDesk} from "./candidate-desk.mjs";
 import {installCandidateRegisters,registrationDate} from "./candidate-registers.mjs";
@@ -47,10 +48,11 @@ import {installCandidateRegisters,registrationDate} from "./candidate-registers.
    emailLastFocus?.focus?.();
  };
  window.JobmitraUnified.openEmailStudio=(context)=>native.run(async()=>{
- const ids=context.candidates?.map(c=>c.id).filter(Boolean)||[];if(!ids.length)throw Error('Choose a canonical JD membership.');const audience=context.status==='candidate_submission'?'COMPANY':'CANDIDATE';const facts=await Promise.all(ids.map(id=>native.api('/api/v12/email-context?'+new URLSearchParams({candidate_id:id,job_id:context.jobId,audience}))));if(['NOT_JOINED','SELECTION_CANCELLED'].includes(facts[0].selection_outcome))throw Error('The approved Email Studio has no Not Joined or Selection Cancelled template. No misleading rejection/selection preview was generated.');if(audience==='CANDIDATE')context.status=facts[0].stage==='JOINED'?'joined':facts[0].selection_outcome==='PENDING_JOINING'?'selected':facts[0].stage==='NOT_SELECTED'?'not_selected':facts[0].stage==='ROUND'&&context.interviewDate?'custom_round':'jobmitra_screening';context={...context,companyName:facts[0].company_name||'',jobTitle:facts[0].job_title,location:facts[0].location||'',candidateEmail:audience==='CANDIDATE'?facts[0].recipient_email:'',joiningDate:facts[0].joined_on||'',companyContacts:facts[0].contacts.map(c=>({id:c.id,name:c.name,email:c.email,is_primary:c.id===facts[0].selected_contact_id}))};
+ context=await pipelineEmailContext(native,context);
    emailLastFocus=document.activeElement;
    emailOverlay.hidden=false;
    emailFrame.onload=()=>{
+     const roundName=emailFrame.contentDocument?.getElementById('roundName');if(roundName)roundName.value=context.roundName||'';
      const sample=emailFrame.contentDocument?.getElementById('sampleBtn');if(sample){sample.textContent='Reload candidate details';sample.addEventListener('click',event=>{event.stopImmediatePropagation();emailFrame.contentWindow.postMessage({type:'jobmitra-email-prefill',context:context||{}},'*');},true);}
      emailFrame.contentWindow?.postMessage({type:'jobmitra-email-prefill',context:context||{}},'*');
    };
@@ -266,7 +268,7 @@ import {installCandidateRegisters,registrationDate} from "./candidate-registers.
       const row=c=>{
         const key=stageOf(c),decision=isStage?stageDecision(c,stageFilter):null,next=nextStageKey(c),closed=['NOT_SELECTED','JOINED','NOT_JOINED','SELECTION_CANCELLED'].includes(key),last=recentFeedback(c),reject=c.rejection;
         const canAct=!disabled&&(!isStage||key===stageFilter)&&!closed;
-        const canEmail=key==='COMPANY_SUBMISSION'||key.startsWith('ROUND:')||['SELECTED','JOINED','NOT_SELECTED','NOT_JOINED','SELECTION_CANCELLED'].includes(key);
+        const canEmail=canComposePipelineEmail(key);
         const rowClass=isStage?(decision==='PENDING'?'stage-row-new':decision==='REJECTED'?'stage-row-rejected':'stage-row-advanced'):'';
         const label=last?.feedback?`<span class="pc-feedback-compact" title="${esc(last.feedback)}"><b>Feedback · ${esc(last.feedbackSource||'Not specified')}:</b> ${esc(last.feedback)}</span>`:
           reject?.feedback?`<span class="pc-feedback-compact" title="${esc(reject.feedback)}">${esc(reject.feedback)}</span>`:'<span class="pc-feedback-compact">No feedback recorded</span>';
@@ -360,7 +362,7 @@ import {installCandidateRegisters,registrationDate} from "./candidate-registers.
         stage.startsWith('ROUND:')?(stageName(stage).toLowerCase().includes('final')?'final_completed':stageName(stage).toLowerCase().includes('technical')?'technical_interview':'interview_scheduled'):
         'interview_scheduled');
       const master=emailCandidateData(c);
-      const interview=(c.journey||[]).find(e=>e.type==='INTERVIEW_SCHEDULED'&&e.scheduledAt);
+      const interview=(c.journey||[]).find(e=>e.type==='INTERVIEW_SCHEDULED'&&e.scheduledAt&&e.round_id===c.stageId);
       let interviewDate='',interviewTime='';
       if(interview){
         const d=new Date(interview.scheduledAt);
@@ -370,7 +372,7 @@ import {installCandidateRegisters,registrationDate} from "./candidate-registers.
           interviewDate=`${v('year')}-${v('month')}-${v('day')}`;interviewTime=`${v('hour')}:${v('minute')}`;
         }
       }
-      return {status,jobId:draft.id,jobTitle:draft.title,companyName:draft.company,location:draft.location||'',candidateName:master.name,candidateEmail:window.JobmitraUnifiedCandidate?.getCandidateById?.(c.id)?.email||'',companyContacts:window.JobmitraUnifiedCompanies?.getContacts?.(draft.companyId)||[],interviewDate,interviewTime,candidates:[master],startSerial:1};
+      return {status,jobId:draft.id,jobTitle:draft.title,companyName:draft.company,location:draft.location||'',candidateName:master.name,candidateEmail:window.JobmitraUnifiedCandidate?.getCandidateById?.(c.id)?.email||'',companyContacts:window.JobmitraUnifiedCompanies?.getContacts?.(draft.companyId)||[],roundId:c.stageId||null,interviewDate,interviewTime,candidates:[master],startSerial:1};
     }
     function composeCandidateEmail(candidateId){
       const c=draft.candidates.find(x=>x.id===candidateId);

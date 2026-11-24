@@ -27,7 +27,7 @@ const replace=(n,value)=>edits.push({start:n.start,end:n.end,value});
 traverse(babelParse(source,'reference.js'),{
  ObjectProperty(p){if(p.node.key.name==='addCandidate'&&p.node.value.type==='ArrowFunctionExpression')replace(p.node.value,`async(person,jobId)=>{try{await native.addToPool(person.id,String(jobId),person);return{ok:true};}catch(error){return{ok:false,error:error.message};}}`);},
  FunctionDeclaration(p){const value=replacements[area(p.node)]?.[p.node.id.name];if(value)replace(p.node,value);},
- VariableDeclarator(p){if(['jdPrototypeDemo','jdFallbackJourney'].includes(p.node.id.name))replace(p.node.init,'{}');if(p.node.id.name==='persist')replace(p.node.init,'()=>{}');},
+ VariableDeclarator(p){if(p.node.id.name==='canEmail'&&area(p.node)==='jobs')replace(p.node.init,'canComposePipelineEmail(key)');if(['jdPrototypeDemo','jdFallbackJourney'].includes(p.node.id.name))replace(p.node.init,'{}');if(p.node.id.name==='persist')replace(p.node.init,'()=>{}');},
  AssignmentExpression(p){
   const left=source.slice(p.node.left.start,p.node.left.end),a=area(p.node),n=p.node.right;
   const handlers={
@@ -81,11 +81,18 @@ source=source.replace(' search();renderDetails();',` window.addEventListener('jo
 source=source.replace('renderScope();renderAnalytics();renderDirectory();renderCompany();refreshFromJD();',`window.addEventListener('jobmitra-native-update',()=>{state.companies=structuredClone(native.companies);state.placements=structuredClone(native.placements);state.available=structuredClone(native.people);renderScope();renderAnalytics();renderDirectory();renderCompany();});renderScope();renderAnalytics();renderDirectory();renderCompany();`);
 source=source.replace('return {name:master.name||c.name,experience:', 'return {id:c.id,name:master.name||c.name,experience:');
 source=source.replace('getContacts?.(draft.company)', 'getContacts?.(draft.companyId)');source=source.replaceAll('getContacts?.(draft.company)', 'getContacts?.(draft.companyId)');
-source=source.replace('window.JobmitraUnified.openEmailStudio=(context)=>{',`window.JobmitraUnified.openEmailStudio=async(context)=>{\n const ids=context.candidates?.map(c=>c.id).filter(Boolean)||[];if(!ids.length)throw Error('Choose a canonical JD membership.');const audience=context.status==='candidate_submission'?'COMPANY':'CANDIDATE';const facts=await Promise.all(ids.map(id=>native.api('/api/v12/email-context?'+new URLSearchParams({candidate_id:id,job_id:context.jobId,audience}))));if(['NOT_JOINED','SELECTION_CANCELLED'].includes(facts[0].selection_outcome))throw Error('The approved Email Studio has no Not Joined or Selection Cancelled template. No misleading rejection/selection preview was generated.');if(audience==='CANDIDATE')context.status=facts[0].stage==='JOINED'?'joined':facts[0].selection_outcome==='PENDING_JOINING'?'selected':facts[0].stage==='NOT_SELECTED'?'not_selected':facts[0].stage==='ROUND'&&context.interviewDate?'custom_round':'jobmitra_screening';context={...context,companyName:facts[0].company_name||'',jobTitle:facts[0].job_title,location:facts[0].location||'',candidateEmail:audience==='CANDIDATE'?facts[0].recipient_email:'',joiningDate:facts[0].joined_on||'',companyContacts:facts[0].contacts.map(c=>({id:c.id,name:c.name,email:c.email,is_primary:c.id===facts[0].selected_contact_id}))};`);
+// Email remains a draft action at every supported pipeline stage, independent of editing gates.
+if(!source.includes('const canEmail=canComposePipelineEmail(key);'))throw Error('Pipeline Email visibility adapter missing.');
+// Only carry a recorded schedule for the candidate's current interview round.
+source=source.replace("const interview=(c.journey||[]).find(e=>e.type==='INTERVIEW_SCHEDULED'&&e.scheduledAt);", "const interview=(c.journey||[]).find(e=>e.type==='INTERVIEW_SCHEDULED'&&e.scheduledAt&&e.round_id===c.stageId);");
+source=source.replace('interviewDate,interviewTime,candidates:[master]', 'roundId:c.stageId||null,interviewDate,interviewTime,candidates:[master]');
+source=source.replace('window.JobmitraUnified.openEmailStudio=(context)=>{',`window.JobmitraUnified.openEmailStudio=async(context)=>{
+ context=await pipelineEmailContext(native,context);`);
 // Keep Email Studio source bytes intact; its integration reloads canonical context.
 source=source.replace('window.JobmitraUnified.openEmailStudio=async(context)=>{','window.JobmitraUnified.openEmailStudio=(context)=>native.run(async()=>{');
 source=source.replace("document.getElementById('closeEmailStudio').focus();\n };", "document.getElementById('closeEmailStudio').focus();\n });");
 source=source.replace("emailFrame.onload=()=>{",`emailFrame.onload=()=>{
+     const roundName=emailFrame.contentDocument?.getElementById('roundName');if(roundName)roundName.value=context.roundName||'';
      const sample=emailFrame.contentDocument?.getElementById('sampleBtn');if(sample){sample.textContent='Reload candidate details';sample.addEventListener('click',event=>{event.stopImmediatePropagation();emailFrame.contentWindow.postMessage({type:'jobmitra-email-prefill',context:context||{}},'*');},true);}`);
 source=source.replace('(function(){',`(async function(){\n await native.refresh(false);`);
 source=source.replace(/activate\('companies'\);(?=\s*\}\)\(\);\s*$)/,`const section=window.document.body.dataset.section;activate(section==='jobs'?'jd':section==='candidates'?'candidate':'companies');\n native.renderAccess();`);
@@ -148,7 +155,7 @@ source=source.replace(/No document filenames in this standalone preview/g,'No re
 if(/localStorage\.|indexedDB\./.test(source))throw Error('Browser persistence remains: '+source.match(/.{0,70}(?:localStorage\.|indexedDB\.).{0,70}/g)?.join('\n'));
 const emailPattern=/const EMAIL_STUDIO_DOCUMENT=("(?:\\.|[^"\\])*");/;
 if(JSON.parse(match[1].match(emailPattern)[1])!==JSON.parse(source.match(emailPattern)[1]))throw Error('Approved embedded Email Studio changed.');
-const generated='// Generated from immutable approved V12 HTML. Source SHA-256: '+hash+'\nimport {native} from "./approved-api.mjs";\nimport {submitCreation,nativeFieldErrors,candidatePeriodErrors} from "./creation-forms.mjs";\nimport {installCandidateDesk} from "./candidate-desk.mjs";\nimport {installCandidateRegisters,registrationDate} from "./candidate-registers.mjs";\n'+source;
+const generated='// Generated from immutable approved V12 HTML. Source SHA-256: '+hash+'\nimport {native} from "./approved-api.mjs";\nimport {canComposePipelineEmail,pipelineEmailContext} from "./pipeline-email.mjs";\nimport {submitCreation,nativeFieldErrors,candidatePeriodErrors} from "./creation-forms.mjs";\nimport {installCandidateDesk} from "./candidate-desk.mjs";\nimport {installCandidateRegisters,registrationDate} from "./candidate-registers.mjs";\n'+source;
 let shell=html.slice(0,match.index)+`<script type="module" src="/static/ats-v2/approved.mjs"></script>\n</body></html>`;
 shell=shell.replace('<body>','<body data-section="{{ workspace_section }}">').replace('INTERACTIVE HTML PREVIEW</b> · Local demo data','SQLITE WORKSPACE</b> · Loading records').replace('<title>','<link rel="icon" href="/static/stage2/favicon.svg" type="image/svg+xml"><title>');
 // Approved position-only change: keep logo, dimensions and tab styling intact.

@@ -743,6 +743,12 @@ def email_context(engine, candidate_id, job_id, audience, contact_id=None):
         )
         if not link:
             raise AtsError("Choose an existing candidate membership in this JD.", 404)
+        round_name = None
+        if link["stage_code"] == "ROUND":
+            round_name = conn.execute(
+                text("SELECT round_name FROM jd_interview_rounds WHERE id=:r AND job_id=:j"),
+                {"r": link["round_id"], "j": job_id},
+            ).scalar_one()
         company = (
             conn.execute(text("SELECT * FROM companies WHERE id=:id"), {"id": job["company_id"]})
             .mappings()
@@ -794,6 +800,7 @@ def email_context(engine, candidate_id, job_id, audience, contact_id=None):
                 )
 
             body, subject, job_title = redact(body), redact(subject), redact(job_title)
+            round_name = redact(round_name) if round_name else None
         return {
             "audience": audience,
             "candidate_id": candidate_id,
@@ -815,6 +822,8 @@ def email_context(engine, candidate_id, job_id, audience, contact_id=None):
             "job_title": job_title,
             "location": job["location"] if disclosed else None,
             "stage": link["stage_code"],
+            "round_id": link["round_id"],
+            "round_name": round_name,
             "selection_outcome": link.get("selection_outcome"),
             "joined_on": link.get("joined_on"),
             "subject": subject,
