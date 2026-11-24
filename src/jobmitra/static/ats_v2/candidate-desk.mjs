@@ -1,6 +1,7 @@
 import {uuid,sha256} from './crypto.mjs';
 // Additive Candidate Desk controls, scoped to the approved candidate Shadow DOM.
 import {parsedResume} from './parsed-resume.mjs';
+import {submitCreation,nativeFieldErrors} from './creation-forms.mjs';
 const coreGroups=[
  ['Personal & contact',[['full_name','Full name'],['phone','Mobile number'],['email','Email','email'],['links','Professional links','links'],['current_city','Current location'],['preferred_cities','Preferred locations','list']]],
  ['Professional',[['job_title','Current job title'],['current_employer','Current / last employer'],['experience_years','Experience years','number'],['qualification','Qualification'],['primary_domain','Domain'],['skills','Skills','list'],['professional_summary','Professional summary','textarea'],['availability','Availability','availability'],['source','Candidate source','source']]],
@@ -66,7 +67,19 @@ export function installCandidateDesk(native,bridge){
   function row(key,data={}){const defs=structures[key],box=document.createElement('div');box.className='candidate-structure';const prefix='row'+uuid().replaceAll('-','');box.dataset.prefix=prefix;box.innerHTML=`<div class="candidate-edit-grid">${defs.map(f=>input(f,data[f[0]],prefix)).join('')}</div><button class="btn tiny outline" type="button">Remove entry</button>`;box.querySelector('button').onclick=()=>box.remove();form.querySelector(`[data-rows="${key}"]`).append(box);}
   form.querySelectorAll('[data-add-row]').forEach(b=>b.onclick=()=>row(b.dataset.addRow));
   for(const key of Object.keys(structures))for(const item of state.extra?.[key]||[])row(key,item);
-  if(foundit)form.querySelector('#core_source').disabled=true;
+  form.querySelectorAll('input[id],select[id],textarea[id]').forEach(control=>{control.name=control.id.startsWith('core_')?control.id.slice(5):control.id.startsWith('extra_')?'extra.'+control.id.slice(6):control.id;});
+  if(foundit){
+   const source=form.querySelector('#core_source');source.disabled=true;source.selectedOptions[0].textContent='Foundit';
+   if(!state.candidate.availability){const blank=new Option('Unknown','',true,true);form.querySelector('#core_availability').prepend(blank);}
+   form.querySelector('label[for="core_primary_domain"]').textContent='Industry / Domain';
+   form.querySelector('label[for="extra_subdomain"]').textContent='Functional area / Subdomain';
+   form.querySelector('#noticeVerified').parentElement.remove();
+   for(const id of ['core_experience_years','extra_experience_months'])form.querySelector('#'+id).oninput=()=>{
+    const years=form.querySelector('#core_experience_years'),months=form.querySelector('#extra_experience_months');
+    if(id==='extra_experience_months')years.value=months.value===''?'':Number(months.value)/12;
+    else months.value=years.value===''||!Number.isInteger(Number(years.value)*12)?'':Number(years.value)*12;
+   };
+  }
  }
  function values(host){
   const candidate=Object.fromEntries(coreGroups.flatMap(([,g])=>g.map(f=>[f[0],read(f,host)])));
@@ -106,23 +119,53 @@ export function installCandidateDesk(native,bridge){
  }
  async function foundit(){
   const view=$('reservedView');let host=$('nativeFoundit');if(host){host.hidden=false;return;}
-  host=document.createElement('section');host.id='nativeFoundit';host.className='profile-v9-card candidate-foundit';host.innerHTML=`<p>Paste manually copied Foundit text. Parse is a preview only; review every field before saving. Raw pasted text is not retained; a source checksum and reviewed changes are audited.</p><label for="founditPaste">Foundit candidate text</label><textarea class="control" id="founditPaste" maxlength="50000"></textarea><button class="btn primary" id="parseFoundit" type="button">Parse Details</button><div id="founditStatus" role="status"></div><div id="founditReview"></div>`;view.append(host);
-  $('parseFoundit').onclick=()=>native.run(async()=>{
-   await native.authorize();const result=await native.api(apiBase+'/foundit/preview',{raw:$('founditPaste').value},'POST',{});const area=$('founditReview');area.replaceChildren();
-   const matches=document.createElement('div');matches.className='candidate-native-notice';matches.textContent=result.possible_matches.length?'Phone/email matches require review. Name equality alone is not a duplicate.':'No matching phone/email found in the current snapshot. Saving checks identities again.';area.append(matches);
-   const warning=document.createElement('p');warning.textContent='Review missing / ambiguous fields: '+result.warnings.join(', ');area.append(warning);
-   const evidence=document.createElement('details'),summary=document.createElement('summary');summary.textContent='Parsing evidence and ambiguities';evidence.append(summary);for(const item of result.evidence){const p=document.createElement('p');p.textContent=item.field+': '+item.raw+' · '+item.note;evidence.append(p);}area.append(evidence);
-   const form=document.createElement('form');form.className='candidate-complete';form.style.maxHeight='none';form.style.width='100%';const body=document.createElement('div');body.className='edit-body';form.append(body);fields(body,result,true);area.append(form);
-   const matchActions=document.createElement('div');matchActions.className='profile-v9-inline';
-   for(const match of result.possible_matches){const open=document.createElement('button');open.type='button';open.className='btn tiny outline';open.textContent='Open existing '+match.full_name;open.onclick=()=>bridge.profile(String(match.id),'overview');matchActions.append(open);const enrich=document.createElement('button');enrich.type='button';enrich.className='btn tiny outline';enrich.textContent='Review enrichment · '+match.full_name;enrich.onclick=()=>native.run(async()=>{const existing=await native.api(`${apiBase}/candidates/${match.id}/profile`);const update=diff(existing,values(body));const review=document.createElement('div');review.className='candidate-native-notice';const selections=[];for(const [scope,changes]of Object.entries(update))for(const [key,value]of Object.entries(changes)){const label=document.createElement('label');label.className='candidate-field-review';const checkbox=document.createElement('input');checkbox.type='checkbox';const span=document.createElement('span');span.textContent=key+': '+JSON.stringify(scope==='changes'?existing.candidate[key]:existing.extra?.[key])+' → '+JSON.stringify(value);label.append(checkbox,span);review.append(label);selections.push({scope,key,value,checkbox});}const save=document.createElement('button');save.type='button';save.className='btn primary';save.textContent='Save approved enrichment';save.onclick=()=>native.run(async()=>{const changes={},extra={},approved=[];for(const s of selections)if(s.checkbox.checked){(s.scope==='changes'?changes:extra)[s.key]=s.value;approved.push(s.scope==='changes'?s.key:'extra:'+s.key);}if(!approved.length)throw Error('Select the individual fields to enrich.');await native.api(`${apiBase}/candidates/${match.id}/profile`,{changes,extra,approved_fields:approved,expected_revision:existing.revision,actor_name:native.actor,idempotency_key:native.key(review),source_digest:result.source_digest,notice_days_verified:!!body.querySelector('#noticeVerified').checked},'PATCH',review);await native.refresh();const confirmed=await native.api(`${apiBase}/candidates/${match.id}/profile`);if(confirmed.revision===existing.revision)throw Error('Enrichment was not confirmed by read-back.');bridge.profile(String(match.id),'overview');bridge.toast('Approved enrichment saved and read back.');},message=>$('founditStatus').textContent=message);review.append(save);area.append(review);},message=>$('founditStatus').textContent=message);matchActions.append(enrich);}
-   area.prepend(matchActions);
-   const footer=document.createElement('footer');footer.innerHTML='<label>Separate-person justification if identity matches exist<textarea id="founditSeparateReason" class="control" maxlength="2000"></textarea></label><label><input id="founditConfirmed" type="checkbox" required> I reviewed identity and the extracted fields.</label><button class="btn primary" type="submit">Save Candidate</button>';form.append(footer);
-   form.onsubmit=e=>{e.preventDefault();native.run(async()=>{const v=values(body);for(const key of Object.keys(v.candidate))if(v.candidate[key]===null)delete v.candidate[key];v.candidate.source='FOUNDIT_PASTE';const saved=await native.api(apiBase+'/foundit/candidates',{...v,source_digest:result.source_digest,confirmed:!!$('founditConfirmed').checked,separate_person_reason:$('founditSeparateReason').value,actor_name:native.actor,idempotency_key:native.key(form)},'POST',form);const cid=saved.candidate.id;await native.refresh();const readback=await native.api(`${apiBase}/candidates/${cid}/profile`);if(readback.candidate.id!==cid)throw Error('Candidate persistence was not confirmed.');$('founditStatus').textContent='Candidate saved and read back: '+readback.candidate.full_name;const button=document.createElement('button');button.type='button';button.className='btn primary';button.textContent='Open Candidate Profile';button.onclick=()=>bridge.profile(String(cid),'overview');area.replaceChildren(button);},message=>$('founditStatus').textContent=message);};
-  },message=>$('founditStatus').textContent=message);
+  host=document.createElement('section');host.id='nativeFoundit';host.className='profile-v9-card candidate-foundit';
+  host.innerHTML=`<h2>Foundit Paste</h2><p>Paste candidate profile details from Foundit to automatically populate the registration form.</p><label for="founditPaste">Foundit candidate profile</label><textarea class="control" id="founditPaste" maxlength="50000" placeholder="Paste copied Foundit candidate profile here..."></textarea><div class="profile-v9-inline" style="margin:12px 0"><button class="btn primary" id="parseFoundit" type="button">Parse Candidate Details</button><button class="btn outline" id="clearFoundit" type="button">Clear</button></div><div id="founditStatus" role="status"></div><div id="founditReview"></div>`;
+  view.append(host);
+  const clear=()=>{$('founditPaste').value='';$('founditReview').replaceChildren();$('founditStatus').textContent='';$('founditPaste').focus();};
+  $('clearFoundit').onclick=clear;
+  $('parseFoundit').onclick=async()=>{
+   const parse=$('parseFoundit');if(parse.disabled)return;parse.disabled=true;$('clearFoundit').disabled=true;
+   try{
+    await native.authorize();
+    if(!$('founditPaste').value.trim()){$('founditStatus').textContent='Paste a candidate profile first.';$('founditPaste').focus();return;}
+    const result=await native.api(apiBase+'/foundit/preview',{raw:$('founditPaste').value},'POST',{}),area=$('founditReview');
+    area.replaceChildren();$('founditStatus').textContent='Parsed draft only. Review and edit the details before Save Candidate.';
+    const title=document.createElement('h3');title.textContent='Review Candidate Details';area.append(title);
+    const limitations=document.createElement('p');limitations.className='candidate-native-notice';limitations.textContent='Only supported information is populated. Blank or ambiguous values need your review. Raw pasted text is not retained; a source checksum and reviewed fields are audited.';area.append(limitations);
+    for(const item of result.unmapped||[]){const p=document.createElement('p');p.textContent=item.field+': '+item.value+' — '+item.reason;area.append(p);}
+    const evidence=document.createElement('details'),summary=document.createElement('summary');summary.textContent='Parsing evidence and ambiguities';evidence.append(summary);
+    for(const item of result.evidence){const p=document.createElement('p');p.textContent=item.field+': '+item.raw+' · '+item.note;evidence.append(p);}area.append(evidence);
+    const matches=document.createElement('div');matches.className='candidate-native-notice';area.append(matches);
+    const showMatches=list=>{matches.replaceChildren();matches.hidden=!list?.length;for(const match of list||[]){const row=document.createElement('p');row.textContent='Existing candidate matches '+(match.matched_fields||['phone/email']).join(' and ')+': '+match.full_name+'. ';const button=document.createElement('button');button.type='button';button.className='btn tiny outline';button.textContent='View Existing Candidate';button.onclick=()=>bridge.profile(String(match.id),'overview');row.append(button);matches.append(row);}};
+    showMatches(result.possible_matches);
+    const form=document.createElement('form');form.id='founditRegistrationForm';form.noValidate=true;form.className='candidate-complete';form.style.maxHeight='none';form.style.width='100%';
+    const body=document.createElement('div');body.className='edit-body';form.append(body);fields(body,result,true);area.append(form);
+    const footer=document.createElement('footer');footer.innerHTML='<details><summary>Separate person with matching contact details</summary><label>Separate-person justification (only if this is a different person)<textarea id="founditSeparateReason" class="control" maxlength="2000"></textarea></label></details><button class="btn primary" type="submit">Save Candidate</button>';form.append(footer);
+    form.onsubmit=async e=>{e.preventDefault();if(form.getAttribute('aria-busy')==='true')return;parse.disabled=true;$('clearFoundit').disabled=true;try{return await submitCreation(form,'candidate',async submission=>{
+     const errors=nativeFieldErrors(form);
+     for(const prefix of ['current','expected'])if(form.elements[prefix+'_salary_inr'].value!==''&&!form.elements[prefix+'_salary_period'].value)errors.push({field:prefix+'_salary_period',message:'Please select the '+prefix+' salary period.'});
+     if(!submission.validate(errors))return;
+     const v=values(body);for(const key of Object.keys(v.candidate))if(v.candidate[key]===null)delete v.candidate[key];v.candidate.source='FOUNDIT_PASTE';
+     const payload={...v,source_digest:result.source_digest,confirmed:true,separate_person_reason:$('founditSeparateReason').value,actor_name:await native.authorize()};
+     payload.idempotency_key=native.key(form,'foundit:'+JSON.stringify(payload));
+     const saved=await submission.request(native,apiBase+'/foundit/candidates',payload),cid=saved.candidate.id;
+     // A committed registration remains successful even if a subsequent refresh fails.
+     const success=document.createElement('section');success.className='candidate-native-notice';success.setAttribute('role','status');
+     const heading=document.createElement('h3');heading.textContent='Candidate Registered Successfully';success.append(heading);
+     const actions=document.createElement('div');actions.className='profile-v9-inline';
+     const profile=document.createElement('button');profile.type='button';profile.className='btn primary';profile.textContent='View Candidate Profile';
+     profile.onclick=()=>native.run(async()=>{await native.refresh();bridge.profile(String(cid),'overview');},message=>$('founditStatus').textContent=message);
+     const another=document.createElement('button');another.type='button';another.className='btn outline';another.textContent='Add Another Candidate';another.onclick=clear;actions.append(profile,another);success.append(actions);area.replaceChildren(success);$('founditStatus').textContent='';
+     try{await native.refresh();}catch{const warning=document.createElement('p');warning.textContent='The candidate was saved. The dashboard could not refresh; reload records or open the profile. Do not register this candidate again.';success.append(warning);}
+    },error=>{if(error.matches?.length)showMatches(error.matches);});}finally{parse.disabled=false;$('clearFoundit').disabled=false;}};
+   }catch(error){$('founditStatus').textContent=error.userFacing?error.message:'Unable to parse this profile. Please review the pasted text and try again.';}
+   finally{parse.disabled=false;$('clearFoundit').disabled=false;}
+  };
  }
  function section(next){
   if(next!=='search'){unlock();panel.classList.remove('mobile-open');$('detailUnderlay').classList.remove('mobile-open');}
-  const host=$('nativeFoundit');if(host)host.hidden=next!=='foundit';if(next==='foundit')foundit();
+  const placeholder=$('reservedTitle').parentElement;placeholder.hidden=next==='foundit';const host=$('nativeFoundit');if(host)host.hidden=next!=='foundit';if(next==='foundit')foundit();
   if(next==='domains'){$('reservedTitle').textContent='Domain Catalog · V12 replacement pending';const p=$('reservedView').querySelector('p');if(p)p.textContent='The legacy catalog and backend APIs are preserved. A native V12 catalog editor requires separate scope; this control does not leave V12.';}
   const url=new URL(location.href);if(url.pathname!=='/workspace-v12/candidates')return;const before=url.href;if(next==='search')url.searchParams.delete('section');else url.searchParams.set('section',next);if(before!==url.href&&!historyNavigation)history.pushState({},'',url);
  }

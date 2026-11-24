@@ -108,7 +108,9 @@ def indian_mobile(value):
     return bool(re.fullmatch(r"[6-9]\d{9}", digits))
 
 
-def parse_foundit_text(raw: str) -> FounditCandidatePreview:
+def parse_foundit_text(
+    raw: str, *, fields_model: type[CandidateFields] = CandidateFields
+) -> FounditCandidatePreview:
     raw = FounditPaste(raw=raw).raw
     text = re.sub(r"(?m)^\s*[•●▪*\-]\s*", "", raw.replace("\r\n", "\n"))
     # Remove standalone placeholder/footer lines, not genuine skill spellings.
@@ -273,7 +275,7 @@ def parse_foundit_text(raw: str) -> FounditCandidatePreview:
                 amount *= (
                     100000 if unit.startswith("la") or unit == "lpa" else 1000 if unit == "k" else 1
                 )
-                CandidateFields(current_salary_amount=amount)
+                fields_model(current_salary_amount=amount)
                 values["current_salary_amount"] = amount
                 period = (match[3] or "").casefold()
                 values["current_salary_period"] = (
@@ -471,7 +473,7 @@ def parse_foundit_text(raw: str) -> FounditCandidatePreview:
         if values.get(field) and PLACEHOLDER.fullmatch(str(values[field])):
             values.pop(field)
     return FounditCandidatePreview(
-        fields=CandidateFields.model_validate(values),
+        fields=fields_model.model_validate(values),
         evidence=evidence,
         missing=[field for field in ("full_name", "mobile") if not values.get(field)],
         preview_only=preview_only,

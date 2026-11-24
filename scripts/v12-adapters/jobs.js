@@ -23,3 +23,7 @@ async function confirmCandidateAction(){return native.run(async()=>{if(!modalAct
 async function confirmJoined(cid){return native.run(async()=>{const c=draft.candidates.find(c=>c.id===cid);if(!c)throw Error('Candidate membership is unavailable.');await native.outcome(draft,c,'JOIN',{});await native.refresh();render();toast('Actual joining confirmed. Placement reporting uses the joining date.');},toast);}
 function joinedAt(c){return c.joinedOn?c.joinedOn+'T12:00:00+05:30':null;}
 function recordJDEvent(){throw Error('A canonical service must record the action before reporting success.');}
+function renderDashboard(){
+ native.jdDashboard ||= installJDDashboard(native,{root:jdShadow,target:targetState,created:createdDate,date:dateLabel,open:id=>native.run(async()=>{await native.refresh();switchJob(String(id));view='pipeline';stageFilter='ALL';render();},toast)});
+ return native.jdDashboard.render();
+}

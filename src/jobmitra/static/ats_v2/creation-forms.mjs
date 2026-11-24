@@ -17,7 +17,8 @@ export function showFormErrors(form,kind,errors,message='Please correct the high
  let first;
  for(const [index,error] of errors.entries()){
   const name=(kind==='candidate'?candidateFields:jobFields)[error.field]||error.field;
-  const control=form.elements.namedItem(name);if(!control||!control.setAttribute)continue;
+  const control=form.elements.namedItem(error.field)||form.elements.namedItem('extra.'+error.field)||form.elements.namedItem(name);if(!control||!control.setAttribute)continue;
+  for(let parent=control.parentElement;parent&&parent!==form;parent=parent.parentElement)if(parent.tagName==='DETAILS')parent.open=true;
   const note=document.createElement('span');note.id=form.id+'-error-'+index;note.dataset.creationError='';note.textContent=error.message;note.style.cssText='display:block;color:#b91c1c;font-size:12px;margin-top:4px';
   control.setAttribute('aria-invalid','true');control.setAttribute('data-creation-invalid','');control.setAttribute('aria-errormessage',note.id);control.style.borderColor='#b91c1c';control.insertAdjacentElement('afterend',note);
   first||=control;
@@ -30,7 +31,7 @@ export function nativeFieldErrors(form){
 export function candidatePeriodErrors(form){
  return ['current','expected'].filter(p=>form.elements[p+'_salary'].value!==''&&!form.elements[p+'_period'].value).map(p=>({field:p+'_period',message:'Please select the '+p+' salary period.'}));
 }
-export async function submitCreation(form,kind,action){
+export async function submitCreation(form,kind,action,onError){
  if(!form||active.has(kind))return null;
  active.add(kind);clearFormErrors(form);form.noValidate=true;
  const buttons=[...form.querySelectorAll('button[type="submit"]')],disabled=buttons.map(b=>b.disabled);
@@ -49,7 +50,7 @@ export async function submitCreation(form,kind,action){
  }catch(error){
   const errors=error.fieldErrors||[];
   const message=state.committed?'The record was saved, but a follow-up step failed. Retry to finish loading it.':error.userFacing?error.message:'Unable to save the '+(kind==='candidate'?'candidate':'JD')+'. Please try again.';
-  showFormErrors(form,kind,errors,message);return null;
+  showFormErrors(form,kind,errors,message);onError?.(error);return null;
  }finally{
   active.delete(kind);form.removeAttribute('aria-busy');buttons.forEach((b,i)=>b.disabled=disabled[i]);
  }

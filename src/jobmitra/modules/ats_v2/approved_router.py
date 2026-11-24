@@ -11,11 +11,12 @@ from sqlalchemy import text
 
 from jobmitra.core.workflow import same_origin
 
-from . import approved, candidate_registers, candidates, jobs, proposal, unified
+from . import approved, candidate_registers, candidates, jd_dashboard, jobs, proposal, unified
 from . import request_receipts as receipts
 from .candidate_schemas import SearchParams
 from .common import AtsError, event_record, one
 from .database import insert_result, transaction
+from .jd_dashboard import Filters as JDDashboardFilters
 from .parsed_router import router as parsed_router
 from .profile_router import router as profile_router
 from .proposal_router import router as proposal_pdf_router
@@ -28,6 +29,11 @@ router = APIRouter(prefix="/approved", route_class=AtsRoute)
 router.include_router(proposal_pdf_router)
 router.include_router(profile_router)
 router.include_router(parsed_router)
+
+
+@router.get("/jd-dashboard")
+def jd_directory(engine: Store, filters: Annotated[JDDashboardFilters, Query()]):
+    return jd_dashboard.browse(engine, filters)
 
 
 @router.get("/state")

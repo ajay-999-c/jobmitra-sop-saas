@@ -60,7 +60,11 @@ class AtsRoute(APIRoute):
                 response = await original(request)
             except AtsError as error:
                 response = JSONResponse(
-                    {"detail": error.message, **({"code": error.code} if error.code else {})},
+                    {
+                        "detail": error.message,
+                        **({"code": error.code} if error.code else {}),
+                        **({"matches": error.matches} if error.matches is not None else {}),
+                    },
                     status_code=error.status,
                 )
             except (RequestValidationError, ValidationError) as error:

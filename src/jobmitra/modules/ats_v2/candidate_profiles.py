@@ -296,11 +296,19 @@ def matches(conn, person):
     if not parts:
         return []
     return [
-        dict(r)
+        {
+            **{k: v for k, v in r.items() if not k.endswith("_normalized")},
+            "matched_fields": [
+                name
+                for name in ["phone", "email"]
+                if values.get(name + "_normalized") == r[name + "_normalized"]
+                and values.get(name + "_normalized")
+            ],
+        }
         for r in conn.execute(
             text(
-                "SELECT id,candidate_code,full_name,phone,email FROM candidates WHERE "
-                + " OR ".join(parts)
+                "SELECT id,candidate_code,full_name,phone,email,phone_normalized,email_normalized "
+                "FROM candidates WHERE " + " OR ".join(parts)
             ),
             params,
         ).mappings()
@@ -462,6 +470,21 @@ def save(engine, cid, data, role, *, connection=None):
 
 
 def intake(engine, data, role):
+    for prefix in ("current", "expected"):
+        if getattr(data.candidate, prefix + "_salary_inr") is not None and not getattr(
+            data.candidate, prefix + "_salary_period"
+        ):
+            raise AtsError(
+                f"Please select the {prefix} salary period.",
+                code=prefix.upper() + "_SALARY_PERIOD_REQUIRED",
+            )
+    months = data.extra.experience_months
+    if (
+        months is not None
+        and data.candidate.experience_years is not None
+        and abs(data.candidate.experience_years - months / 12) > 1e-9
+    ):
+        raise AtsError("Reviewed experience years and months disagree.")
     digest = _digest(data, "foundit-register")
     with transaction(engine) as conn:
         ensure(conn)
@@ -471,11 +494,21 @@ def intake(engine, data, role):
         if data.candidate.source != "FOUNDIT_PASTE":
             raise AtsError("Foundit intake must retain Foundit provenance.")
         if not (data.candidate.phone or data.candidate.email):
-            raise AtsError("Review at least one verified contact before registration.")
+            raise AtsError(
+                "Review at least one verified mobile number or email before registration.",
+                code="CONTACT_REQUIRED",
+            )
         possible = matches(conn, data.candidate)
         if possible and len(data.separate_person_reason.strip()) < 10:
+            phone_match = any("phone" in p["matched_fields"] for p in possible)
             raise AtsError(
-                "Review matching identities or give a separate-person justification.", 409
+                "A candidate with this "
+                + ("mobile number" if phone_match else "email")
+                + " already exists. View the existing profile before "
+                "registering a separate person.",
+                409,
+                code="DUPLICATE_PHONE" if phone_match else "DUPLICATE_EMAIL",
+                matches=possible,
             )
         values = _values(data.candidate)
         values["candidate_code"] = "ATS-" + uuid4().hex[:16].upper()
