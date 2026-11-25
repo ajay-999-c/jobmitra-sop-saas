@@ -48,7 +48,7 @@ def test_v12_root_overview_and_all_direct_workspaces_without_postgres(client, st
         response = client.get(route, follow_redirects=False)
         assert response.status_code == 303
         assert response.headers["location"] == "/workspace-v12/companies"
-    for section in ["companies", "candidates", "jobs"]:
+    for section in ["companies", "candidates", "jobs", "email"]:
         response = client.get("/workspace-v12/" + section)
         assert response.status_code == 200
         assert f'data-section="{section}"' in response.text
@@ -83,7 +83,7 @@ def test_v12_incompatible_v2_never_migrates_or_falls_back(v2):
             response = c.get(route, follow_redirects=False)
             assert response.status_code == 303
             assert response.headers["location"] == "/workspace-v12/companies"
-        for section in ["companies", "candidates", "jobs"]:
+        for section in ["companies", "candidates", "jobs", "email"]:
             assert c.get("/workspace-v12/" + section).status_code == 503
     assert snapshot(v2[0]) == before
     pg.connect.assert_not_called()

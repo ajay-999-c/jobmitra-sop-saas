@@ -26,24 +26,47 @@
   @media(max-width:630px){#emailStudioOverlay{padding:0}#emailStudioOverlay .studio-shell{border-radius:0}#emailStudioOverlay .studio-head{min-height:49px}}
 
 
-/* V12: three independent workspaces, single shared navigation */
+/* V12: four independent workspaces, single shared navigation */
 .unified-switcher{max-width:100%;overflow-x:auto;scrollbar-width:thin}
 .unified-switcher button{min-height:36px}
 @media(max-width:520px){.unified-switcher button{font-size:11px;padding:9px 8px}.unified-trailing{display:none}}
-</style></head><body data-section="{% endraw %}{{ workspace_section }}{% raw %}">
+</style><link rel="stylesheet" href="/static/ats-v2/email-workspace.css"></head><body data-section="{% endraw %}{{ workspace_section }}{% raw %}">
 <header class="unified-header">
  <div class="unified-brand"><span class="job">Job</span>mitra<span class="job">.com</span><small>Your online job friend</small></div>
  <div role="tablist" class="unified-switcher" aria-label="Recruitment workspaces">
    <button id="unifiedCompaniesTab" type="button" role="tab" aria-selected="false">Companies</button>
     <button id="unifiedCandidateTab" type="button" role="tab" aria-selected="true">Candidate Desk</button>
-   <button id="unifiedJDTab" type="button" role="tab" aria-selected="false">JD Tracking</button>
+   <button id="unifiedJDTab" type="button" role="tab" aria-selected="false">JD Tracking</button><button id="unifiedEmailTab" type="button" role="tab" aria-selected="false">Email</button>
  </div>
  <div class="unified-trailing"><b>SQLITE WORKSPACE</b> · Loading records</div>
 </header>
 <section class="app-shell" id="companiesHost" hidden aria-label="Companies and Placement Analytics"></section>
 <section class="app-shell" id="candidateHost" aria-label="Candidate Desk"></section>
 <section id="jdHost" class="app-shell" hidden=""></section>
-<div id="emailStudioOverlay" hidden="" role="dialog" aria-modal="true" aria-label="Jobmitra Email Studio">
+<section id="emailHost" class="app-shell" hidden aria-label="Email workspace"><div id="emailHome">
+<section class="email-home" aria-labelledby="email-heading">
+<h1 id="email-heading">Recruitment Email Studio</h1>
+<p>Create professional recruitment emails, candidate submissions, and company proposals.</p>
+<div class="email-choices">
+<a class="email-choice" href="/workspace-v12/email?tool=updates">
+<h2>Candidate Interview &amp; Status Updates</h2>
+<p>Prepare interview invitations, selection confirmations, joining updates, and other candidate communications.</p>
+<span>Open Candidate Updates →</span>
+</a>
+<a class="email-choice" href="/workspace-v12/email?tool=submission">
+<h2>Candidate Submissions</h2>
+<p>Prepare shortlisted candidate profiles to share with hiring companies.</p>
+<span>Open Candidate Submissions →</span>
+</a>
+<a class="email-choice" href="/workspace-v12/email?tool=proposal">
+<h2>Company Proposals</h2>
+<p>Prepare professional company proposal emails and download recruitment agreements.</p>
+<span>Open Company Proposals →</span>
+</a>
+</div>
+<p>Enter details manually, review the email and send it yourself. These tools do not save details or send emails automatically.</p>
+</section>
+</div><div id="emailTool" hidden><p class="email-return"><a href="/workspace-v12/email">← Email Studio</a></p><div id="emailFrames"></div></div><p id="emailWorkspaceNotice" role="status"></p></section><div id="emailStudioOverlay" hidden="" role="dialog" aria-modal="true" aria-label="Jobmitra Email Studio">
   <div class="studio-shell">
     <div class="studio-head"><div><strong>Email Studio · Candidate &amp; JD Communications</strong><small>Auto-filled preview · Review before copying · No email is sent</small></div><button id="closeEmailStudio" type="button" aria-label="Close Email Studio">✕ &nbsp;Close</button></div>
     <iframe id="emailStudioFrame" title="Jobmitra Email Studio" allow="clipboard-write; clipboard-read"></iframe>

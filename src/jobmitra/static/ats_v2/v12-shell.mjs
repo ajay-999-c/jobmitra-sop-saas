@@ -1,5 +1,5 @@
 // Small integrations around the approved UI; original components and composers stay intact.
-const workspaces=[['unifiedCompaniesTab','companies','companies'],['unifiedCandidateTab','candidates','candidate'],['unifiedJDTab','jobs','jd']];
+const workspaces=[['unifiedCompaniesTab','companies','companies'],['unifiedCandidateTab','candidates','candidate'],['unifiedJDTab','jobs','jd'],['unifiedEmailTab','email','email']];
 export function installWorkspaceShell(native){
  const nav=document.querySelector('[aria-label="Recruitment workspaces"]');
  if(!nav)return;
@@ -13,7 +13,7 @@ export function installWorkspaceShell(native){
  };
  new MutationObserver(sync).observe(nav,{subtree:true,attributes:true,attributeFilter:['aria-selected']});
  window.addEventListener('popstate',()=>{
-  const section=location.pathname.match(/^\/workspace-v12\/(companies|candidates|jobs)\/?$/)?.[1];
+  const section=location.pathname.match(/^\/workspace-v12\/(companies|candidates|jobs|email)\/?$/)?.[1];
   const item=workspaces.find(x=>x[1]===section);if(item)window.JobmitraUnified?.show(item[2]);
  });
  function installProposalButton(){
@@ -29,13 +29,14 @@ export function installWorkspaceShell(native){
  }
  window.addEventListener('jobmitra-native-update',installProposalButton);
  if(window.JobmitraUnified)sync();
- const overlay=document.getElementById('emailStudioOverlay'),frame=document.getElementById('emailStudioFrame');
- if(!overlay||!frame)return;
+ const overlay=document.getElementById('emailStudioOverlay'),candidateFrame=document.getElementById('emailStudioFrame');
+ if(!overlay||!candidateFrame)return;
+ const frame=document.createElement('iframe');frame.id='proposalStudioFrame';frame.title='Company Proposal workflow';frame.allow=candidateFrame.allow;frame.hidden=true;candidateFrame.after(frame);let loadedCompany=null;
  const heading=overlay.querySelector('.studio-head strong'),originalHeading=heading.textContent;
  window.JobmitraProposalAuthorize=()=>native.authorize();
  const restore=()=>{
   if(!proposal)return;const state=proposal;proposal=null;++proposalRequest;
-  frame.removeAttribute('src');frame.inert=false;frame.onload=null;
+  frame.hidden=true;frame.inert=false;
   heading.textContent=originalHeading;state.opener.focus();
  };
  new MutationObserver(()=>{if(overlay.hidden)restore();}).observe(overlay,{attributes:true,attributeFilter:['hidden']});
@@ -44,9 +45,10 @@ export function installWorkspaceShell(native){
   const request=++proposalRequest;
   const context=await native.api('/api/v12/approved/companies/'+encodeURIComponent(companyId)+'/proposal-context');
   if(request!==proposalRequest)return;
+  if(loadedCompany!==companyId&&frame.contentWindow?.JobmitraProposalEmailChanged?.()&&!confirm('This proposal email has unsaved edits. Replace it with another company?'))return;
   proposal={opener};heading.textContent='Email Studio · Company Proposal · '+context.company_name;
-  frame.onload=null;frame.inert=false;frame.removeAttribute('srcdoc');
-  frame.src='/api/v12/approved/companies/'+encodeURIComponent(companyId)+'/proposal-workspace';
+  frame.inert=false;candidateFrame.hidden=true;frame.hidden=false;
+  if(loadedCompany!==companyId){frame.src='/api/v12/approved/companies/'+encodeURIComponent(companyId)+'/proposal-workspace';loadedCompany=companyId;}
   overlay.hidden=false;document.getElementById('closeEmailStudio').focus();
  }
 }

@@ -1,8 +1,10 @@
 import {uuid} from './crypto.mjs';
+import {loadProposalEmail,hasEmailChanges} from './email-studio.mjs';
 // Company PDF workflow in the existing Email Studio overlay. No browser persistence or delivery.
 const $=id=>document.getElementById(id),companyId=document.body.dataset.companyId;
 const base='/api/v12/approved/companies/'+encodeURIComponent(companyId),requests=new Map();
 let context=null,selected=null,epoch=0,busy=false;
+window.JobmitraProposalEmailChanged=()=>hasEmailChanges($('proposalEmailFrame'));
 const notice=(text,error=false)=>{$('notice').textContent=text;$('notice').classList.toggle('error',error);};
 async function api(path,body){
  const headers={'X-Jobmitra-UI':'1'};
@@ -67,12 +69,11 @@ $('proposalForm').onsubmit=event=>{event.preventDefault();run(async()=>{
 $('unlock').onclick=()=>run(async()=>{await authorize();await refreshHistory();notice('Company proposal history loaded.');});
 $('prepareEmail').onclick=()=>run(async()=>{
  const record=selected,version=++epoch;const draft=await api(base+'/proposals/'+record.id+'/email');if(version!==epoch||selected!==record)return;
- $('emailTo').value=draft.recipient_email;$('emailSubject').value=draft.subject;$('emailBody').value=draft.body;$('emailSection').hidden=false;
+ if(draft.company_id!==companyId)throw Error('Proposal company context does not match.');
+ const opened=await loadProposalEmail($('proposalEmailFrame'),{companyId,proposalId:record.id,companyName:record.snapshot.company_name,contactName:record.snapshot.contact_name||'',recipientEmail:draft.recipient_email||'',reference:record.reference,feePercent:record.snapshot.fee_percent,downloadUrl:base+'/proposals/'+record.id+'/pdf?download=true'});
+ if(!opened)return;$('emailSection').hidden=false;
  notice('Email draft prepared for '+record.reference+'. Download and manually attach that PDF before sending. Nothing has been sent.');$('emailSection').scrollIntoView({behavior:'smooth',block:'start'});
 });
-for(const [button,field]of [['copyTo','emailTo'],['copySubject','emailSubject'],['copyBody','emailBody']]){
- $(button).onclick=()=>run(async()=>{if(field==='emailTo'&&(!$(field).value||!$(field).reportValidity()))throw Error('Enter a valid recipient email.');await navigator.clipboard.writeText($(field).value);notice('Copied '+(field==='emailBody'?'email draft. Attach the downloaded PDF manually before sending.':field==='emailTo'?'recipient.':'subject.'));});
-}
 $('signedForm').onsubmit=event=>{event.preventDefault();run(async()=>{
  const file=$('signedFile').files[0];if(!selected||!file)throw Error('Choose an existing proposal and a signed PDF.');
  if(file.size>10*1024*1024||!file.name.toLowerCase().endsWith('.pdf'))throw Error('Choose a PDF up to 10 MB.');
@@ -92,7 +93,7 @@ async function start(){
  for(const c of context.contacts)$('contact').add(new Option((c.name||'Contact')+(c.email?' · '+c.email:' · Email not recorded'),c.id));
  if(!context.contacts.length){$('contact').add(new Option('No active contacts recorded',''));$('contact').disabled=true;}
  $('contact').value=context.company_contact_id||'';$('recipient').value=context.recipient_email;$('generate').disabled=false;
- const session=await api('/api/v12/access');if(session.local_development){$('unlock').textContent='Refresh history';}
+ const session=await api('/api/v12/access');if(session.local_development||session.office_lan){$('unlock').textContent='Refresh history';}
  if(session.editing)await refreshHistory();
  notice(session.editing?'Company details loaded. Generate PDF to save a proposal version.':'Company details loaded. Unlock workspace access to generate PDFs or view private history.');
 }

@@ -3,6 +3,7 @@
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 import {cleanJDStyles,cleanJDMarkup} from './v12-clean-jd.mjs';
+import {emailWorkspaceMarkup,emailWorkspaceStyles} from './v12-email.mjs';
 import {createRequire} from 'node:module';
 import {parse} from '@babel/parser';
 import babelTraverse from '@babel/traverse';
@@ -93,19 +94,19 @@ if(!source.includes('canEmail:canComposePipelineEmail'))throw Error('Pipeline Em
 // Only carry a recorded schedule for the candidate's current interview round.
 source=source.replace("const interview=(c.journey||[]).find(e=>e.type==='INTERVIEW_SCHEDULED'&&e.scheduledAt);", "const interview=(c.journey||[]).find(e=>e.type==='INTERVIEW_SCHEDULED'&&e.scheduledAt&&e.round_id===c.stageId);");
 source=source.replace('interviewDate,interviewTime,candidates:[master]', 'roundId:c.stageId||null,interviewDate,interviewTime,candidates:[master]');
-source=source.replace('window.JobmitraUnified.openEmailStudio=(context)=>{',`window.JobmitraUnified.openEmailStudio=async(context)=>{
- context=await pipelineEmailContext(native,context);`);
-// Keep Email Studio source bytes intact; its integration reloads canonical context.
-source=source.replace('window.JobmitraUnified.openEmailStudio=async(context)=>{','window.JobmitraUnified.openEmailStudio=(context)=>native.run(async()=>{');
-source=source.replace("document.getElementById('closeEmailStudio').focus();\n };", "document.getElementById('closeEmailStudio').focus();\n });");
-source=source.replace("emailFrame.onload=()=>{",`emailFrame.onload=()=>{
-     const roundName=emailFrame.contentDocument?.getElementById('roundName');if(roundName)roundName.value=context.roundName||'';
-     const sample=emailFrame.contentDocument?.getElementById('sampleBtn');if(sample){sample.textContent='Reload candidate details';sample.addEventListener('click',event=>{event.stopImmediatePropagation();emailFrame.contentWindow.postMessage({type:'jobmitra-email-prefill',context:context||{}},'*');},true);}`);
+section(' const emailOverlay=', ' /* JD local demo',` installEmailWorkspace(EMAIL_STUDIO_DOCUMENT);\n installContextualEmail(native,EMAIL_STUDIO_DOCUMENT,pipelineEmailContext);\n`);
 source=source.replace('(function(){',`(async function(){\n await native.refresh(false);`);
-source=source.replace(/activate\('companies'\);(?=\s*\}\)\(\);\s*$)/,`const section=window.document.body.dataset.section;activate(section==='jobs'?'jd':section==='candidates'?'candidate':'companies');\n native.renderAccess();`);
+source=source.replace(/activate\('companies'\);(?=\s*\}\)\(\);\s*$)/,`const section=window.document.body.dataset.section;activate(section==='email'?'email':section==='jobs'?'jd':section==='candidates'?'candidate':'companies');\n native.renderAccess();`);
 source=source.replace("showCandidateHistory:(id)=>showCandidateHistory(id),", "showCandidateHistory:(id)=>showCandidateHistory(id),showForPool:async(id)=>{setTab('search');resetFilters();await search();selectCandidate(id);},");
 source=source.replace("b.onclick=()=>toast('Eligible in prototype. Actual JD assignment happens in Candidate Desk.')", "b.onclick=()=>{closeModal();window.JobmitraUnified.show('candidate');window.JobmitraUnifiedCandidate.showForPool(b.dataset.previewPool);}");
 source=source.replace("toast('Navigation is a visual placeholder in this standalone demo.');", "if(target.id==='topStaff')toast('Staff has no approved native V12 replacement yet. Legacy backend data and APIs are preserved.');else window.JobmitraUnified.show('companies');");
+source=source.replace("const area=which==='companies'?","const area=which==='email'?'email':which==='companies'?");
+source=source.replace("hostJD.hidden=area!=='jd';","hostJD.hidden=area!=='jd';window.document.getElementById('emailHost').hidden=area!=='email';");
+source=source.replaceAll("['unifiedJDTab','jd']","['unifiedJDTab','jd'],['unifiedEmailTab','email']");
+source=source.replace("show:(where)=>activate(where==='jd'?","show:(where)=>activate(where==='email'?'email':where==='jd'?");
+// Email shortcuts use canonical profiles/memberships without changing profile layout.
+source=source.replace('<div class="profile-v9-actions">','<div class="profile-v9-actions"><button class="btn tiny outline" type="button" data-email-profile="${escapeHTML(c.id)}">Email</button>');
+source=source.replace('Open JD pipeline →</button>','Open JD pipeline →</button><button class="btn tiny outline" type="button" data-email-job="${escapeHTML(r.jobId)}" data-email-candidate="${escapeHTML(c.id)}">Email</button>');
 // Candidate-only additions retain the approved component and its other renderers.
 source=source.replace("function setTab(next){tab=next;", "function setTab(next){tab=next;");
 source=source.replace("document.querySelector('.more-tabs')?.removeAttribute('open');window.scrollTo", "document.querySelector('.more-tabs')?.removeAttribute('open');native.candidateDesk?.section(next);window.scrollTo");
@@ -163,14 +164,15 @@ source=source.replace(/No document filenames in this standalone preview/g,'No re
 if(/localStorage\.|indexedDB\./.test(source))throw Error('Browser persistence remains: '+source.match(/.{0,70}(?:localStorage\.|indexedDB\.).{0,70}/g)?.join('\n'));
 const emailPattern=/const EMAIL_STUDIO_DOCUMENT=("(?:\\.|[^"\\])*");/;
 if(JSON.parse(match[1].match(emailPattern)[1])!==JSON.parse(source.match(emailPattern)[1]))throw Error('Approved embedded Email Studio changed.');
-const generated='// Generated from immutable approved V12 HTML. Source SHA-256: '+hash+'\nimport {native} from "./approved-api.mjs";\nimport {installJDDashboard} from "./jd-dashboard.mjs";\nimport {installCleanJD} from "./jd-clean.mjs";\nimport {canComposePipelineEmail,pipelineEmailContext} from "./pipeline-email.mjs";\nimport {submitCreation,nativeFieldErrors,candidatePeriodErrors} from "./creation-forms.mjs";\nimport {installCandidateDesk} from "./candidate-desk.mjs";\nimport {installCandidateRegisters,registrationDate} from "./candidate-registers.mjs";\n'+source;
+const generated='// Generated from immutable approved V12 HTML. Source SHA-256: '+hash+'\nimport {native} from "./approved-api.mjs";\nimport {installJDDashboard} from "./jd-dashboard.mjs";\nimport {installCleanJD} from "./jd-clean.mjs";\nimport {installEmailWorkspace,installContextualEmail} from "./email-studio.mjs";\nimport {canComposePipelineEmail,pipelineEmailContext} from "./pipeline-email.mjs";\nimport {submitCreation,nativeFieldErrors,candidatePeriodErrors} from "./creation-forms.mjs";\nimport {installCandidateDesk} from "./candidate-desk.mjs";\nimport {installCandidateRegisters,registrationDate} from "./candidate-registers.mjs";\n'+source;
 let shell=html.slice(0,match.index)+`<script type="module" src="/static/ats-v2/approved.mjs"></script>\n</body></html>`;
 shell=shell.replace('<body>','<body data-section="{{ workspace_section }}">').replace('INTERACTIVE HTML PREVIEW</b> · Local demo data','SQLITE WORKSPACE</b> · Loading records').replace('<title>','<link rel="icon" href="/static/stage2/favicon.svg" type="image/svg+xml"><title>');
+shell=shell.replace('</head>','<link rel="stylesheet" href="/static/ats-v2/email-workspace.css"></head>').replace('JD Tracking</button>','JD Tracking</button><button id="unifiedEmailTab" type="button" role="tab" aria-selected="false">Email</button>').replace('<div id="emailStudioOverlay"',emailWorkspaceMarkup()+'<div id="emailStudioOverlay"').replace('three independent workspaces','four independent workspaces');
 // Approved position-only change: keep logo, dimensions and tab styling intact.
 shell=shell.replace('.unified-header{display:flex;justify-content:space-between;', '.unified-header{display:flex;justify-content:flex-start;');
 // CSS selectors such as `{#emailStudioOverlay` are literal CSS, not Jinja comments.
 shell='{% raw %}'+shell.replace('{{ workspace_section }}','{% endraw %}{{ workspace_section }}{% raw %}')+'{% endraw %}';
-const outputs=[['src/jobmitra/static/ats_v2/approved.mjs',generated],['src/jobmitra/templates/v12/approved.html',shell],['src/jobmitra/static/ats_v2/jd-clean.css',cleanJDStyles()]];
+const outputs=[['src/jobmitra/static/ats_v2/approved.mjs',generated],['src/jobmitra/templates/v12/approved.html',shell],['src/jobmitra/static/ats_v2/jd-clean.css',cleanJDStyles()],['src/jobmitra/static/ats_v2/email-workspace.css',emailWorkspaceStyles()]];
 if(check){
  for(const [path,contents] of outputs)if(!fs.readFileSync(path).equals(Buffer.from(contents)))throw Error('Generated artifact differs: '+path);
  console.log('Approved reference and generated artifacts verified byte-for-byte.');

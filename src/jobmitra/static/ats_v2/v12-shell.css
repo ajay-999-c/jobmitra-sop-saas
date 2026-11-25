@@ -19,3 +19,5 @@
 #proposalWorkspace .history-item{padding:12px 0;border-bottom:1px solid #e1e6ef;overflow-wrap:anywhere}#proposalWorkspace .history-item p{margin:4px 0}
 #proposalWorkspace code{font-size:10px;overflow-wrap:anywhere}#proposalWorkspace [hidden]{display:none!important}
 @media(max-width:700px){#proposalWorkspace main{padding:12px}#proposalWorkspace .layout{grid-template-columns:1fr}#proposalWorkspace h1{font-size:19px}#proposalWorkspace .fields{grid-template-columns:1fr;gap:0}#proposalWorkspace #pdfPreview{height:420px}#proposalWorkspace .card{padding:13px}}
+
+#proposalWorkspace #proposalEmailFrame{width:100%;height:1050px;border:0}

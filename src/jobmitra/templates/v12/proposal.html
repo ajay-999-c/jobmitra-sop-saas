@@ -25,11 +25,9 @@
   <p class="hint">If your browser cannot display PDFs here, use Download PDF. Generated proposals contain blank acknowledgement and signature fields.</p>
  </section></div>
  <section id="emailSection" class="card" hidden><h2>Prepare Email</h2><p class="warning">The PDF is not attached automatically. Download the selected version and attach it manually before sending. Nothing has been sent.</p>
-  <label>To · editable<input id="emailTo" type="email" placeholder="Enter recipient email"></label><button id="copyTo" type="button">Copy To</button>
-  <label>Subject<input id="emailSubject" readonly></label><button id="copySubject" type="button">Copy subject</button>
-  <label>Short email body<textarea id="emailBody" rows="15" readonly></textarea></label><button id="copyBody" type="button">Copy email body</button>
+  <iframe id="proposalEmailFrame" title="Branded Company Proposal Email Studio" allow="clipboard-write; clipboard-read"></iframe>
  </section>
- <section class="card"><div class="actions"><h2>Proposal History</h2><button id="unlock" type="button">Unlock / refresh history</button></div>
+ <section class="card"><div class="actions"><h2>Proposal History</h2><button id="unlock" type="button">Refresh history</button></div>
   <p class="hint">Only saved PDF versions and explicitly recorded facts appear here. Prepared does not mean Sent. An uploaded document does not mean Accepted.</p><div id="history"></div>
  </section>
  <section id="evidenceSection" class="card" hidden><h2>Signed copies &amp; status evidence</h2><p id="selectedReference"></p>
