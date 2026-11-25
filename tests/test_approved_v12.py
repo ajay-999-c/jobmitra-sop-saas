@@ -282,7 +282,14 @@ def test_approved_css_is_copied_exactly_and_original_hash_is_unchanged():
         assert re.findall(r"<style>(.*?)</style>", original, re.S) == re.findall(
             r"<style>(.*?)</style>", integrated, re.S
         )
-        assert re.findall(r'\bid="([^"]+)"', original) == re.findall(r'\bid="([^"]+)"', integrated)
+        if area != "jd":
+            assert re.findall(r'\bid="([^"]+)"', original) == re.findall(
+                r'\bid="([^"]+)"', integrated
+            )
+        else:
+            assert "jd-clean.css" in integrated
+            assert 'id="versionPill"' not in integrated
+            assert 'id="editJDBtn"' not in integrated
     assert "localStorage." not in generated and "indexedDB." not in generated
 
 

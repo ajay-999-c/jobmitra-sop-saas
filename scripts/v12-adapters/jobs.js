@@ -27,3 +27,40 @@ function renderDashboard(){
  native.jdDashboard ||= installJDDashboard(native,{root:jdShadow,target:targetState,created:createdDate,date:dateLabel,open:id=>native.run(async()=>{await native.refresh();switchJob(String(id));view='pipeline';stageFilter='ALL';render();},toast)});
  return native.jdDashboard.render();
 }
+function cleanJD(){
+ native.jdClean ||= installCleanJD(native,{root:jdShadow,
+  context:()=>({job:draft,stage:stageFilter,defs:stageDefs(),disabled:isNew||draft.status!=='ACTIVE'||workflowDirty(),reached:stageRows,stageOf,decision:stageDecision,next:nextStageKey,label:c=>candidateStage(c),feedback:c=>(c.journey||[]).find(e=>e.feedback?.trim()&&!['MILESTONE','INTERVIEW_SCHEDULED'].includes(e.type)),canEmail:canComposePipelineEmail}),
+  renderCandidates:renderPipelineCandidates,target:targetState,created:createdDate,date:dateLabel,joined:countJoined,count:stageCount,awaiting:stagePending,stageName,toast});
+ return native.jdClean;
+}
+function header(){
+ el('heroTitle').textContent=view==='dashboard'?'JD Dashboard':draft.title.trim()||'New Job Requirement';
+ el('heroSubtitle').textContent=view==='dashboard'?'Requirements, deadlines and progress':draft.company||'Select company';
+ const status=draft.status;
+ el('statusPill').className='status '+({ACTIVE:'green',ON_HOLD:'amber',CLOSED:'red'}[status]||'neutral');
+ el('statusPill').innerHTML='<i></i>'+({ACTIVE:'Active hiring',DRAFT:'Draft',ON_HOLD:'On hold',CLOSED:'Closed'}[status]||'Draft');
+ el('statusPill').hidden=view==='dashboard';
+ el('topSaveBtn').hidden=view!=='workflow';el('topSaveBtn').disabled=isNew;
+ for(const [id,value] of Object.entries({navDashboard:'dashboard',navDetails:'details',navWorkflow:'workflow',navPipeline:'pipeline',navPlacement:'placement',navHistory:'history'})){
+  const node=el(id);node.classList.toggle('active',view===value);node.setAttribute('aria-current',view===value?'page':'false');
+ }
+ renderJobPicker();renderDateSummary();
+}
+function headerNoRerender(){header();}
+function renderDateSummary(){el('jdTargetSummary').hidden=isNew||view==='dashboard';cleanJD().summary();}
+function workflowNavigator(){return '<div class="jd-clean">'+cleanJD().workflow()+'</div>';}
+function renderPipeline(){
+ if(!stageDefs().some(d=>d.key===stageFilter)){stageFilter='POOL';cleanJD().stageChanged(stageFilter);}
+ el('workspace').innerHTML='<div class="jd-clean">'+cleanJD().workflow()+'<div id="pipelineCandidateList"></div></div>';
+ renderPipelineCandidates();
+}
+function renderPipelineCandidates(){cleanJD().panel(el('pipelineCandidateList'));}
+function selectStage(key){stageFilter=key;cleanJD().stageChanged(key);view='pipeline';render();}
+function nextStageKey(c){
+ if(['SELECTED','JOINED','NOT_SELECTED','NOT_JOINED','SELECTION_CANCELLED'].includes(stageOf(c)))return null;
+ return c.nextStage==='ROUND'?(c.nextRoundId?'ROUND:'+c.nextRoundId:null):c.nextStage||null;
+}
+function switchJob(id){
+ if(!abandonIfDirty())return;const j=state.jobs.find(x=>x.id===id);if(!j)return;
+ selectedId=id;isNew=false;draft=clone(j);stageFilter='POOL';view='pipeline';fullJDOpen=false;cleanJD().stageChanged('POOL');persist();render();
+}

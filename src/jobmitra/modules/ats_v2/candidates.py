@@ -246,7 +246,19 @@ def search_candidates(engine, params: SearchParams, *, include_names=False):
     evidence = "COALESCE(c.search_text,'')"
     if include_names:
         evidence = "(COALESCE(c.search_text,'') || ' ' || lower(c.full_name))"
-    terms = [a or b for a, b in re.findall(r'"([^"\n]+)"|([^\s,]+)', params.keywords)][:30]
+        if params.identity_lookup:
+            evidence = (
+                "(COALESCE(c.search_text,'') || ' ' || lower(c.full_name) || ' ' || "
+                "COALESCE(c.phone,'') || ' ' || COALESCE(c.phone_normalized,'') || ' ' || "
+                "lower(COALESCE(c.current_city,'')) || ' ' || "
+                "lower(COALESCE(c.preferred_cities_json,'')))"
+            )
+    keywords = params.keywords
+    if include_names and params.identity_lookup and re.fullmatch(r"[+\d\s().-]+", keywords):
+        digits = re.sub(r"\D", "", keywords)
+        if len(digits) >= 3:
+            keywords = digits
+    terms = [a or b for a, b in re.findall(r'"([^"\n]+)"|([^\s,]+)', keywords)][:30]
     for index, term in enumerate(terms):
         key = f"term{index}"
         bindings[key] = _like(term)

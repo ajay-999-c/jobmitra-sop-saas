@@ -2,6 +2,7 @@
 // Usage: npm ci --ignore-scripts && npm run build:v12 (or npm run check:v12)
 import fs from 'node:fs';
 import crypto from 'node:crypto';
+import {cleanJDStyles,cleanJDMarkup} from './v12-clean-jd.mjs';
 import {createRequire} from 'node:module';
 import {parse} from '@babel/parser';
 import babelTraverse from '@babel/traverse';
@@ -30,6 +31,7 @@ traverse(babelParse(source,'reference.js'),{
  VariableDeclarator(p){if(p.node.id.name==='countJoined'&&area(p.node)==='jobs')replace(p.node.init,"j=>j.joinedCount??(j.candidates||[]).filter(c=>c.stageKey==='JOINED').length");if(p.node.id.name==='canEmail'&&area(p.node)==='jobs')replace(p.node.init,'canComposePipelineEmail(key)');if(['jdPrototypeDemo','jdFallbackJourney'].includes(p.node.id.name))replace(p.node.init,'{}');if(p.node.id.name==='persist')replace(p.node.init,'()=>{}');},
  AssignmentExpression(p){
   const left=source.slice(p.node.left.start,p.node.left.end),a=area(p.node),n=p.node.right;
+  if(left==='jdShadow.innerHTML')replace(n,JSON.stringify(cleanJDMarkup(n.value)));
   if(left==='candidateShadow.innerHTML'){const approved=n.value;if(typeof approved!=='string')throw Error('Candidate HTML boundary missing.');const foundit='<button class="tab" role="tab" aria-selected="false" data-tab="foundit" type="button">Foundit Paste</button>';let ui=approved.replace('<button data-tab="foundit" type="button">Foundit Paste</button>','');const marker='<button class="tab"';const pool=ui.indexOf('data-tab="pool"');const start=ui.lastIndexOf(marker,pool);if(start<0)throw Error('Foundit navigation insertion point missing.');ui=ui.slice(0,start)+foundit+ui.slice(start);replace(n,JSON.stringify(ui));}
   const handlers={
    "el('saveMilestone').onclick":`()=>native.run(async()=>{const button=el('saveMilestone'),value=el('milestoneValue').value,note=el('milestoneNote').value.trim();await native.activity(c.id,{job_id:Number(draft.id),activity_type:'FOLLOW_UP',notes:note||labels[key]+' · '+value,details:{kind:'PLACEMENT_MILESTONE',milestone:key,value,manual_fact_only:true,delivery_enabled:false,financial_transaction:false}},button);closeModal();await native.refresh();render();toast('Manual status recorded. No email, invoice or payment was sent.');},toast)`,
@@ -55,6 +57,7 @@ traverse(babelParse(source,'reference.js'),{
 // Outer function replacements own their nested handlers. Ignore overlapping edits.
 const filtered=edits.filter(e=>!edits.some(o=>o!==e&&o.start<=e.start&&o.end>=e.end&&(o.start<e.start||o.end>e.end)));
 for(const e of filtered.sort((a,b)=>b.start-a.start))source=source.slice(0,e.start)+e.value+source.slice(e.end);
+source=source.replace('function header(){',replacements.jobs.cleanJD+'\nfunction header(){');
 function section(start,end,value){const a=source.indexOf(start),b=source.indexOf(end,a);if(a<0||b<0)throw Error('Missing source boundary '+start);source=source.slice(0,a)+value+source.slice(b);}
 section('    const demo=','    let selectedId=',`    let state={jobs:structuredClone(native.jobs),activeId:native.jobs[0]?.id||null};\n`);
 source=source.replace("state.activeId||state.jobs[0].id","state.activeId||state.jobs[0]?.id||null");
@@ -83,7 +86,7 @@ source=source.replace('renderScope();renderAnalytics();renderDirectory();renderC
 source=source.replace('return {name:master.name||c.name,experience:', 'return {id:c.id,name:master.name||c.name,experience:');
 source=source.replace('getContacts?.(draft.company)', 'getContacts?.(draft.companyId)');source=source.replaceAll('getContacts?.(draft.company)', 'getContacts?.(draft.companyId)');
 // Email remains a draft action at every supported pipeline stage, independent of editing gates.
-if(!source.includes('const canEmail=canComposePipelineEmail(key);'))throw Error('Pipeline Email visibility adapter missing.');
+if(!source.includes('canEmail:canComposePipelineEmail'))throw Error('Pipeline Email visibility adapter missing.');
 // Only carry a recorded schedule for the candidate's current interview round.
 source=source.replace("const interview=(c.journey||[]).find(e=>e.type==='INTERVIEW_SCHEDULED'&&e.scheduledAt);", "const interview=(c.journey||[]).find(e=>e.type==='INTERVIEW_SCHEDULED'&&e.scheduledAt&&e.round_id===c.stageId);");
 source=source.replace('interviewDate,interviewTime,candidates:[master]', 'roundId:c.stageId||null,interviewDate,interviewTime,candidates:[master]');
@@ -133,6 +136,7 @@ source=source.replace('<div class="span2 resume-upload">', '<div class="field sp
 // These are truthful integration wording changes, not alternate UI components.
 const wording=[['Reset preview data','Reload records'],['Current demo associations','Current canonical associations'],['All milestones are manual records in this prototype.','All milestones are manual records in this workspace.'],['↻ Reset preview','↻ Reload records'],['Reset local preview','Reload records'],['Reset demo','Reload records'],['＋ Simulate JD selection','＋ Record JD selection'],['Demo job requirements','Job requirements'],['Available (demo)','Available'],['Stored on this device','Stored on the server'],['Saving is local to this browser. This prototype does not update real candidate journeys or production data.','Saving updates the isolated SQLite workspace after validation. Historical records remain preserved.'],['This offline preview records filename only.','The original file is uploaded and preserved as a resume version.'],['Demo snapshot as of','Snapshot as of'],['saved locally','saved to SQLite']];
 for(const [a,b] of wording)source=source.replaceAll(a,b);
+source=source.replaceAll('Advance candidate to next stage','Move candidate to next stage').replaceAll('Save & Advance','Save & Move to Next Stage');
 // Backend-neutral statuses keep the approved presentation valid for either store.
 const storageWording=[
  ['Canonical company records from SQLite.','Canonical company records from the workspace.'],
@@ -156,14 +160,14 @@ source=source.replace(/No document filenames in this standalone preview/g,'No re
 if(/localStorage\.|indexedDB\./.test(source))throw Error('Browser persistence remains: '+source.match(/.{0,70}(?:localStorage\.|indexedDB\.).{0,70}/g)?.join('\n'));
 const emailPattern=/const EMAIL_STUDIO_DOCUMENT=("(?:\\.|[^"\\])*");/;
 if(JSON.parse(match[1].match(emailPattern)[1])!==JSON.parse(source.match(emailPattern)[1]))throw Error('Approved embedded Email Studio changed.');
-const generated='// Generated from immutable approved V12 HTML. Source SHA-256: '+hash+'\nimport {native} from "./approved-api.mjs";\nimport {installJDDashboard} from "./jd-dashboard.mjs";\nimport {canComposePipelineEmail,pipelineEmailContext} from "./pipeline-email.mjs";\nimport {submitCreation,nativeFieldErrors,candidatePeriodErrors} from "./creation-forms.mjs";\nimport {installCandidateDesk} from "./candidate-desk.mjs";\nimport {installCandidateRegisters,registrationDate} from "./candidate-registers.mjs";\n'+source;
+const generated='// Generated from immutable approved V12 HTML. Source SHA-256: '+hash+'\nimport {native} from "./approved-api.mjs";\nimport {installJDDashboard} from "./jd-dashboard.mjs";\nimport {installCleanJD} from "./jd-clean.mjs";\nimport {canComposePipelineEmail,pipelineEmailContext} from "./pipeline-email.mjs";\nimport {submitCreation,nativeFieldErrors,candidatePeriodErrors} from "./creation-forms.mjs";\nimport {installCandidateDesk} from "./candidate-desk.mjs";\nimport {installCandidateRegisters,registrationDate} from "./candidate-registers.mjs";\n'+source;
 let shell=html.slice(0,match.index)+`<script type="module" src="/static/ats-v2/approved.mjs"></script>\n</body></html>`;
 shell=shell.replace('<body>','<body data-section="{{ workspace_section }}">').replace('INTERACTIVE HTML PREVIEW</b> · Local demo data','SQLITE WORKSPACE</b> · Loading records').replace('<title>','<link rel="icon" href="/static/stage2/favicon.svg" type="image/svg+xml"><title>');
 // Approved position-only change: keep logo, dimensions and tab styling intact.
 shell=shell.replace('.unified-header{display:flex;justify-content:space-between;', '.unified-header{display:flex;justify-content:flex-start;');
 // CSS selectors such as `{#emailStudioOverlay` are literal CSS, not Jinja comments.
 shell='{% raw %}'+shell.replace('{{ workspace_section }}','{% endraw %}{{ workspace_section }}{% raw %}')+'{% endraw %}';
-const outputs=[['src/jobmitra/static/ats_v2/approved.mjs',generated],['src/jobmitra/templates/v12/approved.html',shell]];
+const outputs=[['src/jobmitra/static/ats_v2/approved.mjs',generated],['src/jobmitra/templates/v12/approved.html',shell],['src/jobmitra/static/ats_v2/jd-clean.css',cleanJDStyles()]];
 if(check){
  for(const [path,contents] of outputs)if(!fs.readFileSync(path).equals(Buffer.from(contents)))throw Error('Generated artifact differs: '+path);
  console.log('Approved reference and generated artifacts verified byte-for-byte.');

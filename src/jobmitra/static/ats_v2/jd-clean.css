@@ -1,0 +1,208 @@
+/* Generated from immutable clean JD reference. */
+.jd-clean{--red:#d51e29;--red-dark:#b71924;--ink:#203046;--muted:#65768b;--line:#e0e6ed;--bg:#f5f7fa;--white:#fff;--green:#137954;--blue:#1f5ca1;--purple:#6740a5;--radius:11px;--shadow:0 3px 16px #192b4b06}
+.jd-clean, .jd-clean *{box-sizing:border-box}
+.jd-clean{margin:0;font:14px/1.45 Inter,"Segoe UI",Arial,sans-serif;color:var(--ink);background:var(--bg)}
+.jd-clean button,.jd-clean input,.jd-clean select{font:inherit}
+.jd-clean button{cursor:pointer}
+.jd-clean button:disabled{cursor:not-allowed;opacity:.65}
+.jd-clean button:focus-visible,.jd-clean input:focus-visible,.jd-clean select:focus-visible{outline:3px solid #ef9aa3;outline-offset:2px}
+.jd-clean h1,.jd-clean h2,.jd-clean h3,.jd-clean p{margin:0}
+.jd-clean button{transition:background .14s,border-color .14s}
+.jd-clean .header{min-height:66px;display:flex;align-items:center;gap:22px;background:#fff;padding:10px 26px;border-bottom:1px solid var(--line)}
+.jd-clean .brand{font-size:24px;font-weight:850;letter-spacing:-.9px;line-height:1.08;white-space:nowrap}
+.jd-clean .brand b{color:var(--red)}
+.jd-clean .brand small{display:block;text-align:center;font-size:9px;font-weight:650;color:#8290a0;letter-spacing:.15px;margin-top:5px}
+.jd-clean .switcher{display:flex;align-items:center;gap:4px;background:#f2f4f7;border-radius:10px;padding:4px}
+.jd-clean .switcher button{background:transparent;border:0;border-radius:7px;font-size:12px;padding:11px 15px;color:#5e6d81;font-weight:750;white-space:nowrap}
+.jd-clean .switcher .active{background:white;color:var(--red);box-shadow:0 1px 5px #20304615}
+.jd-clean .preview{margin-left:auto;color:#67788b;font-size:11px;white-space:nowrap}
+.jd-clean .preview span{font-weight:750;color:#46576c}
+.jd-clean .subnav{background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 24px;gap:18px;min-height:52px}
+.jd-clean .tabs{display:flex;align-self:stretch;gap:2px;overflow:auto;scrollbar-width:thin}
+.jd-clean .tabs button{border:0;border-bottom:2px solid transparent;background:none;padding:12px 11px;font-size:12px;font-weight:700;color:var(--muted);white-space:nowrap}
+.jd-clean .tabs .active{color:var(--red);border-bottom-color:var(--red);background:#fff7f7}
+.jd-clean .requirement{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.jd-clean .requirement label{font-size:11px;font-weight:700;color:var(--muted)}
+.jd-clean select,.jd-clean input{min-height:38px;border:1px solid #dce3ec;border-radius:8px;background:#fff;color:var(--ink);padding:8px 11px;min-width:0}
+.jd-clean input::placeholder{color:#8c99a9}
+.jd-clean select{font-size:12px}
+.jd-clean .requirement select{max-width:300px;width:270px}
+.jd-clean .btn{display:inline-flex;gap:6px;align-items:center;justify-content:center;min-height:36px;padding:8px 12px;border:1px solid #dce3ec;border-radius:8px;background:#fff;color:#41536a;font-size:12px;font-weight:700;white-space:nowrap}
+.jd-clean .btn:not(:disabled):hover{background:#f4f6f9}
+.jd-clean .btn.primary{background:var(--red);color:#fff;border-color:var(--red)}
+.jd-clean .btn.primary:hover:not(:disabled){background:var(--red-dark)}
+.jd-clean .btn.small{min-height:32px;padding:6px 10px}
+.jd-clean .btn.icon{width:36px;padding:0;font-size:19px}
+.jd-clean .btn.text{border:0;background:none;color:var(--muted)}
+.jd-clean .btn.add{min-width:120px}
+.jd-clean .btn.status{border-color:transparent;background:#f3f5f7;color:#61738a;opacity:1}
+.jd-clean .main{max-width:1680px;margin:auto;padding:20px 26px 36px}
+.jd-clean .hero{display:flex;justify-content:space-between;align-items:center;gap:20px;margin-bottom:18px}
+.jd-clean .hero-left{min-width:0}
+.jd-clean .hero h1{font-size:25px;letter-spacing:-.7px;line-height:1.25;font-weight:820}
+.jd-clean .companyline{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:8px;color:var(--muted);font-size:13px}
+.jd-clean .status{display:inline-flex;align-items:center;gap:5px;font-weight:700;font-size:11px}
+.jd-clean .status i{width:7px;height:7px;border-radius:100%;background:currentColor}
+.jd-clean .status.green{color:var(--green)}
+.jd-clean .status.amber{color:#94620c}
+.jd-clean .status.red{color:#b62a36}
+.jd-clean .status.neutral{color:#65768b}
+.jd-clean .hero-right{display:flex;gap:9px;align-items:center}
+.jd-clean .summary{display:grid;grid-template-columns:repeat(3,auto);gap:0;align-items:center;min-width:445px;background:white;border:1px solid var(--line);border-left:3px solid #27a16b;border-radius:10px;padding:13px 0;box-shadow:var(--shadow)}
+.jd-clean .summary.due{border-left-color:#d49b26}
+.jd-clean .summary.overdue{border-left-color:var(--red)}
+.jd-clean .summary>div{padding:0 16px;border-right:1px solid #edf0f4}
+.jd-clean .summary>div:last-child{border:0}
+.jd-clean .label{display:block;font-size:10px;color:var(--muted);font-weight:700;margin-bottom:4px}
+.jd-clean .summary strong{font-size:13px;white-space:nowrap}
+.jd-clean .summary small{display:block;margin-top:3px;font-size:10px;color:#6c7d91}
+.jd-clean .section{background:#fff;border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+.jd-clean .workflow{padding:17px 18px 18px;margin-bottom:18px}
+.jd-clean .section-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
+.jd-clean .section-heading h2{font-size:16px;letter-spacing:-.2px}
+.jd-clean .section-heading .hint{font-size:11px;color:var(--muted)}
+.jd-clean .rail{display:flex;gap:15px;align-items:stretch;overflow-x:auto;padding:2px 2px 6px;scrollbar-width:thin}
+.jd-clean .group{display:flex;flex-direction:column;gap:7px;flex:1 0 auto;min-width:0}
+.jd-clean .group + .group{border-left:1px solid #e5eaf0;padding-left:15px}
+.jd-clean .group-label{font-size:10px;letter-spacing:.5px;color:#6b7b8c;font-weight:800;text-transform:uppercase;display:flex;align-items:center;gap:6px}
+.jd-clean .steps{display:flex;gap:8px;height:100%}
+.jd-clean .stage{--accent:#7099d6;--tint:#f1f6fc;--fg:#254c7f;border:1px solid #dce5f0;border-top:3px solid var(--accent);border-radius:9px;min-width:128px;flex:1;min-height:102px;background:var(--tint);text-align:left;padding:11px 12px;color:var(--fg);position:relative;display:flex;flex-direction:column;justify-content:space-between;gap:8px}
+.jd-clean .stage[data-kind="interview"]{--accent:#9775d5;--tint:#f5f1fc;--fg:#6740a5;border-left-color:#e5dcf6;border-right-color:#e5dcf6;border-bottom-color:#e5dcf6}
+.jd-clean .stage[data-kind="outcome"]{--accent:#3ca779;--tint:#eaf8f0;--fg:#146746;border-left-color:#d5edde;border-right-color:#d5edde;border-bottom-color:#d5edde}
+.jd-clean .stage[data-kind="outcome"].joined{--accent:#187653}
+.jd-clean .stage.selected{outline:2px solid var(--red);outline-offset:1px;background:#fff;border-top-color:var(--red)}
+.jd-clean .stage:hover{filter:brightness(.985)}
+.jd-clean .stage-title{font-size:12px;font-weight:750;line-height:1.3;min-height:29px}
+.jd-clean .stage-num{font-size:25px;font-weight:800;line-height:1;letter-spacing:-.6px}
+.jd-clean .stage-meta{font-size:10px;font-weight:600;color:var(--muted)}
+.jd-clean .stage-meta b{color:var(--fg)}
+.jd-clean .next-arrow{align-self:center;color:#9ba8b8;font-size:17px;font-weight:500}
+.jd-clean .pipeline{overflow:hidden}
+.jd-clean .pipeline-top{display:flex;justify-content:space-between;align-items:center;padding:16px 18px 14px;gap:12px}
+.jd-clean .pipeline-top h2{font-size:18px;letter-spacing:-.35px}
+.jd-clean .pipeline-top p{font-size:12px;color:var(--muted);margin-top:3px}
+.jd-clean .pipeline-actions{display:flex;align-items:center;gap:9px}
+.jd-clean .pipeline-actions .muted{font-size:11px;color:var(--muted)}
+.jd-clean .modebar{display:flex;align-items:center;gap:6px;padding:0 18px;border-bottom:1px solid var(--line)}
+.jd-clean .modebar button{background:transparent;border:0;border-bottom:2px solid transparent;border-radius:0;padding:11px 13px;color:var(--muted);font-size:12px;font-weight:700;white-space:nowrap}
+.jd-clean .modebar .active{color:var(--red);border-bottom-color:var(--red)}
+.jd-clean .search-area{padding:15px 18px 13px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.jd-clean .searchfield{position:relative;flex:1 1 260px;max-width:720px}
+.jd-clean .searchfield input{width:100%;padding-left:37px;min-height:41px}
+.jd-clean .searchfield svg{width:17px;height:17px;position:absolute;top:12px;left:12px;stroke:#8a99ac}
+.jd-clean .search-area .btn{min-height:41px}
+.jd-clean .search-area .search-reset{font-size:12px}
+.jd-clean .results-header{padding:0 18px 10px;display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:11px;color:var(--muted)}
+.jd-clean .results-header b{font-weight:700;color:#46586d}
+.jd-clean .table-wrap{overflow-x:auto}
+.jd-clean .candidate-table{width:100%;border-collapse:collapse;text-align:left;min-width:770px}
+.jd-clean .candidate-table th{padding:11px 18px;background:#f8fafc;color:#6a7a8e;font-size:10px;letter-spacing:.3px;font-weight:750;border-block:1px solid #e8edf3;white-space:nowrap}
+.jd-clean .candidate-table td{padding:13px 18px;vertical-align:middle;border-bottom:1px solid #edf0f4;color:#43546a;font-size:12px}
+.jd-clean .candidate-table tr:last-child td{border-bottom:0}
+.jd-clean .candidate-table .candidate{display:flex;align-items:center;gap:10px}
+.jd-clean .avatar{width:34px;height:34px;border-radius:8px;display:grid;place-items:center;background:#edf3fb;color:#426d9e;font-size:11px;font-weight:800;flex:none}
+.jd-clean .person strong{color:#26394e;font-weight:750;font-size:13px;display:block}
+.jd-clean .person small{font-size:11px;color:#6f8094;display:block;margin-top:2px}
+.jd-clean .salary{white-space:nowrap}
+.jd-clean .rowactions{display:flex;align-items:center;justify-content:flex-end;gap:6px;flex-wrap:wrap}
+.jd-clean .rowactions .btn{font-size:11px;min-height:34px}
+.jd-clean .align-right{text-align:right}
+.jd-clean .row-status{font-size:11px;font-weight:700;display:block}
+.jd-clean .row-status.good{color:#147650}
+.jd-clean .row-status.blocked{color:#a43d45}
+.jd-clean .row-status.linked{color:#326894}
+.jd-clean .row-status small{display:block;font-weight:400;margin-top:2px;color:var(--muted);font-size:10px}
+.jd-clean .list-end{padding:12px 18px;border-top:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;color:var(--muted);font-size:11px}
+.jd-clean .list-end .btn{min-height:29px;padding:4px 9px}
+.jd-clean .empty{padding:36px;text-align:center;color:var(--muted);font-size:13px}
+.jd-clean .empty strong{display:block;color:var(--ink);margin-bottom:5px}
+.jd-clean .note{font-size:11px;color:#78889a;text-align:center;margin:17px 0 0}
+.jd-clean .dialog{border:1px solid #dce3ec;border-radius:14px;width:min(510px,calc(100% - 32px));padding:0;color:var(--ink);box-shadow:0 24px 80px #172f4d35}
+.jd-clean .dialog::backdrop{background:#20304666}
+.jd-clean .dialog-head{padding:20px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:12px;align-items:center}
+.jd-clean .dialog-head h2{font-size:18px;letter-spacing:-.3px}
+.jd-clean .dialog-body{padding:20px;font-size:13px;line-height:1.7;color:var(--muted)}
+.jd-clean .dialog-body b{color:var(--ink)}
+.jd-clean .dialog-body p+p{margin-top:10px}
+.jd-clean .dialog-footer{padding:13px 20px;display:flex;justify-content:flex-end;gap:8px;border-top:1px solid var(--line)}
+.jd-clean .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#26394e;color:white;padding:12px 18px;border-radius:9px;box-shadow:0 8px 28px #17283f35;z-index:4;font-size:13px;max-width:calc(100% - 32px)}
+.jd-clean [hidden]{display:none!important}
+.jd-clean .jd-list{padding:18px}
+.jd-clean .jd-list h2{margin-bottom:12px}
+.jd-clean .jd-list .jd-option{display:flex;align-items:center;justify-content:space-between;padding:14px 0;border-bottom:1px solid var(--line)}
+.jd-clean .jd-option:last-child{border:0}
+.jd-clean .jd-option small{display:block;color:var(--muted);margin-top:3px}
+.jd-clean .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}
+@media(max-width:1250px){.jd-clean .subnav{flex-wrap:wrap;padding:0 18px;gap:0}
+.jd-clean .tabs{min-height:48px}
+.jd-clean .requirement{margin-left:auto;padding:7px 0}
+.jd-clean .stage{min-width:138px}
+.jd-clean .main{padding:18px}
+.jd-clean .summary{min-width:405px}
+.jd-clean .summary>div{padding:0 12px}
+}
+@media(max-width:850px){.jd-clean .header{padding:12px 16px;flex-wrap:wrap;gap:10px}
+.jd-clean .preview{font-size:10px}
+.jd-clean .subnav{padding:0 12px}
+.jd-clean .tabs{width:100%}
+.jd-clean .requirement{width:100%;margin-left:0;padding-bottom:10px}
+.jd-clean .requirement select{flex:1;max-width:none;width:0}
+.jd-clean .main{padding:15px 12px 25px}
+.jd-clean .hero{flex-wrap:wrap;gap:12px}
+.jd-clean .hero-right{width:100%}
+.jd-clean .summary{min-width:0;flex:1}
+.jd-clean .summary>div{padding:0 12px}
+.jd-clean .hero h1{font-size:22px}
+.jd-clean .workflow{padding:14px}
+.jd-clean .section-heading .hint{display:none}
+.jd-clean .pipeline-top{padding:14px;align-items:flex-start;flex-wrap:wrap}
+.jd-clean .pipeline-top h2{font-size:17px}
+.jd-clean .modebar{padding:0 10px;overflow:auto}
+.jd-clean .search-area{padding:12px 14px}
+.jd-clean .results-header{padding:0 14px 10px}
+.jd-clean .candidate-table{min-width:0}
+.jd-clean .candidate-table thead{display:none}
+.jd-clean .candidate-table,.jd-clean .candidate-table tbody{display:block}
+.jd-clean .candidate-table tr{display:grid;grid-template-columns:1fr 1fr;border-top:1px solid var(--line);padding:12px 14px;gap:8px 12px}
+.jd-clean .candidate-table td{padding:0;border:0;min-width:0}
+.jd-clean .candidate-table td:first-child,.jd-clean .candidate-table td:last-child{grid-column:1/-1}
+.jd-clean .candidate-table td:not(:first-child):not(:last-child)::before{content:attr(data-label);display:block;font-size:10px;font-weight:700;color:var(--muted);margin-bottom:2px}
+.jd-clean .rowactions{justify-content:flex-start;margin-top:4px}
+.jd-clean .list-end{padding:12px 14px}
+.jd-clean .summary small{white-space:normal}
+}
+@media(max-width:480px){.jd-clean .brand{font-size:22px}
+.jd-clean .header .switcher{order:3;width:100%}
+.jd-clean .switcher button{flex:1;padding:9px 8px}
+.jd-clean .preview{white-space:normal;text-align:right;max-width:120px}
+.jd-clean .summary{grid-template-columns:repeat(3,minmax(0,1fr));padding:11px 0}
+.jd-clean .summary>div{padding:0 8px}
+.jd-clean .summary strong{font-size:12px;white-space:normal}
+.jd-clean .hero-right{gap:6px}
+.jd-clean .hero-right>.btn.icon{width:32px}
+.jd-clean .searchfield{max-width:none;flex-basis:100%}
+.jd-clean .search-area .primary{flex:1}
+.jd-clean .pipeline-actions{flex-wrap:wrap}
+.jd-clean .modebar button{padding:10px 9px}
+.jd-clean .rowactions .btn{min-height:35px}
+.jd-clean .stage{min-width:142px;min-height:106px}
+}
+
+
+.jd-clean-header .hero{margin-bottom:18px!important;flex-direction:row}
+.jd-clean .btn{box-shadow:none}
+.jd-clean .group{flex:0 0 auto}
+.jd-clean .stage{width:138px;min-width:138px;max-width:138px;height:114px;min-height:114px;max-height:114px;flex:0 0 138px;display:grid;grid-template-rows:32px 25px 14px;gap:0;align-content:space-between}
+.jd-clean .stage-title{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden;text-overflow:ellipsis;overflow-wrap:anywhere;line-height:16px;height:32px;min-height:32px;max-height:32px;min-width:0}
+.jd-clean .stage-num,.jd-clean .stage-meta{align-self:start;min-width:0}
+.jd-clean .row-status.amber{color:#94620c;background:#fff8e9;padding:5px 7px;border-radius:6px}
+.jd-clean .row-status.green{color:#147650;background:#eaf8f0;padding:5px 7px;border-radius:6px}
+.jd-clean .row-status.red{color:#a43d45;background:#fff0f2;padding:5px 7px;border-radius:6px}
+.jd-clean .row-status.unavailable{color:#65768b}
+.jd-clean .workflow-empty{max-width:170px;align-self:center;color:var(--muted);font-size:12px;padding:12px}
+.jd-clean .next-destination{display:block;font-size:10px;color:var(--muted);margin-top:4px}
+.jd-clean .clean-message{margin:10px 18px;padding:10px;background:#eaf8f0;color:#146746;border-radius:8px;font-size:12px}
+.jd-clean .clean-message.error{background:#fff0f2;color:#a43d45}
+.jd-clean .clean-batch{padding:0 18px 10px}
+.jd-clean .summary.unset,.jd-clean .summary.closed{border-left-color:#65768b}
+.jd-clean .candidate-table input[type=checkbox]{min-height:0;margin-right:8px}

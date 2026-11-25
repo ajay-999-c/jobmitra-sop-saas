@@ -126,6 +126,7 @@ class CandidatePatch(CandidateFields):
 class SearchParams(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True, allow_inf_nan=False)
     keywords: str = Field(default="", max_length=500)
+    identity_lookup: bool = False
     match: Literal["ANY", "ALL"] = "ANY"
     location: str = Field(default="", max_length=200)
     experience_min: float | None = Field(default=None, ge=0, le=100)
