@@ -403,23 +403,111 @@ def linked(conn, job_id, link_id):
     return link
 
 
-def add_feedback(conn, job, link, feedback, source):
+def reached_context(conn, job, link, stage_code=None, round_id=None):
+    """Resolve a stage without moving a membership or inventing interview attendance.
+
+    Standard steps keep the existing cumulative-reach inference. Custom rounds
+    require their stable ID in the current membership or retained journey.
+    Feedback itself is never evidence that a stage was reached.
+    """
+    if stage_code is None:
+        if round_id is not None:
+            raise AtsError("Choose a stage for this interview round.")
+        return dict(link)
+    if stage_code not in {*FIXED, *OUTCOMES, "ROUND"}:
+        raise AtsError("Unknown recruitment stage.")
+    if (stage_code == "ROUND") != bool(round_id):
+        raise AtsError("Use the stable round ID only with an interview stage.")
+    rounds = workflow(conn, job["id"])["rounds"]
+    if round_id and not any(r["id"] == round_id for r in rounds):
+        raise AtsError("This interview round does not belong to the selected JD.")
+    evidence = [(link["stage_code"], link.get("round_id"), None)]
+    if link.get("rejected_from_stage") in FIXED:
+        evidence.append((link["rejected_from_stage"], None, None))
+    rows = conn.execute(
+        text(
+            "SELECT * FROM recruitment_events WHERE jd_candidate_id=:id "
+            "AND event_type NOT IN ('FEEDBACK','REQUEST_COMPLETED') ORDER BY id"
+        ),
+        {"id": link["id"]},
+    ).mappings()
+    for row in rows:
+        payload = json.loads(row["payload_json"] or "{}")
+        payload = payload if isinstance(payload, dict) else {}
+        for side in ("before", "after"):
+            fact = json.loads(row[side + "_json"] or "{}")
+            if isinstance(fact, dict) and isinstance(fact.get("stage_code"), str):
+                evidence.append((fact["stage_code"], fact.get("round_id"), None))
+        for side in ("from", "to"):
+            if row[side + "_stage"]:
+                evidence.append(
+                    (
+                        row[side + "_stage"],
+                        payload.get(side + "_round_id"),
+                        row[side + "_label_snapshot"],
+                    )
+                )
+    evidence = [
+        ("ROUND", code[6:], label) if code.startswith("ROUND:") else (code, rid, label)
+        for code, rid, label in evidence
+    ]
+    exact = [
+        label
+        for code, rid, label in evidence
+        if code == stage_code and (code != "ROUND" or rid == round_id)
+    ]
+    order = list(FIXED)
+    standard_reached = stage_code in FIXED and any(
+        code in {"ROUND", "SELECTED", "JOINED"}
+        or (code in FIXED and order.index(code) >= order.index(stage_code))
+        for code, _, _ in evidence
+    )
+    if not exact and not standard_reached:
+        raise AtsError("This candidate has not reached the selected stage in this JD.", 409)
+    target = dict(link, stage_code=stage_code, round_id=round_id, selection_outcome=None)
+    target["_feedback_label"] = (
+        next((label for label in exact if label), None) if stage_code == "ROUND" else None
+    )
+    target["_historical"] = (
+        stage_code != link["stage_code"]
+        or round_id != link.get("round_id")
+        or link.get("selection_outcome") in {"NOT_JOINED", "SELECTION_CANCELLED"}
+    )
+    return target
+
+
+def add_feedback(conn, job, link, feedback, source, *, target=None):
+    target = target or link
+    label = target.get("_feedback_label") or stage_label(
+        target, workflow(conn, job["id"])["rounds"]
+    )
     conn.execute(
         text(
             "INSERT INTO recruitment_events(job_id,candidate_id,jd_candidate_id,"
             "event_type,from_stage,to_stage,from_label_snapshot,to_label_snapshot,feedback,"
-            "feedback_source,workflow_version) VALUES(:job_id,:candidate_id,:link_id,'FEEDBACK',"
-            ":stage,:stage,:label,:label,:feedback,:source,:version)"
+            "feedback_source,workflow_version,payload_json) "
+            "VALUES(:job_id,:candidate_id,:link_id,'FEEDBACK',"
+            ":stage,:stage,:label,:label,:feedback,:source,:version,:payload)"
         ),
         {
             "job_id": job["id"],
             "candidate_id": link["candidate_id"],
             "link_id": link["id"],
-            "stage": link["stage_code"],
-            "label": stage_label(link, workflow(conn, job["id"])["rounds"]),
+            "stage": target["stage_code"],
+            "label": label,
             "feedback": feedback,
             "source": source,
             "version": job["workflow_version"],
+            "payload": json.dumps(
+                {
+                    "feedback_stage": {
+                        "stage_code": target["stage_code"],
+                        "round_id": target.get("round_id"),
+                        "label": label,
+                        "historical": target.get("_historical", False),
+                    }
+                }
+            ),
         },
     )
 
@@ -497,10 +585,11 @@ def feedback(engine, job_id, link_id, data):
     with transaction(engine) as conn:
         job = one(conn, "job_descriptions", job_id)
         link = linked(conn, job_id, link_id)
-        request_data = [job_id, link_id, data.model_dump(mode="json")]
+        request_data = [job_id, link_id, data.model_dump(mode="json", exclude_none=True)]
         if receipts.replay(conn, "feedback", request_data) is not None:
             return {"saved": True}
-        add_feedback(conn, job, link, data.feedback, data.feedback_source)
+        target = reached_context(conn, job, link, data.stage_code, data.round_id)
+        add_feedback(conn, job, link, data.feedback, data.feedback_source, target=target)
         receipts.record(
             conn,
             "feedback",

@@ -133,6 +133,8 @@ class MoveInput(Input):
 class FeedbackInput(Input):
     feedback: str = Field(min_length=1, max_length=1500)
     feedback_source: FeedbackSource = "NOT_SPECIFIED"
+    stage_code: Stage | None = None
+    round_id: RoundKey | None = None
 
 
 class ActivityInput(Input):

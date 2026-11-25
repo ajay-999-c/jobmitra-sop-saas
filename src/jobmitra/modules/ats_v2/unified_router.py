@@ -12,6 +12,7 @@ from jobmitra.core.workflow import same_origin
 from . import unified
 from .common import AtsError, one
 from .router import AtsRoute, ats_engine
+from .schemas import Stage
 from .unified_access import COOKIE, access, issue
 
 
@@ -184,9 +185,17 @@ def email_context(
     job_id: int = Query(ge=1),
     audience: Literal["CANDIDATE", "COMPANY"] = "CANDIDATE",
     contact_id: UUID | None = None,
+    selected_stage: Stage | None = None,
+    selected_round_id: str | None = Query(default=None, min_length=1, max_length=200),
 ):
     return unified.email_context(
-        engine, candidate_id, job_id, audience, str(contact_id) if contact_id else None
+        engine,
+        candidate_id,
+        job_id,
+        audience,
+        str(contact_id) if contact_id else None,
+        selected_stage,
+        selected_round_id,
     )
 
 

@@ -729,7 +729,15 @@ def choose_contact(engine, job_id, data: ContactChoice, role):
         return one(conn, "job_descriptions", job_id)
 
 
-def email_context(engine, candidate_id, job_id, audience, contact_id=None):
+def email_context(
+    engine,
+    candidate_id,
+    job_id,
+    audience,
+    contact_id=None,
+    selected_stage=None,
+    selected_round_id=None,
+):
     with engine.connect() as conn:
         candidate = one(conn, "candidates", candidate_id)
         job = one(conn, "job_descriptions", job_id)
@@ -743,11 +751,14 @@ def email_context(engine, candidate_id, job_id, audience, contact_id=None):
         )
         if not link:
             raise AtsError("Choose an existing candidate membership in this JD.", 404)
+        from .jobs import reached_context
+
+        target = reached_context(conn, job, dict(link), selected_stage, selected_round_id)
         round_name = None
-        if link["stage_code"] == "ROUND":
+        if target["stage_code"] == "ROUND":
             round_name = conn.execute(
                 text("SELECT round_name FROM jd_interview_rounds WHERE id=:r AND job_id=:j"),
-                {"r": link["round_id"], "j": job_id},
+                {"r": target["round_id"], "j": job_id},
             ).scalar_one()
         company = (
             conn.execute(text("SELECT * FROM companies WHERE id=:id"), {"id": job["company_id"]})
@@ -766,7 +777,7 @@ def email_context(engine, candidate_id, job_id, audience, contact_id=None):
             contact = next(
                 (r for r in contacts if r.get("is_primary_email") and r.get("email")), None
             ) or next((r for r in contacts if r.get("email")), {})
-        disclosed = audience == "COMPANY" or link["stage_code"] in {"SELECTED", "JOINED"}
+        disclosed = audience == "COMPANY" or target["stage_code"] in {"SELECTED", "JOINED"}
         company_name = company["company_name"] if disclosed else None
         greeting = (
             (contact.get("contact_name") or "Hiring team")
@@ -821,8 +832,11 @@ def email_context(engine, candidate_id, job_id, audience, contact_id=None):
             "expected_salary_basis": candidate["expected_salary_basis"],
             "job_title": job_title,
             "location": job["location"] if disclosed else None,
-            "stage": link["stage_code"],
-            "round_id": link["round_id"],
+            "stage": target["stage_code"],
+            "round_id": target["round_id"],
+            "current_stage": link["stage_code"],
+            "current_round_id": link["round_id"],
+            "historical_context": target.get("_historical", False),
             "round_name": round_name,
             "selection_outcome": link.get("selection_outcome"),
             "joined_on": link.get("joined_on"),

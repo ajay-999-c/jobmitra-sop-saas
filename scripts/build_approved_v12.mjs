@@ -28,7 +28,7 @@ const replace=(n,value)=>edits.push({start:n.start,end:n.end,value});
 traverse(babelParse(source,'reference.js'),{
  ObjectProperty(p){if(p.node.key.name==='addCandidate'&&p.node.value.type==='ArrowFunctionExpression')replace(p.node.value,`async(person,jobId)=>{try{await native.addToPool(person.id,String(jobId),person);return{ok:true};}catch(error){return{ok:false,error:error.message};}}`);},
  FunctionDeclaration(p){const value=replacements[area(p.node)]?.[p.node.id.name];if(value)replace(p.node,value);},
- VariableDeclarator(p){if(p.node.id.name==='countJoined'&&area(p.node)==='jobs')replace(p.node.init,"j=>j.joinedCount??(j.candidates||[]).filter(c=>c.stageKey==='JOINED').length");if(p.node.id.name==='canEmail'&&area(p.node)==='jobs')replace(p.node.init,'canComposePipelineEmail(key)');if(['jdPrototypeDemo','jdFallbackJourney'].includes(p.node.id.name))replace(p.node.init,'{}');if(p.node.id.name==='persist')replace(p.node.init,'()=>{}');},
+ VariableDeclarator(p){if(p.node.id.name==='refStage'&&area(p.node)==='jobs')replace(p.node.init,`(key,name,roundId)=>{if(key==='ROUND'&&roundId)return 'ROUND:'+roundId;if(key&&key!=='ROUND')return key;const label=String(name||'').toLowerCase().trim(),aliases={'candidate pool':'POOL','candidate contact':'CONTACT','jobmitra screening':'SCREENING','company submission':'COMPANY_SUBMISSION','selected by company':'SELECTED','joined':'JOINED','not selected':'NOT_SELECTED'};if(aliases[label])return aliases[label];const rounds=draft.rounds.filter(r=>r.name?.toLowerCase()===label);return rounds.length===1?'ROUND:'+rounds[0].id:null;}`);if(p.node.id.name==='countJoined'&&area(p.node)==='jobs')replace(p.node.init,"j=>j.joinedCount??(j.candidates||[]).filter(c=>c.stageKey==='JOINED').length");if(p.node.id.name==='canEmail'&&area(p.node)==='jobs')replace(p.node.init,'canComposePipelineEmail(key)');if(['jdPrototypeDemo','jdFallbackJourney'].includes(p.node.id.name))replace(p.node.init,'{}');if(p.node.id.name==='persist')replace(p.node.init,'()=>{}');},
  AssignmentExpression(p){
   const left=source.slice(p.node.left.start,p.node.left.end),a=area(p.node),n=p.node.right;
   if(left==='jdShadow.innerHTML')replace(n,JSON.stringify(cleanJDMarkup(n.value)));
@@ -77,6 +77,9 @@ source=source.replaceAll("['NOT_SELECTED','JOINED']","['NOT_SELECTED','JOINED','
 source=source.replaceAll("k==='NOT_SELECTED'?'Not Selected':", "k==='NOT_SELECTED'?'Not Selected':k==='NOT_JOINED'?'Not Joined':k==='SELECTION_CANCELLED'?'Selection Cancelled':");
 source=source.replaceAll("NOT_SELECTED:'Not Selected'", "NOT_SELECTED:'Not Selected',NOT_JOINED:'Not Joined',SELECTION_CANCELLED:'Selection Cancelled'");
 source=source.replace('e=>e.feedback&&e.feedback.trim()',"e=>e.feedback&&e.feedback.trim()&&!['MILESTONE','INTERVIEW_SCHEDULED'].includes(e.type)");
+// Retained round IDs resolve the same cumulative reach after rejection/rename.
+source=source.replace('stageOf(c),c.rejection?.stageKey','stageOf(c),refStage(c.rejection?.stageKey,c.rejection?.stageName)');
+source=source.replaceAll('refStage(ev.fromKey,ev.fromName)','refStage(ev.fromKey,ev.fromName,ev.fromRoundId)').replaceAll('refStage(ev.toKey,ev.toName)','refStage(ev.toKey,ev.toName,ev.toRoundId)').replaceAll('refStage(e.fromKey,e.fromName)','refStage(e.fromKey,e.fromName,e.fromRoundId)').replaceAll('refStage(e.toKey,e.toName)','refStage(e.toKey,e.toName,e.toRoundId)');
 // Expose the canonical selection to the separate proposal adapter; no presentation changes.
 source=source.replace('window.JobmitraUnifiedCompanies={refreshFromJD,getEligibility,','window.JobmitraUnifiedCompanies={getSelectedCompanyId:()=>state.selectedCompany,refreshFromJD,getEligibility,');
 // Initialize and refresh each original component from canonical service projections.

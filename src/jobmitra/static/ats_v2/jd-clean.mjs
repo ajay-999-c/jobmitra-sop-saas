@@ -26,7 +26,23 @@ export function linkedRows(context,filter){
  if(filter==='here')return rows.filter(c=>context.stageOf(c)===context.stage&&!closed.has(context.stageOf(c)));
  if(filter==='selected')return rows.filter(c=>['SELECTED','JOINED'].includes(context.stageOf(c)));
  if(filter==='closed')return rows.filter(c=>closed.has(context.stageOf(c)));
- return rows;
+ return rows.slice().sort((a,b)=>{const rank=c=>closed.has(context.stageOf(c))?2:context.stageOf(c)===context.stage&&context.stage!=='JOINED'?0:1;return rank(a)-rank(b);});
+}
+export function feedbackAtStage(candidate,stage,name){
+ const round=stage.startsWith('ROUND:')?stage.slice(6):null,code=round?'ROUND':stage;
+ return (candidate.journey||[]).filter(e=>{
+  if(!e.feedback?.trim()||['MILESTONE','INTERVIEW_SCHEDULED'].includes(e.type))return false;
+  if(e.feedback_stage)return e.feedback_stage.stage_code===code&&(code!=='ROUND'||e.feedback_stage.round_id===round);
+  if(code!=='ROUND')return e.fromKey===code||e.toKey===code;
+  const id=e.round_id||e.to_round_id||e.from_round_id;
+  return id? id===round : [e.fromName,e.toName].includes(name);
+ });
+}
+export function stagePresentation(context,c){
+ const key=context.stageOf(c),decision=context.decision(c,context.stage);
+ if(closed.has(key))return {tone:'red',label:context.label(c)};
+ if(['ADVANCED','COMPLETED'].includes(decision))return {tone:'green',label:'Stage completed'};
+ return {tone:'amber',label:'Awaiting action'};
 }
 export function createPoolAttacher(native){
  const owners=new Map(),pending=new Map();
@@ -50,7 +66,7 @@ export function installCleanJD(native,options){
  const state=()=>{const id=String(context().job.id);if(!states.has(id))states.set(id,{mode:'find',filter:'reached',query:'',draftQuery:'',page:1,result:null,loaded:null,snapshot:null,loading:false,ticket:0,error:''});return states.get(id);};
  const active=()=>context().stage==='POOL'&&state().mode==='find';
  function render(){options.renderCandidates();}
- function stageChanged(key){const s=state();s.mode=key==='POOL'?'find':'linked';s.filter=key==='POOL'?'reached':'here';s.message='';s.error='';}
+ function stageChanged(key){const s=state();s.mode=key==='POOL'?'find':'linked';s.filter='reached';s.message='';s.error='';}
  function summary(){
   const {job}=context(),t=options.target(job);
   const node=$('jdTargetSummary');if(!node)return;
@@ -72,17 +88,18 @@ export function installCleanJD(native,options){
  function tableMembers(items){
   const ctx=context();
   return items.map(c=>{
-   const key=ctx.stageOf(c),decision=ctx.decision(c,ctx.stage),next=ctx.next(c),canAct=!ctx.disabled&&!closed.has(key)&&key!=='JOINED'&&key===ctx.stage;
-   const feedback=ctx.feedback(c),person=native.people.find(p=>p.id===c.id),status=closed.has(key)?'red':decision==='PENDING'?'amber':'green';
-   const decisionText=closed.has(key)?ctx.label(c):decision==='PENDING'?'Awaiting action':decision==='COMPLETED'?'Completed':'Advanced';
-   return `<tr><td><div class="person"><strong>${esc(c.name)}</strong><small>${esc(person?.title||'')}</small></div></td><td data-label="Current status"><span class="row-status ${status}">${esc(decisionText)}<small>Current: ${esc(ctx.label(c))}</small></span>${canAct&&next?`<small class="next-destination">Next: ${esc(options.stageName(next))}</small>`:''}</td><td data-label="Latest feedback">${esc(feedback?.feedback||c.rejection?.feedback||'No feedback recorded')}</td><td><div class="rowactions"><button class="btn small" data-clean-profile="${c.id}">Profile</button>${ctx.canEmail(key)?`<button class="btn small" data-compose-candidate-email="${c.id}">Email</button>`:''}${canAct?`<button class="btn small" data-feedback-candidate="${c.id}">Feedback</button>${key.startsWith('ROUND:')?`<button class="btn small" data-schedule-interview="${c.id}">Interview</button>`:''}`:''}${key==='SELECTED'&&canAct?`<button class="btn primary" data-confirm-joined="${c.id}">Confirm joining</button><button class="btn small" data-mark-not-selected="${c.id}">Close selection</button>`:''}${canAct&&next?`<button class="btn primary" data-move-next="${c.id}" title="Next: ${esc(options.stageName(next))}">Next Stage →</button>`:''}${canAct&&key!=='SELECTED'?`<button class="btn small" data-mark-not-selected="${c.id}">Not Selected</button>`:''}${['SELECTED','JOINED'].includes(key)?'<button class="btn small" data-goto-view="placement">Placement</button>':''}</div></td></tr>`;
+   const key=ctx.stageOf(c),next=ctx.next(c),canAct=!ctx.disabled&&!closed.has(key)&&key!=='JOINED'&&key===ctx.stage;
+   const feedback=feedbackAtStage(c,ctx.stage,options.stageName(ctx.stage))[0],person=native.people.find(p=>p.id===c.id),presentation=stagePresentation(ctx,c),status=presentation.tone;
+   const decisionText=presentation.label;
+   const rejection=key==='NOT_SELECTED'&&c.rejection?'Not Selected at '+(c.rejection.stageKey==='ROUND'?c.rejection.stageName:options.stageName(c.rejection.stageKey))+' · '+c.rejection.at:'';
+   return `<tr><td><div class="person"><strong>${esc(c.name)}</strong><small>${esc(person?.title||'')}</small></div></td><td data-label="Current status"><span class="row-status ${status}">${esc(decisionText)}<small>Current: ${esc(ctx.label(c))}</small></span>${canAct&&next?`<small class="next-destination">Next: ${esc(options.stageName(next))}</small>`:''}</td><td data-label="Latest feedback"><span>${esc(feedback?.feedback||'No feedback recorded at this stage')}</span>${rejection?`<small class="next-destination">Rejection: ${esc(rejection)}</small>`:''}</td><td><div class="rowactions"><button class="btn small" data-clean-profile="${c.id}">Profile</button>${ctx.canEmail(key)?`<button class="btn small" data-compose-candidate-email="${c.id}">Email</button>`:''}${!ctx.disabled?`<button class="btn small" data-feedback-candidate="${c.id}">Feedback</button>${canAct&&key.startsWith('ROUND:')?`<button class="btn small" data-schedule-interview="${c.id}">Interview</button>`:''}`:''}${key==='SELECTED'&&canAct?`<button class="btn primary" data-confirm-joined="${c.id}">Confirm joining</button><button class="btn small" data-mark-not-selected="${c.id}">Close selection</button>`:''}${canAct&&next?`<button class="btn primary" data-move-next="${c.id}" title="Next: ${esc(options.stageName(next))}">Next Stage →</button>`:''}${canAct&&key!=='SELECTED'?`<button class="btn small" data-mark-not-selected="${c.id}">Not Selected</button>`:''}${['SELECTED','JOINED'].includes(key)?'<button class="btn small" data-goto-view="placement">Placement</button>':''}</div></td></tr>`;
   }).join('');
  }
  function panel(host){
   if(!host)return;const ctx=context(),s=state(),pool=ctx.stage==='POOL',find=pool&&s.mode==='find';
   const result=s.result||{items:[],total:0,page:s.page,page_size:10};
   const members=linkedRows(ctx,s.filter),pages=Math.max(1,Math.ceil(result.total/result.page_size));
-  host.innerHTML=`<section class="section pipeline" aria-label="Candidate pipeline"><div class="pipeline-top"><div><h2>${esc(options.stageName(ctx.stage))}</h2><p>${pool?'Find candidates and add them directly to this JD.':'Review candidates and move them through this requirement.'}</p></div><div class="pipeline-actions"><span class="muted">${ctx.job.candidates.length} linked candidates</span>${!find?`<label class="sr-only" for="cleanStageFilter">Filter linked candidates</label><select id="cleanStageFilter">${[['here','At this stage'],['reached','All reached'],['selected','Selected / Joined'],['closed','Not Selected / Not Joined']].map(([v,t])=>`<option value="${v}" ${v===s.filter?'selected':''}>${t}</option>`).join('')}</select>`:''}</div></div>${pool?`<div class="modebar" role="tablist" aria-label="Candidate Pool views"><button role="tab" aria-selected="${find}" class="${find?'active':''}" data-clean-mode="find">Find Candidates</button><button role="tab" aria-selected="${!find}" class="${!find?'active':''}" data-clean-mode="linked">In this JD (${ctx.job.candidates.length})</button></div>`:''}
+  host.innerHTML=`<section class="section pipeline" aria-label="Candidate pipeline"><div class="pipeline-top"><div><h2>${esc(options.stageName(ctx.stage))}</h2><p>${pool?'Find candidates and add them directly to this JD.':'Review candidates and move them through this requirement.'}</p></div><div class="pipeline-actions"><span class="muted">${ctx.job.candidates.length} linked candidates</span>${!find?`<label class="sr-only" for="cleanStageFilter">Filter linked candidates</label><select id="cleanStageFilter">${[['reached','All reached'],['here','At this stage'],['selected','Selected / Joined'],['closed','Not Selected / Not Joined']].map(([v,t])=>`<option value="${v}" ${v===s.filter?'selected':''}>${t}</option>`).join('')}</select>`:''}</div></div>${pool?`<div class="modebar" role="tablist" aria-label="Candidate Pool views"><button role="tab" aria-selected="${find}" class="${find?'active':''}" data-clean-mode="find">Find Candidates</button><button role="tab" aria-selected="${!find}" class="${!find?'active':''}" data-clean-mode="linked">In this JD (${ctx.job.candidates.length})</button></div>`:''}
   ${s.error?`<p class="clean-message error" role="alert">${esc(s.error)}</p>`:''}${s.message?`<p class="clean-message" role="status">${esc(s.message)}</p>`:''}
   ${find?`<form class="search-area" id="cleanSearchForm"><div class="searchfield"><label class="sr-only" for="cleanCandidateQuery">Search candidate database</label><svg viewBox="0 0 24 24" fill="none" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-4-4"></path></svg><input id="cleanCandidateQuery" type="search" maxlength="500" placeholder="Search by name, mobile, job title or skills" value="${esc(s.draftQuery)}" autocomplete="off"></div><button class="btn primary" type="submit">Search</button><button class="btn text" type="button" data-clean-clear>Clear</button></form><div class="results-header" aria-live="polite"><b>${s.loading?'Searching…':result.total+' matching candidates'}</b><span>Canonical candidate database</span></div><div class="table-wrap"><table class="candidate-table"><thead><tr><th>Candidate</th><th>Location</th><th>Experience</th><th>Expected CTC</th><th>Availability</th><th class="align-right">Action</th></tr></thead><tbody>${tablePeople(result.items)}</tbody></table></div>${!s.loading&&!result.items.length?'<div class="empty"><strong>No matching candidates</strong>Try another name, mobile, role, skill or location.</div>':''}<div class="list-end"><span>${result.total?'Showing '+((s.page-1)*result.page_size+1)+'–'+Math.min(s.page*result.page_size,result.total)+' of '+result.total:'0 candidates'}</span><span><button class="btn small" data-clean-page="-1" ${s.page<=1||s.loading?'disabled':''}>‹ Prev</button> <span>Page ${s.page} of ${pages}</span> <button class="btn small" data-clean-page="1" ${s.page>=pages||s.loading?'disabled':''}>Next ›</button></span></div>`:
   `<div class="results-header"><b>${members.length} candidates</b><span>${s.filter==='here'?'Currently at this stage':s.filter==='reached'?'Includes previously advanced candidates':'Filtered candidate history'}</span></div>${ctx.stage==='COMPANY_SUBMISSION'?'<div class="clean-batch"><button class="btn primary small" data-compose-submission id="composeBatchBtn" disabled>✉ Compose submission (0)</button></div>':''}<div class="table-wrap"><table class="candidate-table"><thead><tr><th>Candidate</th><th>Current status</th><th>Latest feedback</th><th class="align-right">Actions</th></tr></thead><tbody>${tableMembers(members)}</tbody></table></div>${!members.length?'<div class="empty"><strong>No candidates in this view</strong>Select All reached to view historical participation.</div>':''}`}</section>`;
@@ -114,5 +131,5 @@ export function installCleanJD(native,options){
    void attach(d.cleanAdd,jobId).then(()=>{s.message='Candidate added to this JD.';s.loaded=null;options.toast(s.message);}).catch(error=>{s.error=error.message;}).finally(()=>{busy.delete(key);if(context().job.id===jobId)render();});
   }
  });
- return {summary,workflow,panel,stageChanged};
+ return {summary,workflow,panel,stageChanged,feedbackHistory:(c,key)=>feedbackAtStage(c,key,options.stageName(key))};
 }
