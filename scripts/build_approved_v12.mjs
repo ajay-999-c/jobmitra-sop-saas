@@ -107,6 +107,9 @@ source=source.replace("show:(where)=>activate(where==='jd'?","show:(where)=>acti
 // Email shortcuts use canonical profiles/memberships without changing profile layout.
 source=source.replace('<div class="profile-v9-actions">','<div class="profile-v9-actions"><button class="btn tiny outline" type="button" data-email-profile="${escapeHTML(c.id)}">Email</button>');
 source=source.replace('Open JD pipeline →</button>','Open JD pipeline →</button><button class="btn tiny outline" type="button" data-email-job="${escapeHTML(r.jobId)}" data-email-candidate="${escapeHTML(c.id)}">Email</button>');
+// The explicit JD-history shortcut must not fall back to the profile overview.
+source=source.replace('>Open full JD history →</button>',' data-profile-section="history">Open full JD history →</button>');
+source=source.replace("showCandidateHistory(history.dataset.openHistory,'overview')","showCandidateHistory(history.dataset.openHistory,history.dataset.profileSection||'overview')");
 // Candidate-only additions retain the approved component and its other renderers.
 source=source.replace("function setTab(next){tab=next;", "function setTab(next){tab=next;");
 source=source.replace("document.querySelector('.more-tabs')?.removeAttribute('open');window.scrollTo", "document.querySelector('.more-tabs')?.removeAttribute('open');native.candidateDesk?.section(next);window.scrollTo");
