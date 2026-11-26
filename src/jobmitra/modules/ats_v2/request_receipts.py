@@ -51,7 +51,7 @@ def replay(conn, scope, data):
     return payload["resource_id"]
 
 
-def record(conn, scope, data, resource_id, *, candidate_id=None, job_id=None):
+def record(conn, scope, data, resource_id, *, candidate_id=None, job_id=None, details=None):
     key = request_key.get()
     if key and schema_version(conn) == 3:
         conn.execute(
@@ -68,6 +68,7 @@ def record(conn, scope, data, resource_id, *, candidate_id=None, job_id=None):
                         "request_fingerprint": digest(scope, data),
                         "resource_id": resource_id,
                         "scope": scope,
+                        **({"details": details} if details is not None else {}),
                     }
                 ),
             },

@@ -73,3 +73,40 @@ Files: `src/jobmitra/modules/ats_v2/jobs.py`,
 `src/jobmitra/static/ats_v2/jd-clean.mjs`, `scripts/build_approved_v12.mjs`,
 `src/jobmitra/static/ats_v2/approved.mjs`, `tests/test_attach_contact.py`,
 `tests/test_pipeline_synchronization.test.mjs`, and this document.
+
+## Checkpoint 3 — direct forward stage movement
+
+Move to Stage fetches the current membership/workflow and presents a searchable
+list of valid later destinations, including stable custom-round IDs and ordering.
+The confirmation lists intermediate completions. Next Stage remains unchanged.
+
+One serialized transaction calls every existing canonical forward transition.
+Those normal MOVED/outcome events drive the existing cumulative reach, completion
+indicators and current-stage counts; no second status/counting system is added.
+The existing request receipt also retains manual-confirmation metadata: previous
+stage, destination, completed stages, actual recording timestamp, access policy
+and null individual employee identity. No historical completion dates are invented.
+
+Selection requires the actual selection date. Joining requires actual joining
+date/evidence and preserves the existing date ordering, eligibility and placement
+locks. Closed/rejected records cannot reopen; stale stages/workflow versions and
+concurrent conflicts fail safely. Errors roll back the entire path. Replayed keys
+return the existing result without repeating transitions. Unknown workflows cannot
+invent company rounds or outcome destinations.
+
+Verification: 34 focused Python cases (including attachment compatibility) across
+SQLite and PostgreSQL, plus 13 JavaScript checks using the original cumulative
+helpers. Browser Contact → Portfolio Assessment → Owner Discussion recorded each
+intermediate normal movement exactly once. Counts, completed indicators and both
+JD histories survived reload; the other JD remained at Screening. The membership
+had one ADDED event, six MOVED events, zero activities and two manual receipts.
+Mobile checks verified required selection/joining inputs without submitting an
+outcome. No email, feedback, appointment or meeting link was generated.
+
+New files: `src/jobmitra/modules/ats_v2/direct_movement.py`,
+`src/jobmitra/static/ats_v2/direct-movement.mjs`,
+`src/jobmitra/static/ats_v2/searchable-select.mjs`,
+`tests/test_direct_movement.py`, `tests/direct-movement.test.mjs`.
+Updated files: `src/jobmitra/modules/ats_v2/approved_router.py`,
+`src/jobmitra/modules/ats_v2/request_receipts.py`,
+`src/jobmitra/static/ats_v2/jd-clean.mjs`, and this document. No schema migration.

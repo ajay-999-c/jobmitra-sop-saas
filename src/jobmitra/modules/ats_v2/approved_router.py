@@ -11,7 +11,16 @@ from sqlalchemy import text
 
 from jobmitra.core.workflow import same_origin
 
-from . import approved, candidate_registers, candidates, jd_dashboard, jobs, proposal, unified
+from . import (
+    approved,
+    candidate_registers,
+    candidates,
+    direct_movement,
+    jd_dashboard,
+    jobs,
+    proposal,
+    unified,
+)
 from . import request_receipts as receipts
 from .candidate_schemas import SearchParams
 from .common import AtsError, event_record, one
@@ -35,6 +44,21 @@ router.include_router(parsed_router)
 def attach_candidate(job_id: int, data: LinkInput, request: Request, engine: Store):
     access(request)
     return jobs.attach_contact(engine, job_id, data.candidate_id)
+
+
+@router.get("/jobs/{job_id}/candidates/{link_id}/destinations")
+def direct_destinations(job_id: int, link_id: int, engine: Store):
+    return direct_movement.choices(engine, job_id, link_id)
+
+
+@router.post("/jobs/{job_id}/candidates/{link_id}/advance-to", dependencies=[Depends(same_origin)])
+def direct_stage_move(
+    job_id: int, link_id: int, data: direct_movement.DirectMove, request: Request, engine: Store
+):
+    role = access(request)
+    if request.headers.get("Idempotency-Key") != str(data.idempotency_key):
+        raise AtsError("The action reference and Idempotency-Key must match.")
+    return direct_movement.move(engine, job_id, link_id, data, role)
 
 
 @router.get("/jd-dashboard")

@@ -1,3 +1,4 @@
+import {installDirectMovement} from './direct-movement.mjs';
 // Presentation and sourcing adapter only. Canonical services own all recruitment facts.
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const closed=new Set(['NOT_SELECTED','NOT_JOINED','SELECTION_CANCELLED']);
@@ -61,6 +62,7 @@ export function createPoolAttacher(native){
 }
 
 export function installCleanJD(native,options){
+ installDirectMovement(native,options);
  const root=options.root,states=new Map(),attach=createPoolAttacher(native),busy=new Set();
  const $=id=>root.getElementById(id),context=()=>options.context();
  const state=()=>{const id=String(context().job.id);if(!states.has(id))states.set(id,{mode:'find',filter:'reached',query:'',draftQuery:'',page:1,result:null,loaded:null,snapshot:null,loading:false,ticket:0,error:''});return states.get(id);};
@@ -87,7 +89,7 @@ export function installCleanJD(native,options){
  }
  function memberActions(c){
   const ctx=context(),key=ctx.stageOf(c),next=ctx.next(c),canAct=!ctx.disabled&&!closed.has(key)&&key!=='JOINED'&&key===ctx.stage;
-  return `<div class="rowactions"><button class="btn small" data-clean-profile="${c.id}">Profile</button>${ctx.canEmail(key)?`<button class="btn small" data-compose-candidate-email="${c.id}">Email</button>`:''}${!ctx.disabled?`<button class="btn small" data-feedback-candidate="${c.id}">Feedback</button>${canAct&&key.startsWith('ROUND:')?`<button class="btn small" data-schedule-interview="${c.id}">Interview</button>`:''}`:''}${key==='SELECTED'&&canAct?`<button class="btn primary" data-confirm-joined="${c.id}">Confirm joining</button><button class="btn small" data-mark-not-selected="${c.id}">Close selection</button>`:''}${canAct&&next?`<button class="btn primary" data-move-next="${c.id}" title="Next: ${esc(options.stageName(next))}">Next Stage →</button>`:''}${canAct&&key!=='SELECTED'?`<button class="btn small" data-mark-not-selected="${c.id}">Not Selected</button>`:''}${['SELECTED','JOINED'].includes(key)?'<button class="btn small" data-goto-view="placement">Placement</button>':''}</div>`;
+  return `<div class="rowactions"><button class="btn small" data-clean-profile="${c.id}">Profile</button>${ctx.canEmail(key)?`<button class="btn small" data-compose-candidate-email="${c.id}">Email</button>`:''}${!ctx.disabled?`<button class="btn small" data-feedback-candidate="${c.id}">Feedback</button>${canAct&&key.startsWith('ROUND:')?`<button class="btn small" data-schedule-interview="${c.id}">Interview</button>`:''}`:''}${key==='SELECTED'&&canAct?`<button class="btn primary" data-confirm-joined="${c.id}">Confirm joining</button><button class="btn small" data-mark-not-selected="${c.id}">Close selection</button>`:''}${canAct&&next?`<button class="btn primary" data-move-next="${c.id}" title="Next: ${esc(options.stageName(next))}">Next Stage →</button>`:''}${canAct?`<button class="btn small" data-direct-stage="${c.id}">Move to Stage</button>`:''}${canAct&&key!=='SELECTED'?`<button class="btn small" data-mark-not-selected="${c.id}">Not Selected</button>`:''}${['SELECTED','JOINED'].includes(key)?'<button class="btn small" data-goto-view="placement">Placement</button>':''}</div>`;
  }
  function tableMembers(items){
   const ctx=context();
