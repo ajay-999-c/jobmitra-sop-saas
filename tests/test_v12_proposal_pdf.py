@@ -66,7 +66,7 @@ def compact(text):
     return " ".join(text.split())
 
 
-def test_long_company_and_reference_do_not_create_an_almost_empty_page():
+def test_very_long_company_wraps_without_losing_terms_or_signature():
     snapshot = {
         "company_name": "Long Fictional Company " + "Example " * 33,
         "consultant": proposal_pdf.CONSULTANT,
@@ -76,9 +76,13 @@ def test_long_company_and_reference_do_not_create_an_almost_empty_page():
         "clauses": proposal_pdf.clauses("8.33"),
     }
     reader = PdfReader(io.BytesIO(proposal_pdf.render(snapshot)))
-    assert len(reader.pages) == 2
-    assert "Company acknowledgement" in reader.pages[-1].extract_text()
-    assert all(len(page.extract_text()) > 1000 for page in reader.pages)
+    assert len(reader.pages) <= 2
+    text = compact(" ".join(page.extract_text() for page in reader.pages))
+    assert compact(snapshot["company_name"]) in text
+    assert "Accepted by" in reader.pages[-1].extract_text()
+    assert "The Client shall inform the Consultant" in reader.pages[-1].extract_text()
+    for clause in snapshot["clauses"]:
+        assert compact(unescape(re.sub(r"<[^>]+>", "", clause))) in text
 
 
 @pytest.mark.parametrize("fee,amount,days", [("6", "36000.00", 21), ("8.33", "49980.00", 30)])
@@ -93,42 +97,68 @@ def test_pdf_exact_terms_and_decimal_amounts_no_master_changes(
     assert response.headers["content-type"] == "application/pdf"
     assert hashlib.sha256(response.content).hexdigest() == record["pdf_sha256"]
     reader = PdfReader(io.BytesIO(response.content))
-    assert len(reader.pages) == 2
+    assert len(reader.pages) == 1
     assert tuple(round(float(n)) for n in reader.pages[0].mediabox[2:]) == (595, 842)
-    extracted = compact(" ".join(p.extract_text() for p in reader.pages))
+    extracted = compact(reader.pages[0].extract_text())
     assert "Synthetic Client Company" in extracted
     assert record["snapshot"]["fee_amount"] == amount
-    assert str(days) + " whole days" in extracted
-    assert f"{fee}% of Annual CTC" in extracted
-    assert "Fee calculation basis Candidate Annual CTC" in extracted
-    assert "Payment terms Within 7 days of candidate joining, against invoice" in extracted
-    assert "Applicable taxes" not in extracted.split("Terms & Conditions", 1)[0]
-    assert "3 Ace" not in extracted
-    for number, page in enumerate(reader.pages, 1):
-        assert record["reference"] in compact(page.extract_text())
-        assert f"Page {number} of 2" in page.extract_text()
+    assert f"{days} days’ salary" in extracted
+    assert f"{fee}% of the candidate’s annual CTC" in extracted
+    assert "Terms & Conditions" in extracted and record["reference"] in extracted
     for i, clause in enumerate(proposal_pdf.clauses(fee), 1):
         plain = unescape(re.sub(r"<[^>]+>", "", clause))
         assert compact(plain) in extracted, i
     for label in [
-        "Authorized representative name",
+        "Authorized Person Name",
         "Designation",
-        "Company name",
         "Signature",
-        "Date",
-        "Company seal (optional)",
-        "Chief Executive Officer",
+        "With regards,",
+        "Vishal Agrawal",
+        "CEO",
+        "Accepted by Synthetic Client Company",
     ]:
         assert label in extracted
     for removed in [
-        "Unsigned proposal",
-        "Salary-days illustration",
-        "Rounded down",
-        "illustrative only",
-        "This unsigned document does not record acceptance.",
+        "Recruitment Services Proposal",
+        "Commercial summary",
+        "Company acknowledgement",
+        "Company seal",
+        "Authorized representative name",
+        "Chief Executive Officer",
+        "Please review these terms",
+        "Payment terms Within",
+        "Page 1 of",
     ]:
-        assert removed.casefold() not in extracted.casefold()
-    assert record["snapshot"]["pdf_renderer"] == 2
+        assert removed not in extracted
+    fragments = []
+    reader.pages[0].extract_text(
+        visitor_text=lambda text, cm, tm, font, size: fragments.append(
+            (
+                text.strip(),
+                tm[4] * cm[0] + tm[5] * cm[2] + cm[4],
+                tm[4] * cm[1] + tm[5] * cm[3] + cm[5],
+                str((font or {}).get("/BaseFont", "")),
+                size,
+            )
+        )
+    )
+    for bold in [
+        fee + "%",
+        "annual CTC",
+        str(days) + " days’",
+        "7 days",
+        "12 months",
+        "3 months",
+        "free replacement",
+        "5 working days",
+    ]:
+        assert any(bold in value and "Bold" in font for value, _, _, font, _ in fragments), bold
+    regards = next(row for row in fragments if row[0] == "With regards,")
+    accepted = next(row for row in fragments if row[0].startswith("Accepted by"))
+    vishal = next(row for row in fragments if row[0] == "Vishal Agrawal")
+    assert abs(regards[2] - accepted[2]) < 0.1
+    assert abs(regards[2] - vishal[2] - 15) < 0.1
+    assert record["snapshot"]["pdf_renderer"] == 3
     assert record["snapshot"]["layout_source_sha256"] == proposal_pdf.TERMS["layout_source_sha256"]
     assert record["status"] == "PREPARED" and record["events"] == []
     root = pdf_client.app.state.settings.unified_v12_proposal_storage_root
@@ -136,7 +166,6 @@ def test_pdf_exact_terms_and_decimal_amounts_no_master_changes(
         assert root.stat().st_mode & 0o077 == 0
         assert all(p.stat().st_mode & 0o077 == 0 for p in root.iterdir())
     else:
-        # Windows validates protected DACLs through handles, not Unix mode bits.
         from jobmitra.modules.ats_v2.proposal_windows import WindowsStore
 
         with WindowsStore().root(root):
@@ -146,59 +175,114 @@ def test_pdf_exact_terms_and_decimal_amounts_no_master_changes(
     validate(store[0])
 
 
-def test_terms_are_word_for_word_original_source():
-    source = proposal.STUDIO_FILE.read_text()
-    block = source.split("function contractTerms(data){", 1)[1].split("function row(", 1)[0]
-    originals = []
-    for line in block.splitlines():
-        line = line.strip().removesuffix(",")
-        if line.startswith(("`", "'")):
-            originals.append(
-                line[1:-1]
-                .replace("\\'", "'")
-                .replace("<strong>", "<b>")
-                .replace("</strong>", "</b>")
-                .replace("${percentage}", "6%")
-                .replace("${days}", "21")
-            )
-    assert originals == proposal_pdf.clauses("6")
-    assert (
-        hashlib.sha256(proposal.STUDIO_FILE.read_bytes()).hexdigest()
-        == proposal_pdf.TERMS["source_sha256"]
-    )
-
-
-def test_final_word_reference_clauses_logo_and_six_commercial_rows():
+def test_terms_and_bold_runs_match_authoritative_word_source():
     source = Path(__file__).parents[1] / proposal_pdf.TERMS["layout_source_file"]
-    assert (
-        hashlib.sha256(source.read_bytes()).hexdigest()
-        == proposal_pdf.TERMS["layout_source_sha256"]
-    )
+    assert hashlib.sha256(source.read_bytes()).hexdigest() == proposal_pdf.TERMS["source_sha256"]
     ns = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
     with zipfile.ZipFile(source) as archive:
         document = ET.fromstring(archive.read("word/document.xml"))
-        assert archive.read("word/media/image1.jpg") == proposal_pdf.LOGO.read_bytes()
-    # Numbering is a separate Word property; compare the clause text nodes.
-    paragraphs = [
-        "".join(t.text or "" for t in p.findall(".//w:t", ns))
-        for p in document.findall(".//w:p", ns)
-    ]
-    for clause in proposal_pdf.clauses("8.33"):
-        assert unescape(re.sub(r"<[^>]+>", "", clause)) in paragraphs
-    table = document.find(".//w:tbl", ns)
-    rows = [
-        ["".join(t.text or "" for t in c.findall(".//w:t", ns)) for c in r.findall("w:tc", ns)]
-        for r in table.findall("w:tr", ns)
-    ]
-    assert len(rows) == 6
-    assert [r[0] for r in rows] == [
-        "Consultant",
-        "Client",
-        "Recruitment service fee",
-        "Fee calculation basis",
-        "Salary-days",
-        "Payment terms",
-    ]
+    paragraphs = []
+    for paragraph in document.findall("./w:body/w:p", ns):
+        runs = []
+        for run in paragraph.findall("w:r", ns):
+            value = "".join(t.text or "" for t in run.findall("w:t", ns))
+            bold = run.find("w:rPr/w:b", ns)
+            if value:
+                runs.append(
+                    "<b>" + value + "</b>"
+                    if bold is not None and bold.get("{" + ns["w"] + "}val") != "0"
+                    else value
+                )
+        paragraphs.append("".join(runs))
+    assert [re.sub(r"^\d+\.", "", p) for p in paragraphs[2:12]] == proposal_pdf.clauses("6")
+    assert paragraphs[1] == proposal_pdf.TERMS["introduction"].format(
+        consultant=proposal_pdf.CONSULTANT, company_name="Kedia Traders"
+    )
+    # Original standalone Email content remains unchanged despite new PDF terms.
+    assert (
+        hashlib.sha256(proposal.STUDIO_FILE.read_bytes()).hexdigest()
+        == "cb3f47308cb7dac56c48fef38be958a145e9db5faa96575226668767b4b56d40"
+    )
+
+
+def test_approved_reference_logo_and_font_assets_are_retained():
+    root = Path(__file__).parents[1]
+    for key, digest in [
+        ("layout_source_file", "layout_source_sha256"),
+        ("visual_source_file", "visual_source_sha256"),
+    ]:
+        assert (
+            hashlib.sha256((root / proposal_pdf.TERMS[key]).read_bytes()).hexdigest()
+            == proposal_pdf.TERMS[digest]
+        )
+    with zipfile.ZipFile(root / proposal_pdf.TERMS["layout_source_file"]) as archive:
+        assert archive.read("word/media/image1.png") == proposal_pdf.LOGO.read_bytes()
+    assert len(PdfReader(root / proposal_pdf.TERMS["visual_source_file"]).pages) == 1
+    assert (proposal_pdf.ASSETS / "OFL-Liberation.txt").is_file()
+
+
+def test_heading_and_signoff_geometry_match_the_approved_pdf():
+    def positions(reader):
+        result = {}
+
+        def visit(value, cm, tm, font, size):
+            result[value.strip()] = (
+                tm[4] * cm[0] + tm[5] * cm[2] + cm[4],
+                tm[4] * cm[1] + tm[5] * cm[3] + cm[5],
+                size,
+            )
+
+        reader.pages[0].extract_text(visitor_text=visit)
+        return result
+
+    source = Path(__file__).parents[1] / proposal_pdf.TERMS["visual_source_file"]
+    expected = positions(PdfReader(source))
+    blob = proposal_pdf.render(
+        {
+            "company_name": "Kedia Traders",
+            "consultant": proposal_pdf.CONSULTANT,
+            "reference": "JM-20261125-0FC1BF6B",
+            "issue_date": "2026-11-25",
+            "fee_percent": "6",
+            "clauses": proposal_pdf.clauses("6"),
+        }
+    )
+    actual = positions(PdfReader(io.BytesIO(blob)))
+    for label in [
+        "Terms & Conditions",
+        "With regards,",
+        "Vishal Agrawal",
+        "Accepted by Kedia Traders",
+        "Authorized Person Name:",
+        "Designation:",
+        "Signature",
+    ]:
+        assert actual[label] == pytest.approx(expected[label], abs=0.25), label
+
+
+def test_new_template_preserves_existing_pdf_bytes_metadata_and_retry(pdf_client, store):
+    writer = PdfWriter()
+    writer.add_blank_page(width=595.28, height=841.89)
+    writer.add_blank_page(width=595.28, height=841.89)
+    out = io.BytesIO()
+    writer.write(out)
+    legacy = out.getvalue()
+    old_body = body(reference="Retained historical version")
+    with (
+        patch.object(proposal_pdf, "render", return_value=legacy),
+        patch.object(proposal_pdf, "RENDERER_VERSION", 2),
+    ):
+        old = post(pdf_client, route(store), old_body).json()
+    new = generated(pdf_client, store, fee_percent="8.33")
+    assert new["snapshot"]["pdf_renderer"] == 3
+    path = route(store) + f"/{old['id']}/pdf?download=true"
+    assert pdf_client.get(path).content == legacy
+    with patch.object(
+        proposal_pdf, "render", side_effect=AssertionError("History must not rerender")
+    ):
+        assert post(pdf_client, route(store), old_body).json() == old
+    history = pdf_client.get(route(store)).json()["items"]
+    assert next(row for row in history if row["id"] == old["id"]) == old
 
 
 def test_extension_explicit_optional_atomic_and_v2_refused(client, store, v2):

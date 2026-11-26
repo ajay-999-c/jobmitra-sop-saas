@@ -1,17 +1,21 @@
 {
-  "source_sha256": "cb3f47308cb7dac56c48fef38be958a145e9db5faa96575226668767b4b56d40",
+  "source_sha256": "564092628abd2176a4b30c06faca7850829b22d48d09a6e0df650f3068430b66",
+  "layout_source_file": "docs/references/proposal-terms/approved-single-page.docx",
+  "layout_source_sha256": "564092628abd2176a4b30c06faca7850829b22d48d09a6e0df650f3068430b66",
+  "visual_source_file": "docs/references/proposal-terms/approved-single-page.pdf",
+  "visual_source_sha256": "c701249aaefe349e1826863ab7934f19f086ac4e9edb91b8f232128dc4e25cc6",
+  "heading": "Terms & Conditions",
+  "introduction": "These Terms and Conditions are between <b>{consultant}</b>, hereinafter called the Consultant, and <b>{company_name}</b>, hereinafter called the Client.",
   "clauses": [
-    "The recruitment service fee shall be <b>{percent}% of the candidate's Annual CTC</b> (approximately {days} days' salary, using a 365-day equivalent). The Annual CTC includes basic salary and allowances. Applicable taxes, if any, shall be charged in addition to the fee.",
-    "Payment shall be made within <b>7 days of the candidate joining</b> the Client organization, against the Consultant's invoice duly received by the Client.",
-    "If a candidate introduced by the Consultant is employed by the Client in any capacity within <b>12 months</b> of the introduction, the recruitment service fee shall be payable in accordance with these terms.",
-    "The Client shall not share any candidate information with a person outside the Client organization without prior agreement of both the Consultant and the candidate. If an approved introduction leads to employment with another company, the introduction fee shall be payable by the respective party.",
-    "If the candidate <b>voluntarily resigns within the first 3 months</b> of employment, the Consultant will provide a <b>free replacement</b>, provided the Client notifies the Consultant in writing within <b>7 days</b> of the termination.",
-    "The Consultant shall not be responsible for any cash-related risk or transaction between the Employee and the Employer.",
-    "These terms shall be subject to <b>Indore jurisdiction</b>.",
-    "The Client shall comply with applicable <b>labour laws and all other applicable laws</b>.",
-    "Candidate compensation shall be aligned with prevailing industry norms and the current market scenario.",
-    "The Client shall inform the Consultant within <b>5 working days</b> after a candidate accepts an employment offer and shall provide the relevant offer terms in writing, including the engagement/appointment letter and a copy of the employment contract."
-  ],
-  "layout_source_file": "Jobmitra_Recruitment_Proposal_8_33_Percent_Formatted.docx",
-  "layout_source_sha256": "c4a162bc30c816c8ee648cb5ac68d38c22134d4d94830c148a05d3a97d78cc35"
+    "The fee will be charged at <b>{percent}%</b> of the candidate’s <b>annual CTC</b> (approximately <b>{days} days’ salary</b>), including basic salary and allowances. Applicable taxes, if any, will be charged extra.",
+    "Payment shall be made within <b>7 days</b> of the candidate joining the Client’s organization, against the Consultant’s invoice.",
+    "If a candidate introduced by the Consultant is employed by the Client in any capacity within <b>12 months</b> of the introduction, the Client shall pay the recruitment fee as per these terms.",
+    "The Client must not share candidate information outside the company without the consent of both the Consultant and the candidate. If an approved introduction results in employment with another company, the respective party shall pay the introduction fee.",
+    "If a candidate resigns voluntarily within the first <b>3 months</b> of employment, the Consultant will provide a <b>free replacement</b>, provided the Client informs the Consultant in writing within <b>7 days</b> of termination.",
+    "The Consultant is not responsible for any cash-related risk or transaction between the employee and employer.",
+    "These terms are subject to Indore jurisdiction.",
+    "The Client must follow applicable labour laws and other applicable laws.",
+    "Candidate salaries shall be as per prevailing industry norms and current market conditions.",
+    "The Client shall inform the Consultant within <b>5 working days</b> of the candidate accepting the offer and provide the offer terms in writing, including the engagement or appointment letter and a copy of the employment contract."
+  ]
 }
