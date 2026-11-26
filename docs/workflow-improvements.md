@@ -46,3 +46,30 @@ Files: `src/jobmitra/modules/ats_v2/unified.py`,
 `src/jobmitra/static/ats_v2/pipeline-email.mjs`,
 `tests/test_email_context_fixes.py`, `tests/test_v12_pipeline_email.py`,
 `tests/email-context.test.mjs`, and this document.
+
+## Checkpoint 2 — atomic Add to JD
+
+All native V12 Add to JD entry points use `/api/v12/approved/jobs/{id}/attach`.
+One serialized transaction calls the existing canonical Pool-first association,
+retains its ADDED event, then uses the canonical POOL → CONTACT transition. The
+normal history marks Pool completed. A failure rolls back membership, events and
+receipt together. Existing memberships return their actual current stage, even
+on a fresh request key; they are never reset. The legacy association primitive and
+legacy API retain their original Pool-first contract for compatibility.
+
+The shared frontend adapter reads back the canonical membership and opens its
+actual stage. The Candidate Pool's redundant In this JD toggle is removed; search
+results retain existing-member actions and an Open current stage shortcut.
+
+Verification: 42 focused Python checks including rollback, concurrency and legacy
+compatibility; 11 JavaScript checks. Browser Add immediately opened Candidate
+Contact, retained Pool reach, and showed no redundant toggle. Normal Next Stage
+progression and opening the existing stage were checked using synthetic records.
+No schema migration, automated email, feedback or appointment was introduced.
+
+Files: `src/jobmitra/modules/ats_v2/jobs.py`,
+`src/jobmitra/modules/ats_v2/approved_router.py`,
+`src/jobmitra/static/ats_v2/approved-api.mjs`,
+`src/jobmitra/static/ats_v2/jd-clean.mjs`, `scripts/build_approved_v12.mjs`,
+`src/jobmitra/static/ats_v2/approved.mjs`, `tests/test_attach_contact.py`,
+`tests/test_pipeline_synchronization.test.mjs`, and this document.

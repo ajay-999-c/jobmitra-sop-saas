@@ -21,7 +21,7 @@ from .parsed_router import router as parsed_router
 from .profile_router import router as profile_router
 from .proposal_router import router as proposal_pdf_router
 from .router import AtsRoute
-from .schemas import ActivityInput, FeedbackSource
+from .schemas import ActivityInput, FeedbackSource, LinkInput
 from .unified_access import access
 from .unified_router import Store
 
@@ -29,6 +29,12 @@ router = APIRouter(prefix="/approved", route_class=AtsRoute)
 router.include_router(proposal_pdf_router)
 router.include_router(profile_router)
 router.include_router(parsed_router)
+
+
+@router.post("/jobs/{job_id}/attach", status_code=201, dependencies=[Depends(same_origin)])
+def attach_candidate(job_id: int, data: LinkInput, request: Request, engine: Store):
+    access(request)
+    return jobs.attach_contact(engine, job_id, data.candidate_id)
 
 
 @router.get("/jd-dashboard")

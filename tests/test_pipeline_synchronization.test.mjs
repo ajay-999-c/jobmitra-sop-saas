@@ -31,7 +31,7 @@ test('an obsolete successful read cannot conceal a newer refresh failure',async(
 const source=fs.readFileSync('src/jobmitra/static/ats_v2/jd-clean.mjs','utf8'),functions=[];
 traverse(parse(source,{sourceType:'module'}),{FunctionDeclaration(p){if(['memberActions','tablePeople'].includes(p.node.id.name))functions.push(source.slice(p.node.start,p.node.end));}});
 function render(stage,current,next,disabled=false){
- const member={id:'7',stage:current,next},ctx={stage,disabled,job:{id:'8',status:'ACTIVE',candidates:[member]},stageOf:c=>c.stage,next:c=>c.next,canEmail:()=>true};
+ const member={id:'7',stage:current,next},ctx={stage,disabled,job:{id:'8',status:'ACTIVE',candidates:[member]},stageOf:c=>c.stage,label:c=>c.stage,next:c=>c.next,canEmail:()=>true};
  const context=vm.createContext({context:()=>ctx,closed:new Set(['NOT_SELECTED','NOT_JOINED','SELECTION_CANCELLED']),busy:new Set(),esc:String,allocation,salaryLabel,experienceLabel,options:{stageName:key=>key==='CONTACT'?'Candidate Contact':key}});
  vm.runInContext(functions.join('\n')+';globalThis.rendered={actions:memberActions(context().job.candidates[0]),search:tablePeople([{id:7,full_name:"Synthetic Person"}])};',context);
  return context.rendered;

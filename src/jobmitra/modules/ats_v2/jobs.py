@@ -1,11 +1,13 @@
 """SQLite JD/workflow transactions with PostgreSQL company validation at the boundary."""
 
 import json
+from contextlib import nullcontext
 from datetime import UTC, date, datetime
 from uuid import uuid4
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import text
+from sqlalchemy.engine import Connection
 
 from . import request_receipts as receipts
 from .common import AtsError, event_record, one, utc_now
@@ -360,7 +362,7 @@ def pipeline(engine, job_id):
 
 
 def associate(engine, job_id, candidate_id):
-    with transaction(engine) as conn:
+    with nullcontext(engine) if isinstance(engine, Connection) else transaction(engine) as conn:
         request_data = [job_id, candidate_id]
         prior = receipts.replay(conn, "association", request_data)
         if prior is not None:
@@ -394,6 +396,48 @@ def associate(engine, job_id, candidate_id):
             job_id=job_id,
         )
         return one(conn, "jd_candidates", result.lastrowid)
+
+
+def attach_contact(engine, job_id, candidate_id):
+    """V12 sourcing: retain the canonical Pool event then complete it atomically."""
+    with transaction(engine) as conn:
+        data = [job_id, candidate_id]
+        prior = receipts.replay(conn, "contact-association", data)
+        if prior is not None:
+            return linked(conn, job_id, prior)
+        existing = conn.execute(
+            text("SELECT id FROM jd_candidates WHERE job_id=:j AND candidate_id=:c"),
+            {"j": job_id, "c": candidate_id},
+        ).scalar_one_or_none()
+        if existing is not None:
+            result = linked(conn, job_id, existing)
+        else:
+            from .schemas import MoveInput
+
+            # Internal steps share the outer transaction, not its request receipt.
+            token = receipts.request_key.set(None)
+            try:
+                result = associate(conn, job_id, candidate_id)
+                result = move_candidate(
+                    conn,
+                    job_id,
+                    result["id"],
+                    MoveInput(
+                        stage_code="CONTACT",
+                        expected_stage="POOL",
+                    ),
+                )
+            finally:
+                receipts.request_key.reset(token)
+        receipts.record(
+            conn,
+            "contact-association",
+            data,
+            result["id"],
+            candidate_id=candidate_id,
+            job_id=job_id,
+        )
+        return result
 
 
 def linked(conn, job_id, link_id):
@@ -513,7 +557,7 @@ def add_feedback(conn, job, link, feedback, source, *, target=None):
 
 
 def move_candidate(engine, job_id, link_id, data):
-    with transaction(engine) as conn:
+    with nullcontext(engine) if isinstance(engine, Connection) else transaction(engine) as conn:
         request_data = [job_id, link_id, data.model_dump(mode="json")]
         if receipts.replay(conn, "movement", request_data) is not None:
             return one(conn, "jd_candidates", link_id)
