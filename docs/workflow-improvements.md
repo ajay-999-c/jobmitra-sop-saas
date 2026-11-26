@@ -203,3 +203,38 @@ production sending remains disabled. The approved HTML still has SHA-256
 Generator consistency, focused Ruff/syntax and Git whitespace checks pass. Existing
 checkpoint 1–3 verification is reused; the full suite is not rerun. Native Windows
 and the inaccessible office PostgreSQL database are not claimed as verified.
+
+## Office PostgreSQL connectivity retest after the four checkpoints
+
+The supplemental connection request was attempted using the existing private
+`.env` credentials plus the `.env.v12.mac.postgres` settings overlay; neither file
+was changed. The overlay alone intentionally omits credentials. Effective target:
+`192.168.1.51:5432`, database `jobmitra_dev`, schema
+`jobmitra_v12_dev_20261123_integration`, PostgreSQL backend, explicit development
+flags and previously approved trusted-private-LAN mode. Configuration validation
+passes; this is not proof of remote schema/application compatibility.
+
+| Probe | Result |
+| --- | --- |
+| Sandboxed Python TCP | PermissionError, errno 1: Operation not permitted |
+| Escalated native `nc` | TCP connection to port 5432 succeeded |
+| Escalated Python TCP using the effective settings | OSError, errno 65: No route to host, before authentication |
+| Escalated native `psql` with private credentials passed only through its environment | Exit 2: No route to host, before authentication |
+
+The supported sandbox escalation was used. TCP reachability exists for native
+`nc`, but the application interpreter and `psql` still cannot establish a socket
+from this agent session. The sandbox initially blocks access; the remaining
+process-specific network restriction cannot be attributed conclusively to a
+particular macOS privacy/firewall policy from this evidence. No authentication
+rejection, database SQLSTATE or schema-compatibility result was obtained. Do not
+change database passwords, server authentication or firewall settings on this
+basis.
+
+No remote read-back, remote test schema creation or remote write tests were
+performed. The existing SQLite/local PostgreSQL verification above remains valid
+and is explicitly separate from office verification. Before remote functional
+testing, authenticated connectivity from the application interpreter must succeed;
+then inspect the office schema read-only and provision a separately named empty
+development schema for synthetic records using the existing provisioning tool.
+Never point mutation tests at the office integration schema or clone confidential
+records unnecessarily. No GitHub push was made.
