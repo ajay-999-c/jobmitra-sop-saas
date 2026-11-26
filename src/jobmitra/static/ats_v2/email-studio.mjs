@@ -1,4 +1,5 @@
 // Integration only: approved documents own their templates, wording and rendering.
+import {bindGmailSend} from './gmail-send.mjs';
 const sessions=new WeakMap(),frames=new Set();
 const fingerprint=doc=>JSON.stringify([...doc.querySelectorAll('input,select,textarea,[contenteditable="true"]')].map(e=>[e.id||e.name,e.type==='checkbox'||e.type==='radio'?e.checked:e.isContentEditable?e.innerHTML:e.value]));
 export const hasEmailChanges=frame=>{const s=sessions.get(frame);return !!(s&&frame.contentDocument&&fingerprint(frame.contentDocument)!==s.baseline);};
@@ -45,7 +46,7 @@ export async function loadCandidateEmail(frame,html,context,key='manual:updates'
  if(context){doc.getElementById('roundName').value=context.roundName||'';win.JobmitraEmailStudio.setContext(context);}
  const sample=doc.getElementById('sampleBtn');sample.hidden=!context;
  if(context){sample.textContent='Reload candidate details';sample.addEventListener('click',event=>{event.stopImmediatePropagation();if(hasEmailChanges(frame)&&!window.confirm('Replace unsaved edits with the candidate details?'))return;win.JobmitraEmailStudio.setContext(context);remember(frame,key);},true);}
- bindCopy(doc,['copyEmailBtn','copySubjectBtn'],'emailSubject');remember(frame,key);return true;
+ bindCopy(doc,['copyEmailBtn','copySubjectBtn'],'emailSubject');void bindGmailSend(frame,context).catch(()=>notice(doc,'Gmail is unavailable. Existing manual copy remains available.'));win.addEventListener('jobmitra-email-sent',()=>remember(frame,key));remember(frame,key);return true;
 }
 
 export async function loadProposalEmail(frame,context=null){
@@ -91,6 +92,7 @@ export function installEmailWorkspace(html){
 }
 
 export function installContextualEmail(native,html,resolve){
+ window.addEventListener('jobmitra-email-history-update',()=>void native.run(()=>native.refresh()));
  const overlay=document.getElementById('emailStudioOverlay'),frame=document.getElementById('emailStudioFrame'),heading=overlay.querySelector('.studio-head strong'),original=heading.textContent;let lastFocus=null,epoch=0;
  const close=()=>{overlay.hidden=true;lastFocus?.focus?.();};
  const present=()=>{lastFocus=document.activeElement;heading.textContent=original;frame.hidden=false;const p=document.getElementById('proposalStudioFrame');if(p)p.hidden=true;overlay.hidden=false;document.getElementById('closeEmailStudio').focus();};
@@ -99,7 +101,7 @@ export function installContextualEmail(native,html,resolve){
   const person=await native.api('/api/ats-v2/candidates/'+encodeURIComponent(id));
   const memberships=native.jobs.filter(j=>j.candidates.some(c=>c.id===String(id)));
   if(memberships.length===1)return window.JobmitraUnified.openEmailStudio({jobId:memberships[0].id,candidates:[{id:String(id)}]});
-  if(await loadCandidateEmail(frame,html,{candidateName:person.full_name,candidateEmail:person.email||'',jobTitle:person.job_title||'',location:person.current_city||''},'profile:'+id)){notice(frame.contentDocument,'Manual candidate draft. Select and review an approved template; no JD stage or selection has been recorded. Use JD History for a specific membership.');present();}
+ if(await loadCandidateEmail(frame,html,{candidateId:String(person.id),status:'jobmitra_screening',candidateName:person.full_name,candidateEmail:person.email||'',jobTitle:person.job_title||'',companyName:'',location:person.current_city||''},'profile:'+id)){notice(frame.contentDocument,'Candidate draft. Select and review an approved template; no JD stage or selection has been recorded. Use JD History for a specific membership.');present();}
  });
  document.getElementById('candidateHost').shadowRoot.addEventListener('click',event=>{const b=event.target.closest('button');if(!b)return;if(b.dataset.emailProfile)void window.JobmitraUnified.openProfileEmail(b.dataset.emailProfile);if(b.dataset.emailJob)void window.JobmitraUnified.openEmailStudio({jobId:b.dataset.emailJob,candidates:[{id:b.dataset.emailCandidate}]});});
  document.getElementById('closeEmailStudio').addEventListener('click',close);overlay.addEventListener('click',event=>{if(event.target===overlay)close();});document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!overlay.hidden){event.stopPropagation();close();}});

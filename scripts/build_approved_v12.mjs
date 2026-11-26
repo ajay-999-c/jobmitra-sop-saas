@@ -107,6 +107,8 @@ source=source.replace("show:(where)=>activate(where==='jd'?","show:(where)=>acti
 // Email shortcuts use canonical profiles/memberships without changing profile layout.
 source=source.replace('<div class="profile-v9-actions">','<div class="profile-v9-actions"><button class="btn tiny outline" type="button" data-email-profile="${escapeHTML(c.id)}">Email</button>');
 source=source.replace('Open JD pipeline →</button>','Open JD pipeline →</button><button class="btn tiny outline" type="button" data-email-job="${escapeHTML(r.jobId)}" data-email-candidate="${escapeHTML(c.id)}">Email</button>');
+// Group immutable Gmail attempt/result facts into the existing profile history.
+source=source.replace('return `<div class="profile-v9-section"><section class="profile-v9-card"><h3>JD Participation & History</h3>', 'return `<div class="profile-v9-section">${native.emailHistoryHTML(c.id)}<section class="profile-v9-card"><h3>JD Participation & History</h3>');
 // The explicit JD-history shortcut must not fall back to the profile overview.
 source=source.replace('>Open full JD history →</button>',' data-profile-section="history">Open full JD history →</button>');
 source=source.replace("showCandidateHistory(history.dataset.openHistory,'overview')","showCandidateHistory(history.dataset.openHistory,history.dataset.profileSection||'overview')");

@@ -135,3 +135,8 @@ venv/
 !/Jobmitra_Email_Studio_Final_Management_Confirmed.html
 # Public configuration template only; .env.v12.postgres stays private/ignored.
 !/.env.v12.postgres.example
+
+# Gmail OAuth files must stay in an external private directory.
+gmail_credentials.json
+gmail_token.json
+gmail_token.json.lock

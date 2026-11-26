@@ -63,6 +63,14 @@ class Settings(BaseSettings):
     unified_v12_operator_token: SecretStr | None = None
     unified_v12_supervisor_token: SecretStr | None = None
     office_timezone: str = "Asia/Kolkata"
+    gmail_enabled: bool = False
+    gmail_sender: str = ""
+    gmail_credentials_file: Path | None = None
+    gmail_token_file: Path | None = None
+    gmail_mode: Literal["test"] = "test"
+    gmail_test_recipient: str = ""
+    # Explicitly approved synthetic JDs only. Empty means candidate-only sends.
+    gmail_test_job_ids: str = ""
 
     @field_validator("office_timezone")
     @classmethod

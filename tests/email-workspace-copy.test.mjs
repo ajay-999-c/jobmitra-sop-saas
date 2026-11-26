@@ -22,7 +22,7 @@ for(const mode of ['blocked','no-event'])test('never claims success without clip
 test('copies subject alone without adding email HTML',async()=>{const f=fixture('http');assert.equal(await f.copy(f.doc,null,'Approved subject'),true);assert.equal(f.clipboard['text/plain'],'Approved subject');assert.equal(f.clipboard['text/html'],undefined);});
 test('contextual drafts distinguish historical stages sharing the same template',async()=>{
  const keys=[],node={querySelector:()=>({textContent:'Email Studio'}),addEventListener(){},shadowRoot:{addEventListener(){}}};
- const window={JobmitraUnified:{}},document={getElementById:()=>node,addEventListener(){}};
+ const window={JobmitraUnified:{},addEventListener(){}},document={getElementById:()=>node,addEventListener(){}};
  const ctx=vm.createContext({window,document,loadCandidateEmail:async(...args)=>{keys.push(args[3]);return false;}});
  vm.runInContext(source.slice(source.indexOf('export function installContextualEmail')).replace('export ',''),ctx);
  ctx.installContextualEmail({run:fn=>fn()},'',async(_,value)=>({...value,status:'jobmitra_screening',candidateId:'1'}));

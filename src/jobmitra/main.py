@@ -20,6 +20,7 @@ from jobmitra.modules.candidates.resumes import router as resumes_router
 from jobmitra.modules.candidates.router import router as candidates_router
 from jobmitra.modules.companies.router import MODULE_DIR, CompanyAssets
 from jobmitra.modules.companies.router import router as companies_router
+from jobmitra.modules.email_studio.gmail_router import router as gmail_router
 from jobmitra.modules.email_studio.router import router as email_studio_router
 from jobmitra.modules.jobs.router import router as jobs_router
 from jobmitra.modules.resume_processing.router import ResumeBodyLimit
@@ -35,6 +36,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     office_policy = OfficePolicy.from_settings(config)
     validate_direct_editing(config)
+    from jobmitra.modules.email_studio.gmail_service import validate_configuration as validate_gmail
+
+    validate_gmail(config)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -121,6 +125,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.include_router(ats_v2_router)
     app.include_router(unified_v12_router)
+    app.include_router(gmail_router)
     app.add_middleware(LocalPreviewGuard, settings=config)
     app.add_middleware(OfficeLANGuard, policy=office_policy)
 
