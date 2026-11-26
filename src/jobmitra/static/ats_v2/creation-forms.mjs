@@ -17,7 +17,8 @@ export function showFormErrors(form,kind,errors,message='Please correct the high
  let first;
  for(const [index,error] of errors.entries()){
   const name=(kind==='candidate'?candidateFields:jobFields)[error.field]||error.field;
-  const control=form.elements.namedItem(error.field)||form.elements.namedItem('extra.'+error.field)||form.elements.namedItem(name);if(!control||!control.setAttribute)continue;
+  const canonical=form.elements.namedItem(error.field)||form.elements.namedItem('extra.'+error.field)||form.elements.namedItem(name);if(!canonical||!canonical.setAttribute)continue;
+  const control=canonical.matches?.('select')&&canonical.closest('.searchable-select')?.querySelector('[role=combobox]')||canonical;
   for(let parent=control.parentElement;parent&&parent!==form;parent=parent.parentElement)if(parent.tagName==='DETAILS')parent.open=true;
   const note=document.createElement('span');note.id=form.id+'-error-'+index;note.dataset.creationError='';note.textContent=error.message;note.style.cssText='display:block;color:#b91c1c;font-size:12px;margin-top:4px';
   control.setAttribute('aria-invalid','true');control.setAttribute('data-creation-invalid','');control.setAttribute('aria-errormessage',note.id);control.style.borderColor='#b91c1c';control.insertAdjacentElement('afterend',note);
@@ -26,7 +27,7 @@ export function showFormErrors(form,kind,errors,message='Please correct the high
  const target=first||summary;target.scrollIntoView({block:'center'});target.focus({preventScroll:true});
 }
 export function nativeFieldErrors(form){
- return [...form.elements].filter(c=>c.willValidate&&!c.validity.valid).map(c=>({field:c.name,message:c.validity.valueMissing?'Please complete this required field.':c.validity.typeMismatch?'Please enter a valid email address.':'Please enter a valid value within the allowed range.'}));
+ return [...form.elements].filter(c=>c.willValidate&&!c.validity.valid).map(c=>({field:c.dataset?.canonicalField||c.name,message:c.validity.valueMissing?'Please complete this required field.':c.validity.typeMismatch?'Please enter a valid email address.':'Please enter a valid value within the allowed range.'})).filter((e,i,rows)=>rows.findIndex(r=>r.field===e.field)===i);
 }
 export function candidatePeriodErrors(form){
  return ['current','expected'].filter(p=>form.elements[p+'_salary'].value!==''&&!form.elements[p+'_period'].value).map(p=>({field:p+'_period',message:'Please select the '+p+' salary period.'}));

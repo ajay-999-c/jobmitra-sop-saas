@@ -30,6 +30,7 @@ def test_identity_search_is_opt_in_paginated_and_read_only(sourcing_store):
         CandidateCreate(
             full_name="Identity Search Person",
             phone="+91 98765 43210",
+            email="identity.person@example.test",
             current_city="Indore",
             preferred_cities=["Bhopal"],
             job_title="Accounts Executive",
@@ -45,6 +46,8 @@ def test_identity_search_is_opt_in_paginated_and_read_only(sourcing_store):
         "Bhopal",
         "warehouse coordinator",
         "Tally",
+        "  PERSON@EXAMPLE  ",
+        "identity.person@",
     ]:
         result = candidates.search_candidates(
             engine,
@@ -53,6 +56,9 @@ def test_identity_search_is_opt_in_paginated_and_read_only(sourcing_store):
         )
         assert result["total"] == 1
         assert result["items"][0]["id"] == person["id"]
+    assert not candidates.search_candidates(
+        engine, SearchParams(keywords="identity.person@"), include_names=True
+    )["items"]
     assert not candidates.search_candidates(
         engine, SearchParams(keywords="9876543210"), include_names=True
     )["items"]
@@ -105,3 +111,33 @@ def test_attachment_receipt_preserves_pool_and_canonical_next_stage(sourcing_sto
             ).scalar_one()
             == 1
         )
+
+
+def test_identity_search_covers_candidates_beyond_first_page(sourcing_store):
+    engine, *_ = sourcing_store
+    target = candidates.create_candidate(
+        engine,
+        CandidateCreate(
+            full_name="Older Search Target",
+            phone="9876500099",
+            email="older.target@example.test",
+            job_title="Accountant",
+        ),
+    )
+    for index in range(12):
+        candidates.create_candidate(
+            engine,
+            CandidateCreate(full_name=f"Newer Person {index}", phone=f"987651{index:04d}"),
+        )
+    first = candidates.search_candidates(
+        engine, SearchParams(identity_lookup=True, sort="recent", page_size=10), include_names=True
+    )
+    assert target["id"] not in [row["id"] for row in first["items"]]
+    for query in [" older search ", "500099", "TARGET@EXAMPLE"]:
+        found = candidates.search_candidates(
+            engine,
+            SearchParams(keywords=query, identity_lookup=True, match="ALL", page_size=10),
+            include_names=True,
+        )
+        assert found["total"] == 1
+        assert found["items"][0]["id"] == target["id"]

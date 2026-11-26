@@ -110,3 +110,96 @@ New files: `src/jobmitra/modules/ats_v2/direct_movement.py`,
 Updated files: `src/jobmitra/modules/ats_v2/approved_router.py`,
 `src/jobmitra/modules/ats_v2/request_receipts.py`,
 `src/jobmitra/static/ats_v2/jd-clean.mjs`, and this document. No schema migration.
+
+## Checkpoint 4 — searchable selectors and Candidate Pool
+
+The existing company selector in JD Create/Edit, requirement picker, Candidate
+Desk Add to JD selector and JD Pools picker now share the progressive searchable
+select component. Their original option sets, canonical values, change handlers,
+active-company/active-JD rules and business validation remain in place. Matching
+is trimmed, case-insensitive and partial; JD search also includes its canonical
+reference and hiring company. Arrow keys, Enter, Escape and clear no-results
+feedback are supported. Typing an unmatched query cannot submit a previously
+selected company/JD. JD field errors focus the visible company search control.
+
+These option sets come from the complete canonical bootstrap collections, not a
+paginated dashboard page. No request is made for each company/JD keystroke.
+Candidate Pool retains its single existing search field and server-side pagination
+across the whole database. Its opt-in identity lookup now includes partial email
+addresses as well as the existing name/mobile/professional evidence. Ordinary
+professional search does not gain identity matching implicitly. Debouncing
+invalidates old responses immediately, including during the debounce interval;
+re-rendering preserves search focus/cursor. No browser persistence is added.
+
+Verification: six focused Python cases on disposable SQLite/PostgreSQL, including
+an older target outside the first ten results; 20 focused JavaScript checks cover
+matching, request races, form recovery and existing pipeline synchronization.
+Browser checks used 1440×1080 desktop and 390×844 mobile viewports. Company selection
+changed between two real fixture UUIDs; an unmatched query produced zero POSTs,
+then the corrected form created synthetic JD 3 and API read-back confirmed its
+company UUID. The new Draft JD remained absent from active-only Add to JD and
+JD Pools selectors. An existing membership opened Owner Discussion without a
+write/reset. Partial email/mobile queries found the correct candidate. An actual
+older search response was deliberately delayed until after the newer result;
+it could not replace that result. The Pool still had exactly one search field.
+No new JavaScript/API errors occurred in the verified operations.
+
+The updated attachment help text also describes its actual initial Contact
+transition rather than the obsolete prototype Pool-only behavior. This is wording
+only; attachment service semantics are unchanged from checkpoint 2.
+
+Files: `scripts/build_approved_v12.mjs`,
+`src/jobmitra/modules/ats_v2/candidates.py`,
+`src/jobmitra/static/ats_v2/approved.mjs`,
+`src/jobmitra/static/ats_v2/creation-forms.mjs`,
+`src/jobmitra/static/ats_v2/jd-clean.mjs`,
+`src/jobmitra/static/ats_v2/searchable-select.mjs`,
+`src/jobmitra/static/ats_v2/search-request.mjs`,
+`src/jobmitra/static/ats_v2/workspace-selectors.mjs`,
+`tests/test_clean_jd.py`, `tests/searchable-selectors.test.mjs`, and this document.
+
+## Local evidence and preservation
+
+Screenshots are private local artifacts under
+`output/playwright/workflow-improvements/` and are intentionally excluded from Git:
+
+- `custom-round-email.png`, `round1-email.png`, `f2f-email.png` — corrected previews.
+- `attached-contact.png` — immediate Contact with Pool reach retained.
+- `direct-stage-confirmation.png`, `direct-first-round.png`,
+  `direct-custom-rounds.png`, `completion-after-reload.png`,
+  `candidate-jd-history.png`, `direct-stage-mobile.png` — direct movement/history.
+- `company-selector.png`, `company-selector-mobile.png`,
+  `jd-search-selected.png`, `add-jd-selector.png`,
+  `pool-jd-selector-mobile.png`, `candidate-email-search.png`,
+  `candidate-search-mobile.png` — selectors and full-database candidate lookup.
+
+Final isolated browser fixture: 2 synthetic candidates, 2 synthetic companies,
+3 JDs, 4 memberships, zero candidate activities. Atomic Contact Demo remains at
+Owner Discussion in JD 1 and Screening in JD 2; JD 1 has one ADDED, six MOVED and
+three request receipts (attachment plus two direct confirmations). The only two
+EMAIL_SEND events are the attempt/result for the single mocked composer send.
+All fixture foreign keys remain validated. No office records were changed.
+
+For JD 1 the normal reached/awaiting counts after reload are:
+
+| Stage | Reached | Awaiting |
+| --- | ---: | ---: |
+| Pool | 2 | 0 |
+| Contact | 2 | 0 |
+| Screening | 2 | 0 |
+| Company Submission | 2 | 0 |
+| Portfolio Assessment | 2 | 0 |
+| Manager Discussion | 2 | 1 |
+| Owner Discussion | 1 | 1 |
+| Selected | 0 | 0 |
+| Joined | 0 | 0 |
+
+There are no database schema changes. Proposal renderer/storage, resume storage,
+registration and paste parsers, Windows configuration, OAuth handling, CID logo
+embedding and Email Studio source templates are unchanged. Office LAN mutation
+checks use the existing password-free policy on disposable PostgreSQL fixtures;
+production sending remains disabled. The approved HTML still has SHA-256
+`a4c9a21cef040457fce8c4872d09d490962f5b98301703d7e1287fdcbf32340e`.
+Generator consistency, focused Ruff/syntax and Git whitespace checks pass. Existing
+checkpoint 1–3 verification is reused; the full suite is not rerun. Native Windows
+and the inaccessible office PostgreSQL database are not claimed as verified.

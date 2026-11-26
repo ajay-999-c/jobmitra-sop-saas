@@ -250,6 +250,7 @@ def search_candidates(engine, params: SearchParams, *, include_names=False):
             evidence = (
                 "(COALESCE(c.search_text,'') || ' ' || lower(c.full_name) || ' ' || "
                 "COALESCE(c.phone,'') || ' ' || COALESCE(c.phone_normalized,'') || ' ' || "
+                "lower(COALESCE(c.email,'')) || ' ' || "
                 "lower(COALESCE(c.current_city,'')) || ' ' || "
                 "lower(COALESCE(c.preferred_cities_json,'')))"
             )
