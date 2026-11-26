@@ -67,9 +67,9 @@ class Settings(BaseSettings):
     gmail_sender: str = ""
     gmail_credentials_file: Path | None = None
     gmail_token_file: Path | None = None
-    gmail_mode: Literal["test"] = "test"
+    gmail_mode: Literal["test", "live"] = "test"
     gmail_test_recipient: str = ""
-    # Explicitly approved synthetic JDs only. Empty means candidate-only sends.
+    # Test mode: approved synthetic JDs only. Empty means candidate-only sends.
     gmail_test_job_ids: str = ""
 
     @field_validator("office_timezone")

@@ -28,7 +28,7 @@ def local_request(request: Request):
         and loopback(request.url.hostname)
         and not any(h == "forwarded" or h.startswith("x-forwarded-") for h in request.headers)
     ):
-        raise AtsError("Gmail Phase 1 requires direct loopback access on the authorized Mac.", 403)
+        raise AtsError("Gmail sending requires direct loopback access on the authorized Mac.", 403)
 
 
 @router.get("/status")
@@ -37,6 +37,12 @@ def status(request: Request):
         return {"status": "Gmail Disabled", "enabled": False}
     local_request(request)
     return gmail.connection_status(request.app.state.settings)
+
+
+@router.get("/context/{candidate_id}", dependencies=[Depends(local_request)])
+def recipient_context(candidate_id: int, request: Request, engine: Store):
+    with engine.connect() as conn:
+        return audit.recipient_context(conn, request.app.state.settings, candidate_id)
 
 
 @router.post("/send", dependencies=[Depends(local_request), Depends(same_origin)])

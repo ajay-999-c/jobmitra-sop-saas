@@ -4,6 +4,7 @@ One logical history entry per reference, represented by an attempt and at most
 one result fact. No schema migration, event update, or recruitment transition.
 """
 
+import hashlib
 import json
 from datetime import UTC, datetime
 from uuid import UUID
@@ -47,6 +48,7 @@ class SendInput(BaseModel):
     template_id: str = Field(max_length=60)
     intended_recipient: str = Field(max_length=254)
     actual_recipient: str = Field(max_length=254)
+    recipient_context: str | None = Field(default=None, max_length=64)
     subject: str = Field(min_length=1, max_length=200)
     html: str = Field(min_length=1, max_length=200_000)
     plain: str = Field(min_length=1, max_length=30_000)
@@ -123,25 +125,64 @@ def _append(conn, event_type, entry):
     )
 
 
+def recipient_context(conn, settings, candidate_id):
+    candidate = one(conn, "candidates", candidate_id)
+    result = {
+        "candidate_id": candidate_id,
+        "candidate_name": candidate["full_name"],
+        "mode": settings.gmail_mode,
+        "allowed": False,
+    }
+    try:
+        intended = gmail.address(candidate.get("email") or "")
+    except gmail.GmailError:
+        return {**result, "detail": "Candidate has a missing or invalid registered email address."}
+    if settings.gmail_mode == "test" and (
+        intended != gmail.address(settings.gmail_test_recipient)
+        or candidate["full_name"].casefold().strip() != "pooja jobmitra"
+    ):
+        return {
+            **result,
+            "detail": "Test mode requires the existing Pooja Jobmitra sample candidate.",
+        }
+    actual = (
+        intended if settings.gmail_mode == "live" else gmail.address(settings.gmail_test_recipient)
+    )
+    snapshot = json.dumps([settings.gmail_mode, candidate_id, candidate["full_name"], intended])
+    return {
+        **result,
+        "allowed": True,
+        "intended_recipient": intended,
+        "actual_recipient": actual,
+        "recipient_context": hashlib.sha256(snapshot.encode()).hexdigest(),
+    }
+
+
 def _context(conn, settings, data):
     if data.template_id not in TEMPLATES:
-        raise AtsError("This template remains manual in Gmail Phase 1.")
-    candidate = one(conn, "candidates", data.candidate_id)
-    # A test-recipient redirect must never leak a real candidate's data.
-    if (candidate.get("email") or "").lower() != settings.gmail_test_recipient.lower() or candidate[
-        "full_name"
-    ].casefold().strip() != "pooja jobmitra":
-        raise AtsError("Phase 1 sends require the existing Pooja Jobmitra sample candidate.", 403)
-    if gmail.address(data.intended_recipient) != gmail.address(candidate["email"]):
-        raise AtsError("The intended recipient must match the existing sample candidate.")
-    if gmail.address(data.actual_recipient) != gmail.address(settings.gmail_test_recipient):
-        raise AtsError("The confirmed test recipient cannot be overridden.", 403)
-    if "pooja" not in data.plain.casefold() or "pooja" not in data.html.casefold():
+        raise AtsError("This template remains a manual/copy email workflow.")
+    recipient = recipient_context(conn, settings, data.candidate_id)
+    if not recipient["allowed"]:
+        raise AtsError(recipient["detail"], 403 if settings.gmail_mode == "test" else 422)
+    if gmail.address(data.intended_recipient) != recipient["intended_recipient"]:
+        raise AtsError(
+            "Recipient differs from the candidate's registered email. Reload candidate details.",
+            409,
+        )
+    if gmail.address(data.actual_recipient) != recipient["actual_recipient"]:
+        raise AtsError("The confirmed recipient cannot be overridden.", 403)
+    if (settings.gmail_mode == "live" or data.recipient_context is not None) and (
+        data.recipient_context != recipient["recipient_context"]
+    ):
+        raise AtsError("Candidate recipient context has changed. Reopen the candidate email.", 409)
+    if settings.gmail_mode == "test" and (
+        "pooja" not in data.plain.casefold() or "pooja" not in data.html.casefold()
+    ):
         raise AtsError("Review the existing sample candidate's populated email preview.")
     link, company = None, None
     if data.job_id:
         allowed = {int(x) for x in settings.gmail_test_job_ids.split(",") if x.strip()}
-        if data.job_id not in allowed:
+        if settings.gmail_mode == "test" and data.job_id not in allowed:
             raise AtsError(
                 "This JD is not explicitly approved as synthetic Gmail test context.", 403
             )
@@ -152,17 +193,17 @@ def _context(conn, settings, data):
             {"j": data.job_id, "c": data.candidate_id},
         ).scalar_one_or_none()
         if link is None:
-            raise AtsError("Candidate must belong to the specified test JD.", 409)
+            raise AtsError("Candidate must belong to the specified JD.", 409)
     if (str(data.company_id) if data.company_id else None) != company:
-        raise AtsError("Company context must match the canonical test JD.")
-    return link, company
+        raise AtsError("Company context must match the canonical JD.")
+    return link, company, recipient
 
 
 def dispatch(engine, settings, data):
     gmail.validate_configuration(settings)
     if not settings.gmail_enabled:
         raise AtsError("Gmail sending is disabled.", 403)
-    ref, digest = str(data.reference), gmail.fingerprint(data)
+    ref, digest = str(data.reference), gmail.fingerprint(data, mode=settings.gmail_mode)
     # Serialize only the short claim transaction, never hold it over Gmail I/O.
     with transaction(engine) as conn:
         entries = history(conn)
@@ -193,8 +234,10 @@ def dispatch(engine, settings, data):
                 return public(child)
         elif previous:
             return public(previous)
-        link, company = _context(conn, settings, data)
-        raw = gmail.message(settings, data, ref)  # validate before persisting a claim
+        link, company, recipient = _context(conn, settings, data)
+        raw = gmail.message(
+            settings, data, ref, recipient=recipient["actual_recipient"]
+        )  # validate before persisting a claim
         entry = {
             "email_reference": ref,
             "fingerprint": digest,
@@ -203,10 +246,11 @@ def dispatch(engine, settings, data):
             "job_id": data.job_id,
             "company_id": company,
             "jd_candidate_id": link,
-            "intended_recipient": data.intended_recipient,
-            "actual_recipient": settings.gmail_test_recipient,
+            "intended_recipient": recipient["intended_recipient"],
+            "actual_recipient": recipient["actual_recipient"],
             "subject": data.subject,
-            "test_mode": True,
+            "test_mode": settings.gmail_mode == "test",
+            "delivery_mode": settings.gmail_mode,
             "sent_by": None,
             "actor_context": "Local Mac development; individual identity unverified",
             "status": "Sending",

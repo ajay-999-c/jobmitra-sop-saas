@@ -35,10 +35,23 @@ class GmailError(Exception):
 
 
 def address(value):
-    if not re.fullmatch(r"[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", value):
+    if not isinstance(value, str) or not re.fullmatch(
+        r"[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", value
+    ):
         raise GmailError("A single valid email address is required.")
-    if len(value) > 254:
-        raise GmailError("Email address is too long.")
+    local, domain = value.rsplit("@", 1)
+    if (
+        len(value) > 254
+        or len(local) > 64
+        or local.startswith(".")
+        or local.endswith(".")
+        or ".." in local
+        or any(
+            not re.fullmatch(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?", label)
+            for label in domain.split(".")
+        )
+    ):
+        raise GmailError("A single valid email address is required.")
     return value.lower()
 
 
@@ -50,11 +63,15 @@ def validate_configuration(settings):
         or not settings.unified_v12_local_direct_editing
         or settings.office_lan_enabled
         or not settings.unified_v12_enabled
-        or settings.gmail_mode != "test"
+        or settings.gmail_mode not in {"test", "live"}
     ):
-        raise GmailError("Gmail Phase 1 requires explicit Mac loopback development in test mode.")
+        raise GmailError(
+            "Gmail sending requires explicit Mac loopback development in test or live mode."
+        )
     address(settings.gmail_sender)
-    if address(settings.gmail_test_recipient) != "pooja.jobmitra@gmail.com":
+    if settings.gmail_mode == "test" and (
+        address(settings.gmail_test_recipient) != "pooja.jobmitra@gmail.com"
+    ):
         raise GmailError("Phase 1 permits only the approved Pooja test recipient.")
     try:
         if any(int(x) <= 0 for x in settings.gmail_test_job_ids.split(",") if x.strip()):
@@ -193,8 +210,11 @@ def connection_status(settings):
         return {
             "status": "Gmail Connected",
             "enabled": True,
-            "test_mode": True,
-            "actual_recipient": settings.gmail_test_recipient,
+            "mode": settings.gmail_mode,
+            "test_mode": settings.gmail_mode == "test",
+            "actual_recipient": (
+                address(settings.gmail_test_recipient) if settings.gmail_mode == "test" else None
+            ),
             "sender": settings.gmail_sender,
         }
     except GmailError as error:
@@ -273,7 +293,7 @@ class _ReviewedHTML(HTMLParser):
         raise GmailError("Email declarations are unsupported.")
 
 
-def message(settings, data, reference):
+def message(settings, data, reference, *, recipient=None):
     if re.search(
         r"\[(?:company|candidate name|position|location|interview round|interview date|"
         r"interview time|date|time|day)\]",
@@ -286,7 +306,9 @@ def message(settings, data, reference):
         raise GmailError("Review both the email preview and subject before sending.")
     result = EmailMessage()
     result["From"] = address(settings.gmail_sender)
-    result["To"] = address(settings.gmail_test_recipient)
+    if settings.gmail_mode == "live" and recipient is None:
+        raise GmailError("Resolve the canonical candidate recipient before live sending.")
+    result["To"] = address(recipient if recipient is not None else settings.gmail_test_recipient)
     result["Subject"] = data.subject
     result["Date"] = formatdate(localtime=False)
     result["Message-ID"] = f"<jobmitra-{reference}@{settings.gmail_sender.split('@')[1]}>"
@@ -401,6 +423,12 @@ def send(settings, raw):
         ) from None
 
 
-def fingerprint(data):
-    body = data.model_dump(mode="json", exclude={"reference", "resend_of", "confirm_resend"})
+def fingerprint(data, *, mode="test"):
+    # Snapshot validation is not email content. Preserve old claim hashes across
+    # recipient-context API upgrades and do not authorize duplicate deliveries.
+    body = data.model_dump(
+        mode="json", exclude={"reference", "resend_of", "confirm_resend", "recipient_context"}
+    )
+    if mode != "test":
+        body["delivery_mode"] = mode
     return hashlib.sha256(json.dumps(body, sort_keys=True).encode()).hexdigest()

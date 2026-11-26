@@ -1,10 +1,10 @@
-# Gmail Phase 1 — Mac development
+# Gmail — Mac development modes
 
-Gmail is disabled by default. This integration only permits an explicit Mac
-loopback V12 development profile, `gmail.send` authorization and the existing
-**Pooja Jobmitra** sample candidate with email `pooja.jobmitra@gmail.com`.
-It refuses Office LAN mode, Windows and production sending. It never treats
-shared network access or a declared name as a verified employee identity.
+Gmail is disabled by default. Both modes require the explicit Mac loopback V12
+development profile and `gmail.send` authorization. Test mode retains the existing
+**Pooja Jobmitra** sample restriction. Live mode resolves each selected candidate’s
+registered email from the canonical database. Windows and Office LAN sending remain
+refused; a shared network or declared name is never a verified employee identity.
 
 ## Configuration
 
@@ -43,7 +43,79 @@ outside request handling using existing send-only authorization tooling; the app
 never starts an interactive OAuth flow. “Gmail Connected” means the local token
 is usable (refreshed if needed), not that delivery or sender ownership is proven.
 
-## Sending and scope
+## Actual candidate recipients — Mac live mode
+
+In the explicitly authorized private Mac profile only:
+
+```dotenv
+JOBMITRA_GMAIL_ENABLED=true
+JOBMITRA_GMAIL_MODE=live
+```
+
+Keep the existing sender, external private OAuth paths, V12 development flags,
+local-direct-editing policy and loopback binding. Shared/example configuration
+remains disabled, defaults to test mode, and does not enable Windows sending.
+Do not enable this profile on a LAN bind or add forwarded-IP trust.
+
+`GET /api/v12/gmail/context/{candidate_id}` retrieves the current canonical name
+and validated registered email. It returns a mode/ID/name/address snapshot plus
+the effective recipient. The composer checks this against its selected candidate,
+populates a read-only registered-address field in live mode, removes the fixed test
+banner and names the actual recipient in the explicit Send confirmation. Missing,
+invalid or mismatched candidate details disable sending; update the candidate
+profile and reopen its email instead of overriding the To field.
+
+At send time the backend re-reads that same candidate inside the serialized claim
+transaction, rejects changed names/addresses/snapshot IDs or altered recipients,
+and constructs MIME with its own resolved address. The frontend cannot choose a
+different To, CC or BCC. In live mode JD context must still be a real membership
+with its canonical company; the synthetic-JD allowlist applies only to test mode.
+Company-facing templates, proposals, attachments and bulk sends remain manual.
+
+History records the actual recipient, candidate/JD IDs, delivery mode and Gmail
+message/thread IDs. Live entries are labelled Email; old test entries remain Test
+email. Duplicate claims, separate resend confirmation, conservative unknown results,
+zero automatic retries, OAuth refresh locking and CID-logo MIME are preserved.
+Opening profiles, registering/attaching candidates and stage movement never send.
+
+Focused implementation checks: 86 Python cases passed (35 new plus 51 existing)
+on disposable SQLite/local PostgreSQL, all with mocked Gmail. Twenty focused
+JavaScript checks cover recipient switching, confirmation, context rejection,
+existing templates/copy and history labels. A separate mocked browser preview
+verified controls before enabling the private real transport.
+
+The configured office PostgreSQL endpoint still fails before authentication with
+`No route to host` after supported sandbox escalation. The user confirmed that the
+existing Jobmitra test record in the running isolated PostgreSQL preview was the
+candidate they created and explicitly authorized its use instead. No duplicate or
+substitute record was created. The one controlled email used that canonical record,
+its registered address and existing JD membership, via the actual browser Send and
+recipient confirmation workflow. Gmail returned message/thread IDs, the user
+confirmed receipt and correct branding, and history survived page reload. No email
+was sent to Pooja during this feature. Before/after hashes of all candidates,
+companies, JDs, rounds, memberships, resumes, activities and non-email recruitment
+events match. Exactly one attempt/result pair was added; no resend occurred.
+
+The existing Mac preview on port 8895 now uses the ignored, owner-only private
+`.env.v12.gmail.mac` profile. It enables real Gmail only for that loopback instance;
+other shared/example settings and Windows deployment configuration are unchanged.
+To restart the same authorized profile while the existing local PostgreSQL cluster
+is running, from the project root:
+
+```sh
+uv run --no-sync --env-file .env.v12.gmail.mac python -m uvicorn jobmitra.main:app --app-dir src --host 127.0.0.1 --port 8895 --workers 1 --no-access-log --no-proxy-headers
+```
+
+Private verification journals and screenshots remain excluded from Git. Live Gmail
+IDs and candidate record identifiers are reported privately rather than embedded in
+release documentation. Office database identity/compatibility and Windows sending
+are not claimed as verified or enabled.
+
+Additional reviewed files: `tests/test_gmail_live.py`, `tests/gmail-live.test.mjs`.
+No dependencies, schema migrations, approved template bytes or Windows deployment
+configuration change for this feature.
+
+## Sending and scope (retained test mode)
 
 Open the existing candidate profile or JD History Email shortcut. Review the
 approved preview and To address, click **Send Email**, then confirm the effective
