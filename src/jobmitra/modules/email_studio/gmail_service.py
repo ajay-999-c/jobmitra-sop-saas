@@ -274,6 +274,13 @@ class _ReviewedHTML(HTMLParser):
 
 
 def message(settings, data, reference):
+    if re.search(
+        r"\[(?:company|candidate name|position|location|interview round|interview date|"
+        r"interview time|date|time|day)\]",
+        data.subject + data.plain + data.html,
+        re.I,
+    ):
+        raise GmailError("Complete missing contextual fields before sending this email.")
     _ReviewedHTML(convert_charrefs=True).feed(data.html)
     if not data.plain.strip() or not data.html.strip():
         raise GmailError("Review both the email preview and subject before sending.")

@@ -108,7 +108,7 @@ def test_existing_and_new_memberships_have_correct_read_only_email_context(offic
             )
             assert facts["recipient_email"] == expected
             assert facts["company_disclosed"] == (
-                audience == "COMPANY" or stage in {"SELECTED", "JOINED"}
+                audience == "COMPANY" or stage in {"ROUND", "SELECTED", "JOINED"}
             )
             assert facts["company_name"] == (
                 "Synthetic Client Company" if facts["company_disclosed"] else None
@@ -141,13 +141,13 @@ def test_unconfirmed_workflow_and_no_candidate_email_can_open_context(office, pg
     assert snapshot(engine) == before
 
 
-def test_round_label_preserves_company_confidentiality_without_changing_source(office, pg_store):
+def test_interview_round_discloses_canonical_company_without_changing_source(office, pg_store):
     engine, company, _, cid, _ = pg_store[0]
     original = "Synthetic Client Company Discussion"
     jid = fixture_job(engine, company, cid, "Round Email JD", "ROUND", round_name=original)
     before = snapshot(engine)
     for audience, expected in [
-        ("CANDIDATE", "the hiring company Discussion"),
+        ("CANDIDATE", original),
         ("COMPANY", original),
     ]:
         response = office.get(

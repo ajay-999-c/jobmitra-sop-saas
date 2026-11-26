@@ -777,7 +777,7 @@ def email_context(
             contact = next(
                 (r for r in contacts if r.get("is_primary_email") and r.get("email")), None
             ) or next((r for r in contacts if r.get("email")), {})
-        disclosed = audience == "COMPANY" or target["stage_code"] in {"SELECTED", "JOINED"}
+        disclosed = audience == "COMPANY" or target["stage_code"] in {"ROUND", "SELECTED", "JOINED"}
         company_name = company["company_name"] if disclosed else None
         greeting = (
             (contact.get("contact_name") or "Hiring team")
@@ -812,16 +812,54 @@ def email_context(
 
             body, subject, job_title = redact(body), redact(subject), redact(job_title)
             round_name = redact(round_name) if round_name else None
+        round_completed = False
+        next_round_name = None
+        if target["stage_code"] == "ROUND":
+            rounds = list(
+                conn.execute(
+                    text(
+                        "SELECT * FROM jd_interview_rounds WHERE job_id=:j "
+                        "ORDER BY display_order,id"
+                    ),
+                    {"j": job_id},
+                ).mappings()
+            )
+            position = next(i for i, r in enumerate(rounds) if r["id"] == target["round_id"])
+            next_round_name = next(
+                (r["round_name"] for r in rounds[position + 1 :] if r["is_active"]), None
+            )
+            moves = conn.execute(
+                text(
+                    "SELECT before_json,after_json FROM recruitment_events "
+                    "WHERE jd_candidate_id=:id AND before_json IS NOT NULL "
+                    "AND after_json IS NOT NULL"
+                ),
+                {"id": link["id"]},
+            ).all()
+            for before, after in moves:
+                old, new = json.loads(before), json.loads(after)
+                if (
+                    old.get("stage_code") == "ROUND"
+                    and old.get("round_id") == target["round_id"]
+                    and new.get("stage_code") in {"ROUND", "SELECTED", "JOINED"}
+                    and (new.get("stage_code"), new.get("round_id"))
+                    != ("ROUND", target["round_id"])
+                ):
+                    round_completed = True
         return {
             "audience": audience,
             "candidate_id": candidate_id,
             "job_id": job_id,
+            "company_id": job["company_id"],
             "recipient_email": contact.get("email")
             if audience == "COMPANY"
             else candidate["email"],
             "recipient_name": greeting,
+            "company_contact_name": contact.get("contact_name") if disclosed else None,
+            "company_contact_email": contact.get("email") if disclosed else None,
             "company_name": company_name,
             "candidate_name": candidate["full_name"],
+            "candidate_email": candidate["email"],
             "experience_years": candidate["experience_years"],
             "notice_days": candidate["notice_days"],
             "current_salary_inr": candidate["current_salary_inr"],
@@ -838,6 +876,8 @@ def email_context(
             "current_round_id": link["round_id"],
             "historical_context": target.get("_historical", False),
             "round_name": round_name,
+            "round_completed": round_completed,
+            "next_round_name": next_round_name,
             "selection_outcome": link.get("selection_outcome"),
             "joined_on": link.get("joined_on"),
             "subject": subject,
@@ -846,9 +886,9 @@ def email_context(
                 {"id": r["id"], "name": r.get("contact_name"), "email": r.get("email")}
                 for r in contacts
             ]
-            if audience == "COMPANY"
+            if disclosed
             else [],
-            "selected_contact_id": contact.get("id") if audience == "COMPANY" else None,
+            "selected_contact_id": contact.get("id") if disclosed else None,
             "company_disclosed": disclosed,
             "sent": False,
             "delivery_enabled": False,

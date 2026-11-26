@@ -1,5 +1,6 @@
 // Integration only: approved documents own their templates, wording and rendering.
 import {bindGmailSend} from './gmail-send.mjs';
+import {contextualEmailDocument} from './email-context.mjs';
 const sessions=new WeakMap(),frames=new Set();
 const fingerprint=doc=>JSON.stringify([...doc.querySelectorAll('input,select,textarea,[contenteditable="true"]')].map(e=>[e.id||e.name,e.type==='checkbox'||e.type==='radio'?e.checked:e.isContentEditable?e.innerHTML:e.value]));
 export const hasEmailChanges=frame=>{const s=sessions.get(frame);return !!(s&&frame.contentDocument&&fingerprint(frame.contentDocument)!==s.baseline);};
@@ -41,7 +42,7 @@ export async function loadCandidateEmail(frame,html,context,key='manual:updates'
  if(!allowEmailReplacement(frame,key))return false;
  const bridge='window.JobmitraEmailStudio=Object.freeze({setContext:applyStudioContext});';
  if(!html.includes(bridge))throw Error('Approved Email Studio validation bridge is unavailable.');
- await load(frame,html.replace(bridge,bridge+'window.JobmitraEmailStudioCopyAllowed=validate;'));
+ await load(frame,contextualEmailDocument(html).replace(bridge,bridge+'window.JobmitraEmailStudioCopyAllowed=validate;'));
  const doc=frame.contentDocument,win=frame.contentWindow;
  if(context){doc.getElementById('roundName').value=context.roundName||'';win.JobmitraEmailStudio.setContext(context);}
  const sample=doc.getElementById('sampleBtn');sample.hidden=!context;
@@ -96,7 +97,7 @@ export function installContextualEmail(native,html,resolve){
  const overlay=document.getElementById('emailStudioOverlay'),frame=document.getElementById('emailStudioFrame'),heading=overlay.querySelector('.studio-head strong'),original=heading.textContent;let lastFocus=null,epoch=0;
  const close=()=>{overlay.hidden=true;lastFocus?.focus?.();};
  const present=()=>{lastFocus=document.activeElement;heading.textContent=original;frame.hidden=false;const p=document.getElementById('proposalStudioFrame');if(p)p.hidden=true;overlay.hidden=false;document.getElementById('closeEmailStudio').focus();};
- window.JobmitraUnified.openEmailStudio=context=>native.run(async()=>{const request=++epoch;context=await resolve(native,context);if(request!==epoch)return;const key=JSON.stringify([context.jobId,context.candidateId,context.viewStage,context.status,context.roundName,context.candidates?.map(c=>c.id)]);if(await loadCandidateEmail(frame,html,context,key))present();});
+ window.JobmitraUnified.openEmailStudio=context=>native.run(async()=>{const request=++epoch;context=await resolve(native,context);if(request!==epoch)return;const key=JSON.stringify([context.jobId,context.candidateId,context.viewStage,context.status,context.roundName,context.companyId,context.companyName,context.candidateName,context.candidateEmail,context.companyContacts,context.candidates?.map(c=>c.id)]);if(await loadCandidateEmail(frame,html,context,key))present();});
  window.JobmitraUnified.openProfileEmail=id=>native.run(async()=>{
   const person=await native.api('/api/ats-v2/candidates/'+encodeURIComponent(id));
   const memberships=native.jobs.filter(j=>j.candidates.some(c=>c.id===String(id)));
