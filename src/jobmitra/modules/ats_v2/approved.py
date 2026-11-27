@@ -117,14 +117,26 @@ def company_revision(row):
     return hashlib.sha256(json.dumps(dict(row), sort_keys=True).encode()).hexdigest()
 
 
-def state(engine):
+def state(engine, job_id=None):
     with engine.connect() as conn:
         postgres = conn.dialect.name == "postgresql"
         if postgres:
             begin_read(conn)
+        params = {"job": job_id}
+        member_ids = "SELECT candidate_id FROM jd_candidates WHERE job_id=:job"
+        scoped = job_id is not None
+        if scoped:
+            one(conn, "job_descriptions", job_id)
         people = [
             candidates.candidate_dict(r)
-            for r in conn.execute(text("SELECT * FROM candidates ORDER BY id")).mappings()
+            for r in conn.execute(
+                text(
+                    "SELECT * FROM candidates"
+                    + (" WHERE id IN (" + member_ids + ")" if scoped else "")
+                    + " ORDER BY id"
+                ),
+                params,
+            ).mappings()
         ]
         allocation = (
             dict(
@@ -132,7 +144,9 @@ def state(engine):
                     text(
                         "SELECT candidate_id,allocation_eligibility FROM "
                         "v_candidate_allocation_eligibility"
-                    )
+                        + (" WHERE candidate_id IN (" + member_ids + ")" if scoped else "")
+                    ),
+                    params,
                 ).all()
             )
             if postgres
@@ -146,7 +160,7 @@ def state(engine):
             )
         from . import candidate_profiles, profile_store
 
-        if profile_store.installed(conn):
+        if not scoped and profile_store.installed(conn):
             bulk = candidate_profiles.postgres_bootstrap_extras(conn, people) if postgres else None
             for person in people:
                 person["reviewed_details"] = (
@@ -169,33 +183,62 @@ def state(engine):
         companies = [
             {**{k: row[k] for k in visible_company_fields}, "revision": company_revision(row)}
             for row in conn.execute(
-                text("SELECT * FROM companies ORDER BY company_name_key,id")
+                text(
+                    "SELECT * FROM companies"
+                    + (
+                        " WHERE id=(SELECT company_id FROM job_descriptions WHERE id=:job)"
+                        if scoped
+                        else ""
+                    )
+                    + " ORDER BY company_name_key,id"
+                ),
+                params,
             ).mappings()
         ]
         for company in companies:
             company["contacts"] = json.loads(company.pop("contacts_json"))
             company["phones"] = json.loads(company.pop("general_phone_numbers_json"))
             company["source_ids"] = json.loads(company.pop("source_register_ids_json"))
-        jids = list(conn.scalars(text("SELECT id FROM job_descriptions ORDER BY id DESC")))
-        versions = [
-            resumes._resume_public(r)
-            for r in conn.execute(
-                text("SELECT * FROM candidate_resumes ORDER BY created_at DESC,id DESC")
-            ).mappings()
-        ]
+        jids = list(
+            conn.scalars(
+                text(
+                    "SELECT id FROM job_descriptions"
+                    + (" WHERE id=:job" if scoped else "")
+                    + " ORDER BY id DESC"
+                ),
+                params,
+            )
+        )
+        versions = (
+            []
+            if scoped
+            else [
+                resumes._resume_public(r)
+                for r in conn.execute(
+                    text("SELECT * FROM candidate_resumes ORDER BY created_at DESC,id DESC")
+                ).mappings()
+            ]
+        )
         events = [
             event_record(r)
             for r in conn.execute(
                 text(
                     "SELECT * FROM recruitment_events WHERE event_type<>'REQUEST_COMPLETED' "
-                    "ORDER BY created_at DESC,id DESC"
-                )
+                    + ("AND job_id=:job " if scoped else "")
+                    + "ORDER BY created_at DESC,id DESC"
+                ),
+                params,
             ).mappings()
         ]
         activities = [
             event_record(r)
             for r in conn.execute(
-                text("SELECT * FROM candidate_activities ORDER BY id DESC")
+                text(
+                    "SELECT * FROM candidate_activities"
+                    + (" WHERE job_id=:job" if scoped else "")
+                    + " ORDER BY id DESC"
+                ),
+                params,
             ).mappings()
         ]
         for event in events:
@@ -206,11 +249,17 @@ def state(engine):
             activity["details"] = activity.get("details_json") or {}
         placements = [
             dict(r)
-            for r in conn.execute(text("SELECT * FROM v_company_placement_register")).mappings()
+            for r in conn.execute(
+                text(
+                    "SELECT * FROM v_company_placement_register"
+                    + (" WHERE job_id=:job" if scoped else "")
+                ),
+                params,
+            ).mappings()
         ]
         from .candidate_registers import source_options
 
-        candidate_sources = source_options(conn)
+        candidate_sources = [] if scoped else source_options(conn)
         from . import workspace_store
 
         employees = (

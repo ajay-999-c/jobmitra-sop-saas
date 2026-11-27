@@ -174,3 +174,25 @@ reason/audit event and guarded revision; it never auto-closes overdue/filled JDs
 Removed links cannot receive recruitment actions, email context or appointments
 until explicitly restored. Candidate profile JD history retains corrected links.
 No schema migration is required for this correction/closure ledger.
+
+### Targeted refresh and synchronization
+
+`GET /api/v12/approved/jobs/{id}/state` returns only that JD's linked people,
+company, recruitment events, activities and placements; it excludes resume/profile
+bootstrap data. Conditional ETags return304 for unchanged state. JD mutations now
+refresh this scope, without broadcasting inactive Candidate Desk searches.
+`JOBMITRA_JD_POLL_SECONDS` defaults15, accepts5–120, and is documented in both
+tracked ENV examples. No private ENV file was edited.
+
+The visible-workspace poller serializes reads, pauses hidden/inactive workspaces,
+resumes on focus/navigation and ignores late pre-mutation results. Unsaved JD and
+workflow forms/dialogs retain their content with a Reload and review notice.
+Ordinary JD updates retain the existing guarded revision and409 conflict response.
+Selected stage, filters, rail position and open Email Studio drafts are retained.
+Five isolated PostgreSQL route/service tests passed, including ETag304 and configured
+interval; three synchronization JS checks cover overlap, hidden state, recovery,
+deduplication and stale-response rejection. Existing23 JS checks also passed.
+Two real browser sessions confirmed: remote location save200; first session draft
+unchanged; stale save409 JD_CONFLICT; explicit review loaded the remote value.
+Remote candidate feedback appeared automatically while the selected Contact stage
+and unsent Email Studio note remained unchanged. Gmail was disabled throughout.

@@ -111,3 +111,51 @@ def test_explicit_closure_stale_guard_and_history_preservation(office_workspace)
         correction.close_job(
             engine, job, data.model_copy(update={"idempotency_key": uuid4()}), "OFFICE_LAN"
         )
+
+
+def test_selected_jd_read_is_scoped_and_revision_changes(office_workspace):
+    from jobmitra.modules.ats_v2 import approved
+
+    engine, job, link, candidate = fixture(office_workspace)
+    before = approved.state(engine, job)
+    assert [j["id"] for j in before["jobs"]] == [job]
+    assert [c["id"] for c in before["candidates"]] == [candidate["id"]]
+    assert all(e["job_id"] == job for e in before["events"])
+    assert before["resumes"] == []
+    jobs.feedback(engine, job, link["id"], FeedbackInput(feedback="Scoped refresh fixture"))
+    after = approved.state(engine, job)
+    assert len(after["events"]) > len(before["events"])
+
+
+def test_scoped_route_etag_and_poll_configuration(office_workspace, monkeypatch):
+    from unittest.mock import patch
+
+    from fastapi.testclient import TestClient
+
+    monkeypatch.setenv("JOBMITRA_GMAIL_ENABLED", "false")
+    from jobmitra.main import create_app
+
+    engine, legacy, _, config, staff_schema = office_workspace
+    _, job, _, _ = fixture(office_workspace)
+    config = config.model_copy(
+        update={
+            "gmail_enabled": False,
+            "office_lan_enabled": True,
+            "office_lan_cidrs": "127.0.0.0/8",
+            "office_lan_hosts": "",
+            "jd_poll_seconds": 17,
+        }
+    )
+    with (
+        patch("jobmitra.main.build_engine", return_value=legacy),
+        patch("jobmitra.modules.ats_v2.postgres.build_postgres_engine", return_value=engine),
+    ):
+        app = create_app(config)
+        app.state.staff_schema = staff_schema
+        with TestClient(app, base_url="http://127.0.0.1", client=("127.0.0.1", 5500)) as client:
+            path = f"/api/v12/approved/jobs/{job}/state"
+            result = client.get(path)
+            assert result.status_code == 200
+            assert result.json()["poll_seconds"] == 17
+            unchanged = client.get(path, headers={"If-None-Match": result.headers["ETag"]})
+            assert unchanged.status_code == 304 and not unchanged.content

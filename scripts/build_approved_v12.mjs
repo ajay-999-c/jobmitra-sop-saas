@@ -45,7 +45,7 @@ traverse(babelParse(source,'reference.js'),{
    "$('#notJoined').onclick":`()=>native.run(async()=>{const job=native.jobs.find(j=>j.id===p.jdId),person=job?.candidates.find(c=>c.id===p.candidateId);await native.outcome(job,person,'NOT_JOINED',$('#notJoined'));closeModal();await native.refresh();toast('Not Joined recorded; eligibility recalculated.');},toast)`,
    "$('#resetDemo').onclick":`()=>native.run(async()=>{await native.refresh();toast('Canonical records reloaded. No records were reset.');},toast)`
   };
-  if(handlers[left])replace(n,handlers[left]);
+  if(handlers[left])replace(n,a==='jobs'?handlers[left].replaceAll('await native.refresh();','await native.refreshJD(draft.id,{force:true});'):handlers[left]);
   if(a==='companies'&&left==="$('#confirmDemoSelection').onclick"){} // Function replacement owns this handler.
  },
  CallExpression(p){const code=source.slice(p.node.callee.start,p.node.callee.end);
@@ -90,7 +90,24 @@ source=source.replaceAll('refStage(ev.fromKey,ev.fromName)','refStage(ev.fromKey
 // Expose the canonical selection to the separate proposal adapter; no presentation changes.
 source=source.replace('window.JobmitraUnifiedCompanies={refreshFromJD,getEligibility,','window.JobmitraUnifiedCompanies={getSelectedCompanyId:()=>state.selectedCompany,refreshFromJD,getEligibility,');
 // Initialize and refresh each original component from canonical service projections.
-source=source.replace('    render();\n  })();',`    window.addEventListener('jobmitra-native-update',()=>{state.jobs=structuredClone(native.jobs);const current=state.jobs.find(j=>j.id===selectedId);if(current){draft=clone(current);isNew=false;}else if(!isNew){selectedId=state.jobs[0]?.id||null;draft=clone(state.jobs[0]||native.emptyJD());}render();});\n    if(!state.jobs.length)view='dashboard';render();\n  })();`);
+source=source.replace('    render();\n  })();',`    const acceptUpdate=event=>{
+      if(event.detail?.id&&String(event.detail.id)!==String(selectedId)){if(view==='dashboard')void native.jdDashboard?.refresh();return;}
+      state.jobs=structuredClone(native.jobs);const current=state.jobs.find(j=>j.id===selectedId);
+      if((detailsDirty()||workflowDirty()||el('modalHost')?.children.length)&&!event.detail?.force){
+        let banner=el('jdRemoteChanges');if(!banner){banner=jdShadow.ownerDocument.createElement('div');banner.id='jdRemoteChanges';banner.className='banner amber';banner.setAttribute('role','status');el('workspace').before(banner);}
+        banner.textContent='Server changes are available. Your unsaved edits are preserved. ';
+        const review=jdShadow.ownerDocument.createElement('button');review.className='btn secondary small';review.textContent='Reload and review';review.onclick=()=>{if(!confirm('Discard unsaved JD changes and review the latest server record?'))return;closeModal();void native.refreshJD(selectedId,{force:true});};banner.append(review);return;
+      }
+      el('jdRemoteChanges')?.remove();
+      const rail=el('workspace')?.querySelector('.rail'),left=rail?.scrollLeft||0,position=window.scrollY;
+      const input=jdShadow.activeElement,focusId=input?.id,start=input?.selectionStart,end=input?.selectionEnd;
+      if(current){draft=clone(current);isNew=false;}else if(!isNew){selectedId=null;draft=native.emptyJD();}
+      if(view==='dashboard')void native.jdDashboard?.refresh();else{render();const next=el('workspace')?.querySelector('.rail');if(next)next.scrollLeft=left;if(focusId){const field=el(focusId);field?.focus({preventScroll:true});if(start!=null&&field?.setSelectionRange)field.setSelectionRange(start,end);}window.scrollTo({top:position});}
+    };
+    window.addEventListener('jobmitra-native-update',acceptUpdate);window.addEventListener('jobmitra-jd-update',acceptUpdate);
+    installJDSync(native,{active:()=>!hostJD.hidden,view:()=>view,id:()=>selectedId,error:message=>{const status=el('jdSyncNotice');if(status)status.textContent='Refresh unavailable: '+message;}});
+    if(!state.jobs.length)view='dashboard';render();
+  })();`);
 source=source.replace(' search();renderDetails();',` window.addEventListener('jobmitra-native-update',()=>{candidates.splice(0,candidates.length,...structuredClone(native.people));jobs.splice(0,jobs.length,...structuredClone(native.jobs));state.pools=native.pools();state.officeVisits=native.historyActivities('OFFICE_VISIT');state.jobSearchRequests=native.historyActivities('JOB_SEARCH_REQUEST');if(tab==='search')search();if(tab==='pool')renderPool();if(tab==='dashboard')renderDashboard();if(tab==='candidates'){renderCandidates();if(activeProfileCandidate)showFullProfilePanel(activeProfileCandidate,activeProfileSection);}if(tab==='resumes')renderResumes();if(tab==='visits')renderOfficeVisits();if(tab==='requests')renderJobRequests();});\n search();renderDetails();`);
 source=source.replace('renderScope();renderAnalytics();renderDirectory();renderCompany();refreshFromJD();',`window.addEventListener('jobmitra-native-update',()=>{state.companies=structuredClone(native.companies);state.placements=structuredClone(native.placements);state.available=structuredClone(native.people);renderScope();renderAnalytics();renderDirectory();renderCompany();});renderScope();renderAnalytics();renderDirectory();renderCompany();`);
 source=source.replace('return {name:master.name||c.name,experience:', 'return {id:c.id,name:master.name||c.name,experience:');
@@ -188,7 +205,7 @@ if(/localStorage\.|indexedDB\./.test(source))throw Error('Browser persistence re
 const emailPattern=/const EMAIL_STUDIO_DOCUMENT=("(?:\\.|[^"\\])*");/;
 if(JSON.parse(match[1].match(emailPattern)[1])!==JSON.parse(source.match(emailPattern)[1]))throw Error('Approved embedded Email Studio changed.');
 source=source.replace('native.renderAccess();','native.renderAccess();installEmployees(native);');
-const generated='// Generated from immutable approved V12 HTML. Source SHA-256: '+hash+'\nimport {native} from "./approved-api.mjs";\nimport {installEmployees} from "./employees.mjs";\nimport {installJDDashboard} from "./jd-dashboard.mjs";\nimport {installCleanJD} from "./jd-clean.mjs";\nimport {installWorkspaceSelectors} from "./workspace-selectors.mjs";\nimport {installEmailWorkspace,installContextualEmail} from "./email-studio.mjs";\nimport {canComposePipelineEmail,pipelineEmailContext} from "./pipeline-email.mjs";\nimport {submitCreation,nativeFieldErrors,candidatePeriodErrors} from "./creation-forms.mjs";\nimport {installCandidateDesk} from "./candidate-desk.mjs";\nimport {installCandidateRegisters,registrationDate} from "./candidate-registers.mjs";\n'+source;
+const generated='// Generated from immutable approved V12 HTML. Source SHA-256: '+hash+'\nimport {native} from "./approved-api.mjs";\nimport {installEmployees} from "./employees.mjs";\nimport {installJDDashboard} from "./jd-dashboard.mjs";\nimport {installJDSync} from "./jd-sync.mjs";\nimport {installCleanJD} from "./jd-clean.mjs";\nimport {installWorkspaceSelectors} from "./workspace-selectors.mjs";\nimport {installEmailWorkspace,installContextualEmail} from "./email-studio.mjs";\nimport {canComposePipelineEmail,pipelineEmailContext} from "./pipeline-email.mjs";\nimport {submitCreation,nativeFieldErrors,candidatePeriodErrors} from "./creation-forms.mjs";\nimport {installCandidateDesk} from "./candidate-desk.mjs";\nimport {installCandidateRegisters,registrationDate} from "./candidate-registers.mjs";\n'+source;
 let shell=html.slice(0,match.index)+`<script type="module" src="/static/ats-v2/approved.mjs"></script>\n</body></html>`;
 shell=shell.replace('<body>','<body data-section="{{ workspace_section }}">').replace('INTERACTIVE HTML PREVIEW</b> · Local demo data','SQLITE WORKSPACE</b> · Loading records').replace('<title>','<link rel="icon" href="/static/stage2/favicon.svg" type="image/svg+xml"><title>');
 shell=shell.replace('</head>','<link rel="stylesheet" href="/static/ats-v2/email-workspace.css"></head>').replace('JD Tracking</button>','JD Tracking</button><button id="unifiedEmailTab" type="button" role="tab" aria-selected="false">Email</button>').replace('<div id="emailStudioOverlay"',emailWorkspaceMarkup()+'<div id="emailStudioOverlay"').replace('three independent workspaces','four independent workspaces');

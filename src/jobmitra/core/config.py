@@ -50,6 +50,7 @@ class Settings(BaseSettings):
     ats_v2_database: Path | None = None
     ats_v2_resume_storage_root: Path | None = None
     unified_v12_enabled: bool = False
+    jd_poll_seconds: int = Field(default=15, ge=5, le=120)
     v12_backend: Literal["sqlite", "postgresql"] = "sqlite"
     v12_postgres_development: bool = False
     v12_postgres_trusted_lan: bool = False

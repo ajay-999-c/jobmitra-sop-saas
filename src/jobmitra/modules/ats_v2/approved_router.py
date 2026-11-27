@@ -4,7 +4,7 @@ import json
 from typing import Annotated
 from uuid import UUID, uuid5
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Query, Request, Response
 from fastapi.responses import FileResponse
 from pydantic import Field
 from sqlalchemy import text
@@ -95,6 +95,26 @@ def direct_stage_move(
 @router.get("/jd-dashboard")
 def jd_directory(engine: Store, filters: Annotated[JDDashboardFilters, Query()]):
     return jd_dashboard.browse(engine, filters)
+
+
+@router.get("/jobs/{job_id}/state")
+def selected_jd_state(job_id: int, request: Request, response: Response, engine: Store):
+    import hashlib
+
+    result = approved.state(engine, job_id)
+    result["poll_seconds"] = request.app.state.settings.jd_poll_seconds
+    tag = (
+        '"'
+        + hashlib.sha256(json.dumps(result, sort_keys=True, default=str).encode()).hexdigest()
+        + '"'
+    )
+    if request.headers.get("If-None-Match") == tag:
+        return Response(
+            status_code=304, headers={"ETag": tag, "Cache-Control": "private, no-cache"}
+        )
+    response.headers["ETag"] = tag
+    response.headers["Cache-Control"] = "private, no-cache"
+    return result
 
 
 @router.get("/state")
