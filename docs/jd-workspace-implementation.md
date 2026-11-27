@@ -148,3 +148,29 @@ server independently rejects retirement. Contact Email opens the existing Studio
 with canonical candidate/JD context, verified recipient and screening template;
 Gmail remains disabled. Screenshots04/05 record editor and pipeline actions.
 Generator consistency, immutable reference checks, Ruff and whitespace passed.
+
+### Attachment correction model (reviewed before implementation)
+
+The existing append-only recruitment event ledger supplies the persistence model:
+`ATTACHMENT_REMOVED` / `ATTACHMENT_RESTORED` reference the canonical membership.
+No new table, core-stage value or deletion is needed. The latest correction controls
+active participation; original membership/events remain available for history.
+Only exactly one original Pool attachment and its automatic Pool→Contact movement
+are eligible. Any other recruitment evidence, feedback, appointment, email attempt,
+selection/joining or unknown imported history blocks correction. Each explicit
+confirmation uses a request UUID and a revision covering membership, history and
+JD status, inside the existing serialized transaction. Restore reuses the same
+membership and requires active JD/candidate plus normal allocation eligibility.
+Counts/pipeline exclude removed participation, but the profile and historical JD
+association remain. Regression tests cover replay, conflicts, meaningful activity,
+master/resume/other-JD preservation, restoration and immutable ledger behavior.
+
+Closure/correction integration passed12 focused backend tests and the existing
+sourcing JS checks. Browser correction of synthetic membership54 removed its active
+counts1→0; Restore reused54 and returned counts0→1. No candidate master was deleted.
+The explicit Close JD dialog showed its one pending candidate and retained JD
+Activity after closure. Closure uses the existing CLOSED status plus an immutable
+reason/audit event and guarded revision; it never auto-closes overdue/filled JDs.
+Removed links cannot receive recruitment actions, email context or appointments
+until explicitly restored. Candidate profile JD history retains corrected links.
+No schema migration is required for this correction/closure ledger.

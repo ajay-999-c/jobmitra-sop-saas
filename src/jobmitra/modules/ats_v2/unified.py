@@ -751,8 +751,9 @@ def email_context(
         )
         if not link:
             raise AtsError("Choose an existing candidate membership in this JD.", 404)
-        from .jobs import reached_context
+        from .jobs import linked, reached_context
 
+        linked(conn, job_id, link["id"])
         target = reached_context(conn, job, dict(link), selected_stage, selected_round_id)
         round_name = None
         if target["stage_code"] == "ROUND":

@@ -42,6 +42,10 @@ function header(){
  el('statusPill').className='status '+({ACTIVE:'green',ON_HOLD:'amber',CLOSED:'red'}[draft.status]||'neutral');
  el('statusPill').textContent=({ACTIVE:'Active',DRAFT:'Draft',ON_HOLD:'On hold',CLOSED:'Closed'})[draft.status]||'Draft';
  el('topSaveBtn').hidden=true;
+ let close=el('closeRequirementBtn');if(!close){close=jdShadow.ownerDocument.createElement('button');close.id='closeRequirementBtn';close.type='button';close.className='btn secondary small';close.textContent='Close JD';el('statusPill').after(close);}
+ close.hidden=!hasJob||draft.status==='CLOSED'||view==='dashboard';close.disabled=detailsDirty()||workflowDirty();close.title=close.disabled?'Save or discard unsaved changes before closing this JD':'';
+ close.onclick=()=>{const pending=draft.candidates.filter(c=>!['JOINED','NOT_SELECTED','NOT_JOINED','SELECTION_CANCELLED'].includes(stageOf(c))).length;showModal({title:'Close this JD?',description:`${draft.title} · ${pending} candidates still awaiting a recruitment outcome`,items:[{title:'History is retained',text:'Closing prevents new recruitment actions. Candidate records, recruitment history and applicable placement milestones remain available.'}],confirmLabel:'Confirm Close JD',onConfirm:()=>native.run(async()=>{await native.authorize();const reason=prompt('Reason for closing this JD');if(!reason?.trim())throw Error('A closure reason is required.');const owner={};await native.api(`/api/v12/approved/jobs/${draft.id}/close`,{idempotency_key:native.key(owner),expected_revision:draft.revision,reason,confirmed:true},'POST',owner);closeModal();await native.refresh();toast('JD closed explicitly. Recruitment history retained.');},toast)});};
+
  for(const [id,value] of Object.entries({navDashboard:'dashboard',navDetails:'details',navWorkflow:'workflow',navPipeline:'pipeline',navPlacement:'placement',navHistory:'history'})){
   const node=el(id);node.disabled=id!=='navDashboard'&&!hasJob;node.classList.toggle('active',view===value);node.setAttribute('aria-current',view===value?'page':'false');
  }

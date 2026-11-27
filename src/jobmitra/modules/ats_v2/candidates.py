@@ -47,11 +47,15 @@ def candidate_dict(row):
 
 
 def participation(conn, candidate_id):
+    from .attachment_corrections import removed_sql
+
     return [
         dict(r)
         for r in conn.execute(
             text(
-                "SELECT jc.*,j.jd_code,j.title,j.status "
+                "SELECT jc.*,"
+                + removed_sql("jc")
+                + " AS attachment_removed,j.jd_code,j.title,j.status "
                 "FROM jd_candidates jc JOIN job_descriptions j ON j.id=jc.job_id "
                 "WHERE jc.candidate_id=:id ORDER BY jc.added_at DESC,jc.id DESC"
             ),

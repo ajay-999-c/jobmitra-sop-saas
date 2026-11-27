@@ -79,6 +79,9 @@ def job_select(conn):
         if is_v3(conn)
         else JOB_SELECT
     )
+    from .attachment_corrections import removed_sql
+
+    query = query.replace("l.job_id=j.id", "l.job_id=j.id AND NOT (" + removed_sql("l") + ")")
     if workspace_store.installed(conn):
         query = query.replace(
             "SELECT j.*",
@@ -372,12 +375,16 @@ def next_stage(link, flow):
 def pipeline(engine, job_id):
     with engine.connect() as conn:
         flow = workflow(conn, job_id)
-        items = []
+        items, removed_items = [], []
+        from .attachment_corrections import removed_sql
+
         counts = dict.fromkeys([*FIXED, *OUTCOMES], 0)
         counts.update({"ROUND:" + r["id"]: 0 for r in flow["rounds"]})
         for row in conn.execute(
             text(
-                "SELECT l.*,c.full_name,c.job_title,c.current_city,"
+                "SELECT l.*,"
+                + removed_sql("l")
+                + " AS attachment_removed,c.full_name,c.job_title,c.current_city,"
                 "c.skills_json,c.experience_years,c.phone,c.email FROM jd_candidates l "
                 "JOIN candidates c ON c.id=l.candidate_id "
                 "WHERE l.job_id=:id ORDER BY l.added_at,l.id"
@@ -405,9 +412,12 @@ def pipeline(engine, job_id):
                 if item["stage_code"] == "ROUND"
                 else item["effective_status"]
             )
-            counts[key] = counts.get(key, 0) + 1
-            items.append(item)
-        return {"items": items, "counts": counts, "workflow": flow}
+            if item["attachment_removed"]:
+                removed_items.append(item)
+            else:
+                counts[key] = counts.get(key, 0) + 1
+                items.append(item)
+        return {"items": items, "removed_items": removed_items, "counts": counts, "workflow": flow}
 
 
 def associate(engine, job_id, candidate_id):
@@ -451,6 +461,16 @@ def attach_contact(engine, job_id, candidate_id):
     """V12 sourcing: retain the canonical Pool event then complete it atomically."""
     with transaction(engine) as conn:
         data = [job_id, candidate_id]
+        from .attachment_corrections import is_removed
+
+        removed_id = conn.scalar(
+            text("SELECT id FROM jd_candidates WHERE job_id=:j AND candidate_id=:c"),
+            {"j": job_id, "c": candidate_id},
+        )
+        if removed_id and is_removed(conn, removed_id):
+            raise AtsError(
+                "This attachment was corrected. Use Restore attachment to reuse its history.", 409
+            )
         prior = receipts.replay(conn, "contact-association", data)
         if prior is not None:
             return linked(conn, job_id, prior)
@@ -493,6 +513,14 @@ def linked(conn, job_id, link_id):
     link = one(conn, "jd_candidates", link_id)
     if link["job_id"] != job_id:
         raise AtsError("Candidate participation not found in this JD.", 404)
+    from .attachment_corrections import is_removed
+
+    if is_removed(conn, link_id):
+        raise AtsError(
+            "This accidental attachment was removed. "
+            "Restore it explicitly before recruitment actions.",
+            409,
+        )
     return link
 
 

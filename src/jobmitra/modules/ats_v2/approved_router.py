@@ -22,6 +22,7 @@ from . import (
     unified,
 )
 from . import request_receipts as receipts
+from .attachment_corrections import CloseJD, Correction
 from .candidate_schemas import SearchParams
 from .common import AtsError, event_record, one
 from .database import insert_result, transaction
@@ -44,6 +45,36 @@ router.include_router(parsed_router)
 def attach_candidate(job_id: int, data: LinkInput, request: Request, engine: Store):
     access(request)
     return jobs.attach_contact(engine, job_id, data.candidate_id)
+
+
+@router.post("/jobs/{job_id}/close", dependencies=[Depends(same_origin)])
+def close_requirement(job_id: int, data: CloseJD, request: Request, engine: Store):
+    from .attachment_corrections import close_job
+
+    if request.headers.get("Idempotency-Key") != str(data.idempotency_key):
+        raise AtsError("The closure reference and Idempotency-Key must match.")
+    return close_job(engine, job_id, data, access(request))
+
+
+@router.get("/jobs/{job_id}/candidates/{link_id}/attachment-correction")
+def attachment_facts(job_id: int, link_id: int, engine: Store):
+    from .attachment_corrections import facts
+
+    with engine.connect() as conn:
+        return facts(conn, job_id, link_id)
+
+
+@router.post(
+    "/jobs/{job_id}/candidates/{link_id}/attachment-correction", dependencies=[Depends(same_origin)]
+)
+def attachment_correct(
+    job_id: int, link_id: int, data: Correction, request: Request, engine: Store
+):
+    from .attachment_corrections import correct
+
+    if request.headers.get("Idempotency-Key") != str(data.idempotency_key):
+        raise AtsError("The correction reference and Idempotency-Key must match.")
+    return correct(engine, job_id, link_id, data, access(request))
 
 
 @router.get("/jobs/{job_id}/candidates/{link_id}/destinations")
@@ -181,6 +212,7 @@ def record_activity(candidate_id: int, data: Activity, request: Request, engine:
             ).first()
             if row is None:
                 raise AtsError("Candidate must belong to the specified JD.", 409)
+            jobs.linked(conn, data.job_id, row[0])
         values = data.model_dump(mode="json", exclude={"details"})
         values.update(candidate_id=candidate_id, details_json=json.dumps(data.details))
         aid = insert_result(

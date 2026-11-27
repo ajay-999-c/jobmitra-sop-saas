@@ -116,13 +116,17 @@ def browse(engine, filters, now=None):
     }[filters.sort]
     with engine.connect() as conn:
         begin_read(conn)
+        from .attachment_corrections import removed_sql
+
         total = conn.scalar(text("SELECT count(*)" + join + where), params)
         rows = conn.execute(
             text(
                 "SELECT d.*,j.location,c.company_name"
                 + recruiter_fields
                 + ",(SELECT count(*) FROM jd_candidates l "
-                "WHERE l.job_id=d.id) candidate_count"
+                "WHERE l.job_id=d.id AND NOT ("
+                + removed_sql("l")
+                + ")) candidate_count"
                 + join
                 + where
                 + " ORDER BY "
