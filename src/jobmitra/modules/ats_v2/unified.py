@@ -10,7 +10,7 @@ from uuid import UUID
 from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
-from sqlalchemy import text
+from sqlalchemy import bindparam, text
 from sqlalchemy.engine import Connection
 
 from .candidate_schemas import ParsedResumeInput
@@ -263,6 +263,44 @@ def eligibility(conn, candidate_id, exclude_link=None):
         "allocation_eligibility": status or "AVAILABLE",
         "can_allocate": True,
         "reason_code": None,
+    }
+
+
+def eligibility_many(conn, candidate_ids):
+    """Read-only equivalent of eligibility(..., exclude_link=None) in two batches."""
+    if not candidate_ids:
+        return {}
+    params = {"ids": candidate_ids}
+    statuses = dict(
+        conn.execute(
+            text(
+                "SELECT candidate_id,allocation_eligibility FROM "
+                "v_candidate_allocation_eligibility WHERE candidate_id IN :ids"
+            ).bindparams(bindparam("ids", expanding=True)),
+            params,
+        ).all()
+    )
+    locks = {}
+    for row in conn.execute(
+        text(
+            "SELECT candidate_id,stage_code FROM jd_candidates "
+            "WHERE candidate_id IN :ids AND ((stage_code='JOINED' AND eligibility_released_at_utc "
+            "IS NULL) OR (stage_code='SELECTED' AND (selection_outcome IS NULL OR "
+            "selection_outcome='PENDING_JOINING'))) ORDER BY CASE stage_code WHEN 'JOINED' "
+            "THEN 0 ELSE 1 END,id"
+        ).bindparams(bindparam("ids", expanding=True)),
+        params,
+    ).mappings():
+        locks.setdefault(row["candidate_id"], row["stage_code"])
+    return {
+        cid: eligibility_value("PLACED_LOCKED" if locks[cid] == "JOINED" else "SELECTED_ON_HOLD")
+        if cid in locks
+        else {
+            "allocation_eligibility": statuses.get(cid) or "AVAILABLE",
+            "can_allocate": True,
+            "reason_code": None,
+        }
+        for cid in candidate_ids
     }
 
 

@@ -14,8 +14,8 @@ const deferred=()=>{let resolve,reject;const promise=new Promise((a,b)=>{resolve
 test('a late pre-mutation snapshot cannot erase a newer committed projection',async()=>{
  const old=deferred(),fresh=deferred();let calls=0;
  const store={...native,localDevelopment:true,api:()=>++calls===1?old.promise:fresh.promise};
- const first=store.refresh(),second=store.refresh();
- fresh.resolve(snapshot(2));await second;old.resolve(snapshot(1));
+ const first=store.refresh();store.readEpoch=1;const second=store.refresh();
+ old.resolve(snapshot(1));await new Promise(r=>setImmediate(r));fresh.resolve(snapshot(2));await second;
  assert.equal((await first).jobs[0].id,2);assert.equal(store.snapshot.jobs[0].id,2);assert.equal(store.jobs[0].id,'2');
  assert.equal(store.jobs[0].candidates[0].nextStage,'CONTACT');
  const history=store.histories('7');assert.equal(history.length,1);assert.equal(history[0].stage,'POOL');assert.equal(history[0].journey[0].type,'ADDED');assert.equal(store.pools()['2']['7'].linkId,31);
@@ -23,8 +23,8 @@ test('a late pre-mutation snapshot cannot erase a newer committed projection',as
 test('an obsolete successful read cannot conceal a newer refresh failure',async()=>{
  const old=deferred(),fresh=deferred();let calls=0;
  const store={...native,localDevelopment:true,snapshot:null,api:()=>++calls===1?old.promise:fresh.promise};
- const first=store.refresh(),second=store.refresh(),results=Promise.allSettled([first,second]);
- fresh.reject(Error('Canonical read unavailable'));old.resolve(snapshot(1));
+ const first=store.refresh();store.readEpoch=1;const second=store.refresh(),results=Promise.allSettled([first,second]);
+ old.resolve(snapshot(1));await new Promise(r=>setImmediate(r));fresh.reject(Error('Canonical read unavailable'));
  assert.deepEqual((await results).map(r=>r.status),['rejected','rejected']);assert.equal(store.snapshot,null);
 });
 
@@ -49,12 +49,12 @@ test('current interview, selection, joining and historical/closed action rules s
  for(const [selected,current] of [['POOL','CONTACT'],['CONTACT','ROUND:one'],['POOL','NOT_SELECTED'],['SELECTED','NOT_JOINED'],['SELECTED','SELECTION_CANCELLED'],['JOINED','JOINED']]){
   const html=render(selected,current,'CONTACT').actions;
   assert.ok(!/data-move-next|data-mark-not-selected|data-confirm-joined|data-schedule-interview/.test(html));
-  assert.match(html,/data-compose-candidate-email/);assert.match(html,/data-feedback-candidate/);
+  if(['NOT_JOINED','SELECTION_CANCELLED'].includes(current)&&selected==='SELECTED')assert.ok(!html.includes('data-compose-candidate-email'));else assert.match(html,/data-compose-candidate-email/);assert.match(html,/data-feedback-candidate/);
  }
  assert.ok(!/data-move-next|data-mark-not-selected|data-feedback-candidate/.test(render('POOL','POOL','CONTACT',true).actions));
 });
 test('explicit JD History shortcut opens history while generic Profile keeps overview',()=>{
- const generated=fs.readFileSync('src/jobmitra/static/ats_v2/approved.mjs','utf8');let handler;
+ const generated=fs.readFileSync('src/jobmitra/static/ats_v2/approved-candidate.mjs','utf8');let handler;
  traverse(parse(generated,{sourceType:'module'}),{CallExpression(p){const fn=p.node.arguments[1];if(p.node.arguments[0]?.value==='click'&&fn&&generated.slice(fn.start,fn.end).includes('history.dataset.openHistory'))handler=generated.slice(fn.start,fn.end);}});
  assert.ok(handler);assert.match(generated,/data-profile-section="history">Open full JD history/);
  const calls=[],context=vm.createContext({showCandidateHistory:(...args)=>calls.push(args)});

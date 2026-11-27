@@ -274,7 +274,10 @@ def test_approved_css_is_copied_exactly_and_original_hash_is_unchanged():
         == "a4c9a21cef040457fce8c4872d09d490962f5b98301703d7e1287fdcbf32340e"
     )
     source = data.decode()
-    generated = (root / "src/jobmitra/static/ats_v2/approved.mjs").read_text()
+    generated = "\n".join(
+        (root / f"src/jobmitra/static/ats_v2/approved{suffix}.mjs").read_text()
+        for suffix in ("", "-jd", "-candidate", "-companies")
+    )
     for area in ("company", "candidate", "jd"):
         pattern = area + r'Shadow\.innerHTML = ("(?:\\.|[^"\\])*");'
         original = json.loads(re.search(pattern, source).group(1))

@@ -24,7 +24,7 @@ async function confirmJoined(cid){return native.run(async()=>{const c=draft.cand
 function joinedAt(c){return c.joinedOn?c.joinedOn+'T12:00:00+05:30':null;}
 function recordJDEvent(){throw Error('A canonical service must record the action before reporting success.');}
 function renderDashboard(){
- native.jdDashboard ||= installJDDashboard(native,{root:jdShadow,target:targetState,created:createdDate,date:dateLabel,open:id=>native.run(async()=>{await native.refreshJD(id,{force:true});switchJob(String(id));view='pipeline';stageFilter='ALL';render();},toast)});
+ native.jdDashboard ||= installJDDashboard(native,{root:jdShadow,target:targetState,created:createdDate,date:dateLabel,open:id=>native.run(async()=>{await switchJob(String(id));},toast)});
  return native.jdDashboard.render();
 }
 function cleanJD(){
@@ -68,9 +68,9 @@ function nextStageKey(c){
  if(['SELECTED','JOINED','NOT_SELECTED','NOT_JOINED','SELECTION_CANCELLED'].includes(stageOf(c)))return null;
  return c.nextStage==='ROUND'?(c.nextRoundId?'ROUND:'+c.nextRoundId:null):c.nextStage||null;
 }
-function switchJob(id){
- if(!abandonIfDirty())return;const j=state.jobs.find(x=>x.id===id);if(!j)return;
- selectedId=id;isNew=false;draft=clone(j);stageFilter='POOL';view='pipeline';fullJDOpen=false;cleanJD().stageChanged('POOL');persist();render();
+async function switchJob(id){
+ if(!abandonIfDirty())return false;await native.loadOptions();await native.refreshJD(id,{force:true});state.jobs=structuredClone(native.jobs);const j=state.jobs.find(x=>x.id===id);if(!j)return false;
+ selectedId=id;isNew=false;draft=clone(j);stageFilter='POOL';view='pipeline';fullJDOpen=false;cleanJD().stageChanged('POOL');persist();render();return true;
 }
 
 function showCandidateAction(id,action){
@@ -122,7 +122,8 @@ function composeSubmissionBatch(){
       window.JobmitraUnified?.openEmailStudio?.(base);
     }
 
-function newJD(){
+async function newJD(){
+ await native.loadOptions();
  if(!abandonIfDirty())return;
  stageFilter='POOL';isNew=true;selectedId=null;draft={...native.emptyJD(),status:'ACTIVE'};
  view='details';fullJDOpen=false;render();
@@ -178,4 +179,9 @@ function renderWorkflow(){
  <div class="formgroup"><h3 class="workflow-heading"><span class="stepnum green">03</span> Standard Hiring Outcomes</h3><div class="row outcomes-flow"><span>Selected by Company</span><span>Joined</span></div></div></section>
  <div class="savebar"><span class="grow muted" id="workflowDirtyLabel"></span><button class="btn secondary" type="button" data-undo-workflow>Discard edits</button><button class="btn primary" type="button" data-review-workflow>Review &amp; Save Workflow</button></div></div>`;
  renderImpact();
+}
+
+function renderJobPicker(){
+ const picker=el('jobPicker');if(!picker)return;const jobs=new Map((native.jobOptions||[]).map(j=>[j.id,j]));for(const j of state.jobs)jobs.set(j.id,j);
+ picker.innerHTML=(isNew?'<option value="">New JD (unsaved)</option>':'')+[...jobs.values()].map(j=>`<option value="${esc(j.id)}">${esc(j.title)} · ${esc(j.company)} (${esc(j.id)})</option>`).join('');picker.value=isNew?'':selectedId;
 }

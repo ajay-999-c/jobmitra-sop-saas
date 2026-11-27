@@ -13,11 +13,11 @@ export function createSynchronizer({read,visible,onError=()=>{},interval=()=>150
 export function installJDSync(native,bridge){
  const visible=()=>!document.hidden&&!document.getElementById('jdHost')?.hidden&&bridge.active();
  const sync=createSynchronizer({visible,interval:()=>Math.max(5,native.pollSeconds||15)*1000,
-  read:async()=>{if(bridge.view()==='dashboard')await native.jdDashboard?.refresh();else if(bridge.id())await native.refreshJD(bridge.id());bridge.error('');},
+  read:async()=>{if(bridge.view()==='dashboard')await native.jdDashboard?.refresh({passive:true});else if(bridge.id())await native.refreshJD(bridge.id());bridge.error('');},
   onError:error=>bridge.error(error.message)});
  document.addEventListener('visibilitychange',()=>{if(document.hidden)sync.pause();else void sync.tick();});
  window.addEventListener('focus',()=>void sync.tick());
  window.addEventListener('jobmitra-workspace-visible',()=>void sync.tick());
- const nav=document.querySelector('[aria-label="Recruitment workspaces"]');if(nav)new MutationObserver(()=>{if(visible())void sync.tick();else sync.pause();}).observe(nav,{subtree:true,attributes:true,attributeFilter:['aria-selected']});
+ let activated=false;const nav=document.querySelector('[aria-label="Recruitment workspaces"]');if(nav)new MutationObserver(()=>{if(visible()){if(activated)void sync.tick();else{activated=true;sync.start();}}else sync.pause();}).observe(nav,{subtree:true,attributes:true,attributeFilter:['aria-selected']});
  sync.start();return sync;
 }

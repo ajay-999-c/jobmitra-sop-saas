@@ -3,18 +3,19 @@ const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const defaults=()=>({q:'',company_id:'',assigned_recruiter_id:'',status:'',period:'ALL',date_from:'',date_to:'',target:'',sort:'NEWEST',page:1,page_size:20});
 const periods=[['ALL','All Time'],['TODAY','Today'],['WEEK','This Week'],['MONTH','This Month'],['YEAR','This Year'],['CUSTOM','Custom Date Range']];
 export function installJDDashboard(native,bridge){
- const root=bridge.root,$=id=>root.getElementById(id);let state=defaults(),epoch=0,timer,advanced=false;
+ const root=bridge.root,$=id=>root.getElementById(id);let state=defaults(),epoch=0,timer,advanced=false,pending=0,signature='';
  const options=(value,list)=>list.map(([v,label])=>`<option value="${esc(v)}" ${String(value)===String(v)?'selected':''}>${esc(label)}</option>`).join('');
  const field=(label,key,values)=>`<div class="field"><label for="jd-${key}">${label}</label><select class="control" id="jd-${key}">${options(state[key],values)}</select></div>`;
  function toolbar(){return `<form class="jd-filter-toolbar" id="jdDashboardFilters" aria-label="JD Dashboard filters"><div class="jd-primary-filters"><input type="search" class="control" id="jd-q" maxlength="300" aria-label="Search JDs" value="${esc(state.q)}" placeholder="Search title, company, JD code or recruiter...">${field('JD Status','status',[['','All Statuses'],['DRAFT','Draft'],['ACTIVE','Active'],['ON_HOLD','On hold'],['CLOSED','Closed']])}${field('Hiring Target','target',[['','All Targets'],['TRACK','On Track'],['DUE','Due Soon'],['OVERDUE','Overdue']])}<button class="btn secondary small" id="jd-more-filters" type="button" aria-expanded="${advanced}" aria-controls="jdExtraFilters">Filters ${advanced?'▴':'▾'}</button><button class="btn secondary small" id="jd-clear" type="button">Clear</button></div><div class="jd-extra-filters" id="jdExtraFilters" ${advanced?'':'hidden'}>${field('Company','company_id',[['','All Companies']])}${field('Assigned Recruiter','assigned_recruiter_id',[['','All Recruiters'],['UNASSIGNED','Unassigned']])}${field('Created Date','period',periods)}<div class="jd-filter-custom" ${state.period==='CUSTOM'?'':'hidden'}><div class="field"><label for="jd-date_from">From</label><input class="control" type="date" id="jd-date_from" value="${esc(state.date_from)}"></div><div class="field"><label for="jd-date_to">To (inclusive)</label><input class="control" type="date" id="jd-date_to" value="${esc(state.date_to)}"></div></div>${field('Sort by','sort',[['NEWEST','Newest First'],['OLDEST','Oldest First'],['TARGET','Target Date — Nearest First'],['COMPANY','Company Name — A to Z'],['TITLE','Job Title — A to Z']])}</div></form>`;}
- async function load(){
+ async function load({passive=false}={}){
+  if(passive&&pending)return false;
   const token=++epoch,status=$('jdDashboardStatus');if(!status)return;
   const query=new URLSearchParams();for(const [k,v]of Object.entries(state))if(v!==''&&(state.period==='CUSTOM'||!['date_from','date_to'].includes(k)))query.set(k,v);
   if(state.assigned_recruiter_id==='UNASSIGNED'){query.delete('assigned_recruiter_id');query.set('unassigned','true');}
   if(state.period==='CUSTOM'&&(!state.date_from||!state.date_to||state.date_from>state.date_to)){status.textContent='Choose both dates in order; the end date is inclusive.';$('jdDashboardCount').textContent='';$('jdDashboardRows').replaceChildren();$('jdDashboardPages').replaceChildren();return;}
-  status.textContent='Loading JDs…';
+  pending++;if(!passive)status.textContent='Loading JDs…';
   try{
-   const result=await native.api('/api/v12/approved/jd-dashboard?'+query);if(token!==epoch||!status.isConnected)return;
+   const cached=native.dashboardInitial;native.dashboardInitial=null;const result=cached&&JSON.stringify(state)===JSON.stringify(defaults())?cached:await native.api('/api/v12/approved/jd-dashboard?'+query);if(token!==epoch||!status.isConnected)return;native.adoptDashboard?.(result);const fresh=JSON.stringify(result);if(signature===fresh&&$('jdDashboardRows').children.length){status.textContent='';return false;}signature=fresh;
    if(state.page>result.pages){state.page=result.pages;return load();}
    const summary=(n,label,theme)=>`<div class="metric ${theme}"><p>${label}</p><strong>${n}</strong></div>`;
    $('jdDashboardStats').innerHTML=summary(result.summary.active,'Active JDs','')+summary(result.summary.overdue,'Target missed','red')+summary(result.summary.due_soon,'Due today / soon','amber')+summary(result.summary.filled_closed,'Closed / target filled','green');
@@ -29,10 +30,10 @@ export function installJDDashboard(native,bridge){
    $('jdDashboardPages').innerHTML=`<button class="btn secondary small" type="button" data-page="-1" ${state.page<=1?'disabled':''}>Previous</button><span>Page ${state.page} of ${result.pages}</span><label>Per page <select class="control" aria-label="JDs per page">${options(state.page_size,[[20,'20'],[50,'50'],[100,'100']])}</select></label><button class="btn secondary small" type="button" data-page="1" ${state.page>=result.pages?'disabled':''}>Next</button>`;
    $('jdDashboardPages').querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>{state.page+=Number(b.dataset.page);void load();});
    $('jdDashboardPages').querySelector('select').onchange=e=>{state.page_size=Number(e.target.value);state.page=1;void load();};
-  }catch(error){if(token===epoch&&status.isConnected){status.textContent=error.message||'Unable to load JDs. Check the filter values and try again.';$('jdDashboardCount').textContent='';$('jdDashboardRows').replaceChildren();$('jdDashboardPages').replaceChildren();}}
+  }catch(error){if(token===epoch&&status.isConnected){status.textContent=error.message||'Unable to load JDs. Check the filter values and try again.';$('jdDashboardCount').textContent='';$('jdDashboardRows').replaceChildren();$('jdDashboardPages').replaceChildren();}}finally{pending--;}
  }
  function render(){
-  ++epoch;clearTimeout(timer);
+  ++epoch;signature='';clearTimeout(timer);
   $('workspace').innerHTML=`<div class="jd-dashboard"><div class="row between titlebar"><h1>JD Dashboard</h1><div class="row"><button class="btn secondary small" id="jdDashboardRefresh" type="button" aria-label="Refresh dashboard">↻</button><button class="btn primary" id="newJDFromDashboard" type="button">＋ New JD</button></div></div><div class="metrics" id="jdDashboardStats"></div><section class="panel">${toolbar()}<div class="jd-dashboard-status" id="jdDashboardStatus" role="status"></div><div class="tablewrap"><table class="jd-dashboard-table"><thead><tr><th>Job title</th><th>Company</th><th>Assigned Recruiter</th><th>JD status</th><th>Creation date</th><th>Target date</th><th>Joined / vacancies</th><th>Deadline status</th></tr></thead><tbody id="jdDashboardRows"></tbody></table></div><div class="footer"><span id="jdDashboardCount"></span><div class="jd-dashboard-pages" id="jdDashboardPages"></div></div></section><p class="muted compact">Summary cards cover all JDs. Dates use India calendar time.</p></div>`;
   const form=$('jdDashboardFilters');
   const read=()=>{for(const key of Object.keys(state))if($('jd-'+key))state[key]=$('jd-'+key).value;state.page=1;form.querySelector('.jd-filter-custom').hidden=state.period!=='CUSTOM';};

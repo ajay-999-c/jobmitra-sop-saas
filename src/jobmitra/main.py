@@ -120,9 +120,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(employees_router)
     app.include_router(jobs_router)
     app.include_router(worklog_router)
+    from jobmitra.core.v12_assets import V12Assets
+
     app.mount(
         "/static/ats-v2",
-        CompanyAssets(directory=str(PACKAGE_DIR / "static" / "ats_v2")),
+        V12Assets(directory=str(PACKAGE_DIR / "static" / "ats_v2")),
         name="ats-v2-static",
     )
     app.include_router(ats_v2_router)

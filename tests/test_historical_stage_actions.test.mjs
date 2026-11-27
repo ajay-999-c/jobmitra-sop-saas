@@ -36,7 +36,7 @@ test('older/current-only email responses fail rather than substitute current sta
  await assert.rejects(()=>pipelineEmailContext({api:async()=>({stage:'JOINED',contacts:[]})},{viewStage:'CONTACT',jobId:'9',candidates:[{id:'5'}]}),/could not be verified/);
 });
 test('generated cumulative helpers retain rejected stable round IDs after renaming',()=>{
- const source=fs.readFileSync('src/jobmitra/static/ats_v2/approved.mjs','utf8'),names=new Set(['refStage','progression','lastReachedIndex','stageVisited','stageEventsAt','stageDecision','stageRows','stageCount','stagePending']);
+ const source=fs.readFileSync('src/jobmitra/static/ats_v2/approved-jd.mjs','utf8'),names=new Set(['refStage','progression','lastReachedIndex','stageVisited','stageEventsAt','stageDecision','stageRows','stageCount','stagePending']);
  const helpers=[];traverse(parse(source,{sourceType:'module'}),{VariableDeclarator(p){if(names.has(p.node.id.name)){helpers.push('const '+source.slice(p.node.start,p.node.end)+';');names.delete(p.node.id.name);}}});assert.equal(names.size,0);
  const draft={rounds:[{id:'one',name:'Renamed Round 1'},{id:'two',name:'Round 2'}],candidates:[{stageKey:'NOT_SELECTED',rejection:{stageKey:'ROUND',stageName:'Original Round 1'},journey:[{type:'REJECTED',fromKey:'ROUND',fromName:'Original Round 1',fromRoundId:'one',toKey:'NOT_SELECTED',at:'2030-01-01T00:00:00Z'}]},{stageId:'two',journey:[]}]};
  const ctx=vm.createContext({draft,stageOf:c=>c.stageId?'ROUND:'+c.stageId:c.stageKey,stageDefs:()=>['POOL','CONTACT','SCREENING','COMPANY_SUBMISSION','ROUND:one','ROUND:two','SELECTED','JOINED'].map(key=>({key}))});

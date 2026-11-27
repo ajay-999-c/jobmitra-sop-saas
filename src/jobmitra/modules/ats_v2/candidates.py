@@ -3,7 +3,7 @@
 import json
 import re
 
-from sqlalchemy import text
+from sqlalchemy import bindparam, text
 
 from jobmitra.modules.candidates.schemas import mobile_key
 
@@ -62,6 +62,24 @@ def participation(conn, candidate_id):
             {"id": candidate_id},
         ).mappings()
     ]
+
+
+def participation_many(conn, candidate_ids):
+    from .attachment_corrections import removed_sql
+
+    result = {}
+    if not candidate_ids:
+        return result
+    query = text(
+        "SELECT jc.*,"
+        + removed_sql("jc")
+        + " AS attachment_removed,j.jd_code,j.title,j.status FROM jd_candidates jc "
+        "JOIN job_descriptions j ON j.id=jc.job_id WHERE jc.candidate_id IN :ids "
+        "ORDER BY jc.added_at DESC,jc.id DESC"
+    ).bindparams(bindparam("ids", expanding=True))
+    for row in conn.execute(query, {"ids": candidate_ids}).mappings():
+        result.setdefault(row["candidate_id"], []).append(dict(row))
+    return result
 
 
 def get_candidate(engine, candidate_id):
@@ -358,13 +376,13 @@ def search_candidates(engine, params: SearchParams, *, include_names=False):
             ),
             {**bindings, "limit": params.page_size, "offset": (params.page - 1) * params.page_size},
         ).mappings()
-        items = []
-        for row in rows:
-            item = candidate_dict(row)
-            item["participation"] = participation(conn, item["id"])
-            from .unified import eligibility, is_v3
+        items = [candidate_dict(row) for row in rows]
+        ids = [row["id"] for row in items]
+        from .unified import eligibility_many, is_v3
 
-            if is_v3(conn):
-                item.update(eligibility(conn, item["id"]))
-            items.append(item)
+        participation_rows = participation_many(conn, ids)
+        eligibility_rows = eligibility_many(conn, ids) if is_v3(conn) else {}
+        for item in items:
+            item["participation"] = participation_rows.get(item["id"], [])
+            item.update(eligibility_rows.get(item["id"], {}))
     return {"items": items, "total": total, "page": params.page, "page_size": params.page_size}

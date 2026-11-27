@@ -372,52 +372,117 @@ def next_stage(link, flow):
     return None, None
 
 
+def pipeline_projection(flow, rows):
+    items, removed_items = [], []
+    counts = dict.fromkeys([*FIXED, *OUTCOMES], 0)
+    counts.update({"ROUND:" + r["id"]: 0 for r in flow["rounds"]})
+    for row in rows:
+        item = dict(row)
+        item["skills"] = json.loads(item.pop("skills_json"))
+        item.pop("added_by", None)
+        item.pop("changed_by", None)
+        item["stage_label"] = stage_label(item, flow["rounds"])
+        item["effective_status"] = (
+            item.get("selection_outcome")
+            if item.get("selection_outcome") in {"NOT_JOINED", "SELECTION_CANCELLED"}
+            else item["stage_code"]
+        )
+        item["next_stage"], item["next_round_id"] = next_stage(item, flow)
+        if item["next_stage"]:
+            item["next_stage_label"] = stage_label(
+                {"stage_code": item["next_stage"], "round_id": item["next_round_id"]},
+                flow["rounds"],
+            )
+        key = (
+            "ROUND:" + item["round_id"]
+            if item["stage_code"] == "ROUND"
+            else item["effective_status"]
+        )
+        if item["attachment_removed"]:
+            removed_items.append(item)
+        else:
+            counts[key] = counts.get(key, 0) + 1
+            items.append(item)
+    return {"items": items, "removed_items": removed_items, "counts": counts, "workflow": flow}
+
+
+def membership_select():
+    from .attachment_corrections import removed_sql
+
+    return (
+        "SELECT l.*,"
+        + removed_sql("l")
+        + " AS attachment_removed,c.full_name,c.job_title,c.current_city,c.skills_json,"
+        "c.experience_years,c.phone,c.email FROM jd_candidates l "
+        "JOIN candidates c ON c.id=l.candidate_id"
+    )
+
+
 def pipeline(engine, job_id):
     with engine.connect() as conn:
         flow = workflow(conn, job_id)
-        items, removed_items = [], []
-        from .attachment_corrections import removed_sql
-
-        counts = dict.fromkeys([*FIXED, *OUTCOMES], 0)
-        counts.update({"ROUND:" + r["id"]: 0 for r in flow["rounds"]})
-        for row in conn.execute(
-            text(
-                "SELECT l.*,"
-                + removed_sql("l")
-                + " AS attachment_removed,c.full_name,c.job_title,c.current_city,"
-                "c.skills_json,c.experience_years,c.phone,c.email FROM jd_candidates l "
-                "JOIN candidates c ON c.id=l.candidate_id "
-                "WHERE l.job_id=:id ORDER BY l.added_at,l.id"
-            ),
+        rows = conn.execute(
+            text(membership_select() + " WHERE l.job_id=:id ORDER BY l.added_at,l.id"),
             {"id": job_id},
-        ).mappings():
-            item = dict(row)
-            item["skills"] = json.loads(item.pop("skills_json"))
-            item.pop("added_by", None)
-            item.pop("changed_by", None)
-            item["stage_label"] = stage_label(item, flow["rounds"])
-            item["effective_status"] = (
-                item.get("selection_outcome")
-                if item.get("selection_outcome") in {"NOT_JOINED", "SELECTION_CANCELLED"}
-                else item["stage_code"]
-            )
-            item["next_stage"], item["next_round_id"] = next_stage(item, flow)
-            if item["next_stage"]:
-                item["next_stage_label"] = stage_label(
-                    {"stage_code": item["next_stage"], "round_id": item["next_round_id"]},
-                    flow["rounds"],
-                )
-            key = (
-                "ROUND:" + item["round_id"]
-                if item["stage_code"] == "ROUND"
-                else item["effective_status"]
-            )
-            if item["attachment_removed"]:
-                removed_items.append(item)
-            else:
-                counts[key] = counts.get(key, 0) + 1
-                items.append(item)
-        return {"items": items, "removed_items": removed_items, "counts": counts, "workflow": flow}
+        ).mappings()
+        return pipeline_projection(flow, rows)
+
+
+def batch_requirements(conn, job_id=None):
+    """One repeatable read snapshot, three set-based reads; no per-JD connections."""
+    params = {"job": job_id}
+    requirements = [
+        job_record(r)
+        for r in conn.execute(
+            text(
+                job_select(conn)
+                + (" WHERE j.id=:job" if job_id is not None else "")
+                + " ORDER BY j.id DESC"
+            ),
+            params,
+        ).mappings()
+    ]
+    rounds, members = {}, {}
+    for row in conn.execute(
+        text(
+            "SELECT * FROM jd_interview_rounds"
+            + (" WHERE job_id=:job" if job_id is not None else "")
+            + " ORDER BY display_order,id"
+        ),
+        params,
+    ).mappings():
+        rounds.setdefault(row["job_id"], []).append(dict(row))
+    for row in conn.execute(
+        text(
+            membership_select()
+            + (" WHERE l.job_id=:job" if job_id is not None else "")
+            + " ORDER BY l.added_at,l.id"
+        ),
+        params,
+    ).mappings():
+        members.setdefault(row["job_id"], []).append(dict(row))
+    for job in requirements:
+        rr, mm = rounds.get(job["id"], []), members.get(job["id"], [])
+        flow = {
+            "workflow_mode": job["workflow_mode"],
+            "workflow_version": job["workflow_version"],
+            "rounds": rr,
+            "impact": [
+                {
+                    "round_id": r["id"],
+                    "round_name": r["round_name"],
+                    "candidates": sum(
+                        m["stage_code"] == "ROUND" and m["round_id"] == r["id"] for m in mm
+                    ),
+                }
+                for r in rr
+            ],
+            "fixed_stages": [{"stage_code": k, "label": v} for k, v in FIXED.items()],
+            "outcomes": [{"stage_code": k, "label": v} for k, v in OUTCOMES.items()],
+        }
+        job["workflow"] = flow
+        job["pipeline"] = pipeline_projection(flow, mm)
+    return requirements
 
 
 def associate(engine, job_id, candidate_id):

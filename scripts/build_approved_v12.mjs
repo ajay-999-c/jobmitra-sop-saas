@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import crypto from 'node:crypto';
 import {cleanJDStyles,cleanJDMarkup} from './v12-clean-jd.mjs';
 import {workspaceMarkup,workspaceStyles} from './v12-workspace-layout.mjs';
+import {lazyWorkspace,fingerprint} from './v12-lazy-workspace.mjs';
 import {emailWorkspaceMarkup,emailWorkspaceStyles} from './v12-email.mjs';
 import {createRequire} from 'node:module';
 import {parse} from '@babel/parser';
@@ -71,7 +72,7 @@ source=source.replaceAll("draft[t.name]=t.value;","if(t.name==='company'){draft.
 source=source.replace('phone:row.querySelector(\'[data-field="phone"]\').value.trim(),primary:', 'phone:row.querySelector(\'[data-field="phone"]\').value.trim(),id:contacts[i]?.id||null,primary:');
 // All V12 sourcing entry points open the committed membership's actual stage.
 source=source.replace('openJD:(jobId)=>{activate(\'jd\');window.JobmitraUnifiedJD?.openJob(jobId);}', 'openJD:(jobId,stage)=>{activate(\'jd\');window.JobmitraUnifiedJD?.openJob(jobId,stage);}');
-source=source.replace("openJob:(id)=>{const j=state.jobs.find(x=>x.id===id);if(j){switchJob(id);view='pipeline';stageFilter='POOL';render();return true;}return false;}", "openJob:(id,stage)=>{const j=state.jobs.find(x=>x.id===id);if(j){switchJob(id);view='pipeline';stageFilter=stage&&stageDefs().some(d=>d.key===stage)?stage:'POOL';cleanJD().stageChanged(stageFilter);render();return true;}return false;}");
+source=source.replace("openJob:(id)=>{const j=state.jobs.find(x=>x.id===id);if(j){switchJob(id);view='pipeline';stageFilter='POOL';render();return true;}return false;}", "openJob:async(id,stage)=>{if(!await switchJob(String(id)))return false;view='pipeline';stageFilter=stage&&stageDefs().some(d=>d.key===stage)?stage:'POOL';cleanJD().stageChanged(stageFilter);render();return true;}");
 // Attachment uses canonical Pool history followed by Candidate Contact.
 source=source.replaceAll('Initial stage: Candidate Pool · No duplicate candidate registration','Initial stage: Candidate Contact · Candidate Pool history retained').replaceAll('Adding a candidate never triggers email, interview scheduling or automatic stage advancement.','Adding starts at Candidate Contact; it never sends email or schedules an interview.').replaceAll('Adding here does not register a new candidate, send an email, or change their recruitment stage.','Adding here retains Candidate Pool history and starts at Candidate Contact; it never registers a duplicate candidate or sends email.').replaceAll('Recruitment stage progression is managed on the JD Candidate Pipeline, not automatically when you add a candidate.','After the initial move to Candidate Contact, further progression is managed on the JD Candidate Pipeline.');
 // Canonical numeric JD IDs still expose the approved Open control.
@@ -91,8 +92,11 @@ source=source.replaceAll('refStage(ev.fromKey,ev.fromName)','refStage(ev.fromKey
 source=source.replace('window.JobmitraUnifiedCompanies={refreshFromJD,getEligibility,','window.JobmitraUnifiedCompanies={getSelectedCompanyId:()=>state.selectedCompany,refreshFromJD,getEligibility,');
 // Initialize and refresh each original component from canonical service projections.
 source=source.replace('    render();\n  })();',`    const acceptUpdate=event=>{
-      if(event.detail?.id&&String(event.detail.id)!==String(selectedId)){if(view==='dashboard')void native.jdDashboard?.refresh();return;}
-      state.jobs=structuredClone(native.jobs);const current=state.jobs.find(j=>j.id===selectedId);
+      const previous=state.jobs.find(j=>j.id===selectedId);
+      state.jobs=structuredClone(native.jobs);
+      if(event.detail?.id&&String(event.detail.id)!==String(selectedId))return;
+      const current=state.jobs.find(j=>j.id===selectedId);
+      if(!event.detail?.force&&(isNew||JSON.stringify(previous)===JSON.stringify(current)))return;
       if((detailsDirty()||workflowDirty()||el('modalHost')?.children.length)&&!event.detail?.force){
         let banner=el('jdRemoteChanges');if(!banner){banner=jdShadow.ownerDocument.createElement('div');banner.id='jdRemoteChanges';banner.className='banner amber';banner.setAttribute('role','status');el('workspace').before(banner);}
         banner.textContent='Server changes are available. Your unsaved edits are preserved. ';
@@ -105,10 +109,10 @@ source=source.replace('    render();\n  })();',`    const acceptUpdate=event=>{
       if(view==='dashboard')void native.jdDashboard?.refresh();else{render();const next=el('workspace')?.querySelector('.rail');if(next)next.scrollLeft=left;if(focusId){const field=el(focusId);field?.focus({preventScroll:true});if(start!=null&&field?.setSelectionRange)field.setSelectionRange(start,end);}window.scrollTo({top:position});}
     };
     window.addEventListener('jobmitra-native-update',acceptUpdate);window.addEventListener('jobmitra-jd-update',acceptUpdate);
-    installJDSync(native,{active:()=>!hostJD.hidden,view:()=>view,id:()=>selectedId,error:message=>{const status=el('jdSyncNotice');if(status)status.textContent='Refresh unavailable: '+message;}});
+    installJDSync(native,{active:()=>!hostJD.hidden,view:()=>view,id:()=>selectedId,error:message=>{const status=el('jdSyncNotice');if(status)status.textContent=message?'Refresh unavailable: '+message:'';}});
     if(!state.jobs.length)view='dashboard';render();
   })();`);
-source=source.replace(' search();renderDetails();',` window.addEventListener('jobmitra-native-update',()=>{candidates.splice(0,candidates.length,...structuredClone(native.people));jobs.splice(0,jobs.length,...structuredClone(native.jobs));state.pools=native.pools();state.officeVisits=native.historyActivities('OFFICE_VISIT');state.jobSearchRequests=native.historyActivities('JOB_SEARCH_REQUEST');if(tab==='search')search();if(tab==='pool')renderPool();if(tab==='dashboard')renderDashboard();if(tab==='candidates'){renderCandidates();if(activeProfileCandidate)showFullProfilePanel(activeProfileCandidate,activeProfileSection);}if(tab==='resumes')renderResumes();if(tab==='visits')renderOfficeVisits();if(tab==='requests')renderJobRequests();});\n search();renderDetails();`);
+source=source.replace(' search();renderDetails();',` window.addEventListener('jobmitra-native-update',()=>{candidates.splice(0,candidates.length,...structuredClone(native.people));jobs.splice(0,jobs.length,...structuredClone(native.jobs));state.pools=native.pools();state.officeVisits=native.historyActivities('OFFICE_VISIT');state.jobSearchRequests=native.historyActivities('JOB_SEARCH_REQUEST');if(hostCandidate.hidden)return;if(tab==='search')search();if(tab==='pool')renderPool();if(tab==='dashboard')renderDashboard();if(tab==='candidates'){renderCandidates();if(activeProfileCandidate)showFullProfilePanel(activeProfileCandidate,activeProfileSection);}if(tab==='resumes')renderResumes();if(tab==='visits')renderOfficeVisits();if(tab==='requests')renderJobRequests();});\n search();renderDetails();`);
 source=source.replace('renderScope();renderAnalytics();renderDirectory();renderCompany();refreshFromJD();',`window.addEventListener('jobmitra-native-update',()=>{state.companies=structuredClone(native.companies);state.placements=structuredClone(native.placements);state.available=structuredClone(native.people);renderScope();renderAnalytics();renderDirectory();renderCompany();});renderScope();renderAnalytics();renderDirectory();renderCompany();`);
 source=source.replace('return {name:master.name||c.name,experience:', 'return {id:c.id,name:master.name||c.name,experience:');
 source=source.replace('getContacts?.(draft.company)', 'getContacts?.(draft.companyId)');source=source.replaceAll('getContacts?.(draft.company)', 'getContacts?.(draft.companyId)');
@@ -181,6 +185,7 @@ source=source.replace("draft[name]||''", "draft[name]??''");
 source=source.replace("if(n.length<3)return'Stage names must contain at least 3 characters.'", "if(n.length<3||n.length>80)return'Stage names must contain 3–80 characters.'");
 source=source.replace("draft.workflowMode='CONFIGURED';draft.rounds=names.map","if(draft.rounds.some(r=>r.active)&&!confirm('Replace the unsaved interview rounds with this preset?'))return;draft.workflowMode='CONFIGURED';draft.rounds=names.map");
 source=source.replace('Maximum 15 company interview rounds in this prototype.','Maximum 15 company interview rounds.');
+source=source.replace("const master=window.JobmitraUnifiedCandidate?.getCandidateById?.(c.id)||{};","const master=window.JobmitraUnifiedCandidate?.getCandidateById?.(c.id)||native.people.find(p=>p.id===c.id)||{};");
 // Backend-neutral statuses keep the approved presentation valid for either store.
 const storageWording=[
  ['Canonical company records from SQLite.','Canonical company records from the workspace.'],
@@ -205,8 +210,12 @@ if(/localStorage\.|indexedDB\./.test(source))throw Error('Browser persistence re
 const emailPattern=/const EMAIL_STUDIO_DOCUMENT=("(?:\\.|[^"\\])*");/;
 if(JSON.parse(match[1].match(emailPattern)[1])!==JSON.parse(source.match(emailPattern)[1]))throw Error('Approved embedded Email Studio changed.');
 source=source.replace('native.renderAccess();','native.renderAccess();installEmployees(native);');
-const generated='// Generated from immutable approved V12 HTML. Source SHA-256: '+hash+'\nimport {native} from "./approved-api.mjs";\nimport {installEmployees} from "./employees.mjs";\nimport {installJDDashboard} from "./jd-dashboard.mjs";\nimport {installJDSync} from "./jd-sync.mjs";\nimport {installCleanJD} from "./jd-clean.mjs";\nimport {installWorkspaceSelectors} from "./workspace-selectors.mjs";\nimport {installEmailWorkspace,installContextualEmail} from "./email-studio.mjs";\nimport {canComposePipelineEmail,pipelineEmailContext} from "./pipeline-email.mjs";\nimport {submitCreation,nativeFieldErrors,candidatePeriodErrors} from "./creation-forms.mjs";\nimport {installCandidateDesk} from "./candidate-desk.mjs";\nimport {installCandidateRegisters,registrationDate} from "./candidate-registers.mjs";\n'+source;
-let shell=html.slice(0,match.index)+`<script type="module" src="/static/ats-v2/approved.mjs"></script>\n</body></html>`;
+const integrated='// Generated from immutable approved V12 HTML. Source SHA-256: '+hash+'\nimport {native} from "./approved-api.mjs";\nimport {installEmployees} from "./employees.mjs";\nimport {installJDDashboard} from "./jd-dashboard.mjs";\nimport {installJDSync} from "./jd-sync.mjs";\nimport {installCleanJD} from "./jd-clean.mjs";\nimport {installWorkspaceSelectors} from "./workspace-selectors.mjs";\nimport {installEmailWorkspace,installContextualEmail} from "./email-studio.mjs";\nimport {canComposePipelineEmail,pipelineEmailContext} from "./pipeline-email.mjs";\nimport {submitCreation,nativeFieldErrors,candidatePeriodErrors} from "./creation-forms.mjs";\nimport {installCandidateDesk} from "./candidate-desk.mjs";\nimport {installCandidateRegisters,registrationDate} from "./candidate-registers.mjs";\n'+source;
+const imports=integrated.slice(integrated.indexOf('import '),integrated.indexOf(source));
+source=source.replaceAll('/static/ats-v2/jd-workspace.css','/static/ats-v2/jd-workspace.css?v='+fingerprint(workspaceStyles())).replaceAll('/static/ats-v2/jd-clean.css','/static/ats-v2/jd-clean.css?v='+fingerprint(cleanJDStyles()));
+const lazy=lazyWorkspace(source,imports);
+const generated='// Generated from immutable approved V12 HTML. Source SHA-256: '+hash+'\n'+lazy.bootstrap;
+let shell=html.slice(0,match.index)+`<script type="module" src="/static/ats-v2/approved.mjs?v=${fingerprint(generated)}"></script>\n</body></html>`;
 shell=shell.replace('<body>','<body data-section="{{ workspace_section }}">').replace('INTERACTIVE HTML PREVIEW</b> · Local demo data','SQLITE WORKSPACE</b> · Loading records').replace('<title>','<link rel="icon" href="/static/stage2/favicon.svg" type="image/svg+xml"><title>');
 shell=shell.replace('</head>','<link rel="stylesheet" href="/static/ats-v2/email-workspace.css"></head>').replace('JD Tracking</button>','JD Tracking</button><button id="unifiedEmailTab" type="button" role="tab" aria-selected="false">Email</button>').replace('<div id="emailStudioOverlay"',emailWorkspaceMarkup()+'<div id="emailStudioOverlay"').replace('three independent workspaces','four independent workspaces');
 // Approved position-only change: keep logo, dimensions and tab styling intact.
@@ -219,7 +228,8 @@ shell=shell.replace(/(<div role="tablist" class="unified-switcher" aria-label="R
  return open+['unifiedJDTab','unifiedCandidateTab','unifiedEmailTab','unifiedCompaniesTab','unifiedEmployeesTab'].map(id=>buttons[id]).join('')+close;
 });
 shell=shell.replace('</style>','\n.unified-header{height:62px;min-height:62px;padding:0 24px;gap:24px}.unified-brand{font-size:25px}.unified-switcher{height:62px;align-items:stretch}.unified-switcher{background:white;border-radius:0;padding:0}.unified-switcher button{background:white;border-radius:0;box-shadow:none;padding:0 17px;border-bottom:3px solid transparent}.unified-switcher button[aria-selected="true"]{box-shadow:none;border-bottom-color:#ce2333}@media(max-width:700px){.unified-header{height:auto;padding:10px 12px}.unified-switcher{height:35px}}\n</style>');
-const outputs=[['src/jobmitra/static/ats_v2/approved.mjs',generated],['src/jobmitra/templates/v12/approved.html',shell],['src/jobmitra/static/ats_v2/jd-clean.css',cleanJDStyles()],['src/jobmitra/static/ats_v2/jd-workspace.css',workspaceStyles()],['src/jobmitra/static/ats_v2/email-workspace.css',emailWorkspaceStyles()]];
+shell=shell.replace('/static/ats-v2/email-workspace.css','/static/ats-v2/email-workspace.css?v='+fingerprint(emailWorkspaceStyles()));
+const outputs=[...lazy.modules,['src/jobmitra/static/ats_v2/approved.mjs',generated],['src/jobmitra/templates/v12/approved.html',shell],['src/jobmitra/static/ats_v2/jd-clean.css',cleanJDStyles()],['src/jobmitra/static/ats_v2/jd-workspace.css',workspaceStyles()],['src/jobmitra/static/ats_v2/email-workspace.css',emailWorkspaceStyles()]];
 if(check){
  for(const [path,contents] of outputs)if(!fs.readFileSync(path).equals(Buffer.from(contents)))throw Error('Generated artifact differs: '+path);
  console.log('Approved reference and generated artifacts verified byte-for-byte.');

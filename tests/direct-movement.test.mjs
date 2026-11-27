@@ -15,7 +15,7 @@ test('stage selector filters all configured destinations by case-insensitive par
  assert.equal(matchingOptions([{value:'retired',label:'Retired',disabled:true}],'').length,0);
 });
 test('existing cumulative/completion helpers count each direct-move membership once',()=>{
- const source=fs.readFileSync('src/jobmitra/static/ats_v2/approved.mjs','utf8'),names=new Set(['refStage','progression','lastReachedIndex','stageVisited','stageEventsAt','stageDecision','stageRows','stageCount','stagePending']),helpers=[];
+ const source=fs.readFileSync('src/jobmitra/static/ats_v2/approved-jd.mjs','utf8'),names=new Set(['refStage','progression','lastReachedIndex','stageVisited','stageEventsAt','stageDecision','stageRows','stageCount','stagePending']),helpers=[];
  traverse(parse(source,{sourceType:'module'}),{VariableDeclarator(p){if(names.has(p.node.id.name)){helpers.push('const '+source.slice(p.node.start,p.node.end)+';');names.delete(p.node.id.name);}}});assert.equal(names.size,0);
  const path=['POOL','CONTACT','SCREENING','COMPANY_SUBMISSION','ROUND:one','ROUND:two','ROUND:three'],candidate={id:'7',stageId:'three',addedAt:'2026-01-01T00:00:00Z',journey:path.slice(1).map((key,i)=>({type:'MOVED',fromKey:path[i],toKey:key,at:'2026-01-01T00:00:00Z'}))};
  const draft={rounds:[{id:'one',name:'Portfolio'},{id:'two',name:'Custom Panel'},{id:'three',name:'Owner Discussion'}],candidates:[candidate,{id:'8',stageKey:'CONTACT',journey:[]}]};

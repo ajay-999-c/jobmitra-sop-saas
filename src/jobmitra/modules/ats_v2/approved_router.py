@@ -122,6 +122,45 @@ def current_state(engine: Store):
     return approved.state(engine)
 
 
+@router.get("/workspace-options")
+def workspace_options(engine: Store):
+    from . import workspace_store
+
+    with engine.connect() as conn:
+        companies = [
+            dict(r)
+            for r in conn.execute(
+                text(
+                    "SELECT id,company_name,is_active,contacts_json FROM companies "
+                    "ORDER BY company_name_key,id"
+                )
+            ).mappings()
+        ]
+        jobs_list = [
+            dict(r)
+            for r in conn.execute(
+                text(
+                    "SELECT j.id,j.jd_code,j.title,j.status,c.company_name FROM job_descriptions j "
+                    "JOIN companies c ON c.id=j.company_id ORDER BY j.created_at DESC,j.id DESC"
+                )
+            ).mappings()
+        ]
+        employees = (
+            [
+                dict(r)
+                for r in conn.execute(
+                    text(
+                        "SELECT id,display_name,is_active FROM v_employee_directory "
+                        "ORDER BY lower(display_name),id"
+                    )
+                ).mappings()
+            ]
+            if workspace_store.installed(conn)
+            else []
+        )
+    return {"companies": companies, "jobs": jobs_list, "employees": employees}
+
+
 @router.get("/employee-options")
 def employee_options(engine: Store):
     from . import workspace_store

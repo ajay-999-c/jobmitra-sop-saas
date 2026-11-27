@@ -199,16 +199,6 @@ def state(engine, job_id=None):
             company["contacts"] = json.loads(company.pop("contacts_json"))
             company["phones"] = json.loads(company.pop("general_phone_numbers_json"))
             company["source_ids"] = json.loads(company.pop("source_register_ids_json"))
-        jids = list(
-            conn.scalars(
-                text(
-                    "SELECT id FROM job_descriptions"
-                    + (" WHERE id=:job" if scoped else "")
-                    + " ORDER BY id DESC"
-                ),
-                params,
-            )
-        )
         versions = (
             []
             if scoped
@@ -275,12 +265,7 @@ def state(engine, job_id=None):
             if workspace_store.installed(conn)
             else []
         )
-    requirements = []
-    for jid in jids:
-        job = jobs.get_job(engine, jid)
-        job["workflow"] = jobs.get_workflow(engine, jid)
-        job["pipeline"] = jobs.pipeline(engine, jid)
-        requirements.append(job)
+        requirements = jobs.batch_requirements(conn, job_id)
     return {
         "candidates": people,
         "candidate_sources": candidate_sources,

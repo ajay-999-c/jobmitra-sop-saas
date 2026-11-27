@@ -158,7 +158,10 @@ def browse(engine, filters, now=None):
         companies = [
             dict(r)
             for r in conn.execute(
-                text("SELECT id,company_name FROM companies ORDER BY lower(company_name),id")
+                text(
+                    "SELECT id,company_name,is_active FROM companies "
+                    "ORDER BY lower(company_name),id"
+                )
             ).mappings()
         ]
         employees = (

@@ -196,3 +196,112 @@ Two real browser sessions confirmed: remote location save200; first session draf
 unchanged; stale save409 JD_CONFLICT; explicit review loaded the remote value.
 Remote candidate feedback appeared automatically while the selected Contact stage
 and unsent Email Studio note remained unchanged. Gmail was disabled throughout.
+
+### Measured optimization and final verification
+
+The existing integrated components are now generated separately as approved-jd,
+approved-candidate, approved-companies and approved-email modules. Their canonical
+markup/handlers remain the same. Startup reads only access policy plus the first
+JD Dashboard page/summary/filter options. Other components mount on demand;
+Candidate Desk/Companies still use a batched compatibility snapshot when first
+opened. That remaining snapshot is deliberately not described as eliminated.
+New/Edit/Switch JD loads minimal contact/employee/JD selector metadata on demand.
+Public content-versioned modules/CSS use immutable caching; bare helper imports
+revalidate. No private API, document, database or authenticated HTML cache policy
+was relaxed. No framework, infrastructure, dependency or index was introduced.
+
+Backend projections reuse the canonical per-membership transformation. All jobs,
+rounds and memberships are read in three batches inside the same repeatable-read
+snapshot. Candidate results batch participation and preserve the original
+selection/joining eligibility rules, including historical locks. Scoped reads and
+legacy full-state responses retain the same fields, salary precision and IDs.
+
+Comparable fixture:244 synthetic candidates,2 companies,15 JDs,54 memberships,
+465 events. Both service runs used this unchanged remote PostgreSQL dataset;
+3 samples per service. SQL counts exclude one initial cached-extension probe.
+
+| Measurement | Before | After |
+| --- | ---: | ---: |
+| Full state, median | 3076.98ms /134 SQL | 1222.59ms /16 SQL |
+| Selected JD, median | 255.16ms /18 SQL | 195.61ms /12 SQL |
+| Candidate search,10 results, median | 314.30ms /32 SQL | 91.76ms /5 SQL |
+| Dashboard, median | 95.69ms /6 SQL | 120.36ms /6 SQL |
+| Full-state JSON bytes | 1,003,097 | 1,003,097 |
+| Selected-JD JSON bytes | 26,401 | 26,401 |
+| Search JSON bytes | 10,464 | 10,464 |
+| Dashboard JSON bytes | 8,842 | 8,874 |
+
+Mac browser, cache disabled, one recorded run per condition:
+
+| Browser measurement | Before | After |
+| --- | ---: | ---: |
+| Initial dashboard usable | 4424.4ms | 260.1ms |
+| API requests at readiness | 4 | 2 |
+| Initial resource entries | 28 | 21 |
+| Initial full-state HTTP body | 928,391 bytes | Not requested |
+| Bootstrap module bytes | 486,733 | 4,448 |
+| Long tasks during initial load | One212ms | None observed |
+| Open JD through populated Pool | 1580.9ms | 823.0ms |
+| Contact stage switch | 37.4ms | 29.2ms |
+| Candidate partial search, including debounce | 842.8ms | 792.5ms |
+| Employee partial search, including debounce | 299.5ms | 791.7ms |
+| Company selector availability/filter | 19.5ms | 188.4ms |
+
+Employee/selector samples include asynchronous cold/on-demand work and are not
+claimed as improvements. Employee HTTP medians were42.84→59.24ms (339bytes).
+Company metadata now loads only when needed instead of in initial startup.
+Dashboard service timings varied with the LAN; its SQL/metric rules are unchanged.
+The representative dashboard EXPLAIN ANALYZE measured0.314→0.253ms server execution
+(0.660→0.602ms planning), supporting round-trip/payload work rather than speculative
+indexes. These are Mac app/browser→office PostgreSQL measurements, not Windows
+NSSM or concurrent production-load benchmarks. Runtime traces are private/ignored.
+
+Final focused batch:25 Python tests passed;38 JS checks passed. It covers canonical
+employee CRUD/UUID/FK/history, inactive assignments, real isolated Alembic rollback,
+new Active defaults/null salary semantics, guarded edits, workflow retirement and
+restore, correction/closure, scoped ETag304, batch equivalence/constant query count,
+real selection/joining eligibility, public caching, immutable CSS/reference and
+legacy URL routing. Existing blocked/cumulative/historical/email actions, retry and
+stale-response checks passed. Ruff, Python/JS syntax, generated-source and Git
+whitespace checks passed. Starlette emits its existing httpx deprecation warning;
+no unrelated package change was made.
+
+Browser checked default dashboard, five-tab order, persistent sidebar, employee
+search/CRUD (earlier checkpoint), real JD creation/assignment, zero/null preservation,
+interview edit/remove/restore/occupied protection, Contact attachment, direct/normal
+progression, feedback, scheduling, correction/restoration, explicit closure and
+history. Two sessions verified automatic feedback updates, unsaved JD409 conflicts,
+Reload and review, and an unchanged unsent Email Studio draft. The final lazy build
+again synchronized feedback across sessions. All nine stage cards measure138×114px.
+Candidate Desk loaded244 results, Register Candidate and Foundit; Companies retained
+Prepare Proposal. Lazy Email opened without mounting Candidate Desk and read back
+the canonical candidate, recipient and JD. Gmail stayed disabled; no email was sent.
+
+Screenshots (local ignored artifacts, all synthetic data):
+- `output/playwright/jd-workspace/01-employees.png`
+- `output/playwright/jd-workspace/02-dashboard-desktop.png` (1600×1000 viewport)
+- `output/playwright/jd-workspace/02-dashboard-mobile.png` (390×844 viewport)
+- `output/playwright/jd-workspace/03-create-jd.png`
+- `output/playwright/jd-workspace/04-interview-rounds.png`
+- `output/playwright/jd-workspace/05-pipeline-actions.png`
+
+Both immutable HTML reference hashes remain unchanged. The embedded approved Email
+Studio document is byte-identical after module extraction. Proposal templates,
+Gmail transport/security, resume/storage services and Windows NSSM configuration
+were not changed. No office/public/production records or schema were written.
+Only disposable/synthetic remote namespaces received functional test writes.
+
+### Local checkpoint list and deployment boundary
+
+- `5f7d2b0` — employee management and recruiter assignment.
+- `5a0dd2e` — approved workspace navigation/layout.
+- `dfd9496` — interview management and pipeline actions.
+- `f3fbaf3` — explicit closure and auditable attachment correction.
+- `95feb5d` — targeted refresh and synchronization.
+- Performance checkpoint: see the final local Git log/report.
+
+No push or deployment is authorized. Before office deployment, separately approve
+backups and explicit Alembic0008 plus workspace_v1 migration to the office schema;
+its original schema was intentionally left unmigrated. Rehearse the same release
+under native Windows/NSSM with the real office dataset and approved access policy.
+No cutover, real Gmail send or Windows storage validation was performed here.

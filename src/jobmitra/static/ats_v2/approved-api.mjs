@@ -33,19 +33,33 @@ export const native={snapshot:null,people:[],jobs:[],companies:[],placements:[],
  async loadEmployees(){this.employees=(await this.api('/api/v12/approved/employee-options')).map(e=>({id:e.id,name:e.display_name,active:!!e.is_active}));return this.employees;},
  emptyJD(){return{id:'',company:'',companyId:'',companyContact:'',recruiterId:'',recruiterName:'Unassigned',revision:null,title:'',location:'',workMode:'',skills:'',notes:'',fullJD:'',qualification:'',experienceMin:'',experienceMax:'',salaryMin:'',salaryMax:'',salaryPeriod:'MONTHLY',salaryBasis:'UNKNOWN',vacancies:'',status:'ACTIVE',workflowMode:'UNKNOWN',workflowVersion:0,rounds:[],candidates:[],events:[],createdAt:null,targetDate:null};},
  event(e){const p=e.payload||e.payload_json||{},a=e.after||e.after_json||{};return{type:e.event_type==='COMPANY_SELECTED'||e.event_type==='JOINING_CONFIRMED'?'MOVED':e.event_type==='POOL_ADDED'?'ADDED':e.event_type,at:e.created_at,fromKey:e.from_stage,toKey:e.to_stage,fromName:e.from_label_snapshot,toName:e.to_label_snapshot,fromRoundId:p.from_round_id||e.before?.round_id||e.before_json?.round_id||p.feedback_stage?.round_id||null,toRoundId:p.to_round_id||a.round_id||p.feedback_stage?.round_id||null,feedback:e.feedback||a.notes||'',feedbackSource:e.feedback_source,workflowVersion:e.workflow_version,scheduledAt:p.scheduledAt||a.details?.scheduledAt,...p};},
+ async bootstrap(){
+  const result=await this.api('/api/v12/approved/jd-dashboard');this.dashboardInitial=result;
+  this.snapshot={jobs:[],candidates:[],companies:[],resumes:[],events:[],activities:[],placements:[],candidate_sources:[],today:result.calendar.today};
+  this.today=result.calendar.today;this.adoptDashboard(result);
+ },
+ adoptDashboard(result){
+  this.today=result.calendar.today;this.employees=(result.employees||[]).map(e=>({id:e.id,name:e.display_name,active:!!e.is_active}));
+  const prior=new Map(this.companies.map(c=>[c.id,c]));this.companies=result.companies.map(c=>({...prior.get(c.id),id:c.id,name:c.company_name,active:!!c.is_active,contacts:prior.get(c.id)?.contacts||[],phone:prior.get(c.id)?.phone||''}));
+ },
+ async loadOptions(){
+  if(this.optionsRead)return this.optionsRead;
+  return this.optionsRead=(async()=>{const data=await this.api('/api/v12/approved/workspace-options');this.jobOptions=data.jobs.map(j=>({id:String(j.id),code:j.jd_code,title:j.title,company:j.company_name,status:j.status}));this.employees=data.employees.map(e=>({id:e.id,name:e.display_name,active:!!e.is_active}));
+   const old=new Map(this.companies.map(c=>[c.id,c]));this.companies=data.companies.map(c=>({...old.get(c.id),id:c.id,name:c.company_name,active:!!c.is_active,contacts:JSON.parse(c.contacts_json).filter(x=>!x.is_archived).map(x=>({id:x.id,name:x.contact_name||'',title:x.designation||'',email:x.email||'',phone:(x.phone_numbers||[]).join(', '),primary:!!x.is_primary_email}))}));return data;})().finally(()=>this.optionsRead=null);
+ },
  async refresh(emit=true){
-  const request={};this.refreshRequest=request;
+  if(this.fullRead)return this.fullRead.promise;
+  const request={};this.fullRead=request;
   request.promise=(async()=>{
-  if(this.localDevelopment===undefined)await this.loadAccess();
-  const s=await this.api('/api/v12/approved/state');
-  // A later refresh owns publication; late pre-mutation reads cannot undo it.
-  if(this.refreshRequest!==request)return this.refreshRequest.promise;
-  return this.applyState(s,emit);
-  })();
-  return request.promise;
+   if(this.localDevelopment===undefined)await this.loadAccess();
+   const epoch=this.readEpoch||0,version=this.version||0;
+   const s=await this.api('/api/v12/approved/state');
+   if(epoch!==(this.readEpoch||0)||version!==(this.version||0)){if(this.fullRead===request)this.fullRead=null;return this.refresh(emit);}
+   this.fullLoaded=true;return this.applyState(s,emit);
+  })().finally(()=>{if(this.fullRead===request)this.fullRead=null;});return request.promise;
  },
  applyState(s,emit=true){
-  this.snapshot=s;this.employees=(s.employees||[]).map(e=>({id:e.id,name:e.display_name,active:!!e.is_active}));this.today=s.today;this.emailEntries=emailEntries(s.events);
+  this.version=(this.version||0)+1;this.snapshot=s;this.employees=(s.employees||[]).map(e=>({id:e.id,name:e.display_name,active:!!e.is_active}));this.today=s.today;this.emailEntries=emailEntries(s.events);
   this.companies=s.companies.map(c=>({id:c.id,revision:c.revision,sourceId:(c.source_ids||[]).join(', ')||c.id,name:c.company_name,city:c.city||'',state:c.state||'',postal:c.postal_code||'',address:c.address_line||'',phone:c.phones.join('\n'),active:!!c.is_active,contacts:c.contacts.filter(x=>!x.is_archived).map(x=>({id:x.id,name:x.contact_name||'',title:x.designation||'',email:x.email||'',phone:(x.phone_numbers||[]).join(', '),primary:!!x.is_primary_email})),jobs:s.jobs.filter(j=>j.company_id===c.id).map(j=>({id:String(j.id),title:j.title,status:j.status==='ACTIVE'?'Active':j.status}))}));
   this.people=s.candidates.map(c=>{
    const versions=s.resumes.filter(r=>r.candidate_id===c.id);const reviewed=versions.find(r=>r.resume_kind==='PARSED_TEXT'&&r.is_current&&!r.requires_review);const raw=s.events.find(e=>e.candidate_id===c.id&&e.event_type==='REGISTRATION_DETAILS')?.payload||{};

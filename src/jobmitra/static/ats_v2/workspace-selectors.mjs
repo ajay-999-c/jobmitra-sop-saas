@@ -1,7 +1,7 @@
 import {enhanceSelect} from './searchable-select.mjs';
 // Filter the existing complete option sets; never broaden active-JD/company rules.
 export function selectorSearch(kind,id,native,label=''){
- const item=(kind==='job'?native.jobs:kind==='employee'?(native.employees||[]):native.companies).find(x=>String(x.id)===String(id));
+ const item=(kind==='job'?[...native.jobs,...(native.jobOptions||[])]:kind==='employee'?(native.employees||[]):native.companies).find(x=>String(x.id)===String(id));
  return [label,...(kind==='job'?[item?.title,item?.company,item?.code,item?.id]:[item?.name])].filter(x=>x!==null&&x!==undefined).join(' ');
 }
 export function installWorkspaceSelectors(native,root){
