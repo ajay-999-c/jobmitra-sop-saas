@@ -6,6 +6,7 @@ migrations/v12_postgres/001_stage.sql -text whitespace=-blank-at-eol,-blank-at-e
 migrations/v12_postgres/001_source_contract.json -text
 src/jobmitra/modules/ats_v2/postgres_runtime.sql -text
 src/jobmitra/modules/ats_v2/postgres_rules.sql -text
+src/jobmitra/modules/ats_v2/workspace_v1.sql text eol=lf
 "Jobmitra_Unified_Workspace_V12_Companies_Integrated (1).html" -text
 # Keep generator inputs and outputs reproducible with Windows core.autocrlf enabled.
 scripts/build_approved_v12.mjs text eol=lf

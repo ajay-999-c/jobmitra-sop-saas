@@ -21,7 +21,9 @@ SQLITE_PATH = Path(__file__).with_name("workspace_v1_sqlite.sql")
 
 
 def digest():
-    return hashlib.sha256(SQL_PATH.read_bytes()).hexdigest()
+    # Keep the existing LF manifest valid on CRLF checkouts. Preserve every
+    # other byte, including SQL whitespace, so content changes still fail closed.
+    return hashlib.sha256(SQL_PATH.read_bytes().replace(b"\r\n", b"\n")).hexdigest()
 
 
 def installed(conn):
