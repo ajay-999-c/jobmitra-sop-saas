@@ -211,6 +211,21 @@ def state(engine):
         from .candidate_registers import source_options
 
         candidate_sources = source_options(conn)
+        from . import workspace_store
+
+        employees = (
+            [
+                dict(r)
+                for r in conn.execute(
+                    text(
+                        "SELECT id,display_name,is_active FROM v_employee_directory ORDER "
+                        "BY lower(display_name),id"
+                    )
+                ).mappings()
+            ]
+            if workspace_store.installed(conn)
+            else []
+        )
     requirements = []
     for jid in jids:
         job = jobs.get_job(engine, jid)
@@ -220,6 +235,7 @@ def state(engine):
     return {
         "candidates": people,
         "candidate_sources": candidate_sources,
+        "employees": employees,
         "companies": companies,
         "resumes": versions,
         "jobs": requirements,

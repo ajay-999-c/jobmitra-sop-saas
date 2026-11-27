@@ -1,0 +1,41 @@
+// Canonical StaffMember UUID directory. Assignment is responsibility, never login proof.
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+export function installEmployees(native){
+ if(document.getElementById('employeesHost'))return;
+ const nav=document.querySelector('[aria-label="Recruitment workspaces"]'),host=document.createElement('section'),tab=document.createElement('button');
+ host.id='employeesHost';host.className='app-shell';host.hidden=true;host.setAttribute('aria-label','Employees');document.querySelector('#emailHost').after(host);
+ tab.id='unifiedEmployeesTab';tab.type='button';tab.setAttribute('role','tab');tab.setAttribute('aria-selected','false');tab.textContent='Employees';nav.append(tab);
+ const style=document.createElement('style');style.textContent=`#employeesHost{padding:24px 30px;max-width:1500px;margin:auto}.employee-toolbar{display:flex;align-items:center;gap:14px;margin-bottom:18px}.employee-toolbar h1{margin:0;flex:1}.employee-toolbar input{padding:10px;border:1px solid #dfe5ed;border-radius:7px;max-width:100%}.employee-table{width:100%;border-collapse:collapse;background:white}.employee-table th,.employee-table td{text-align:left;padding:13px;border-bottom:1px solid #e3e7ee}.employee-table small{color:#65758a}.employee-button{border:1px solid #dfe5ed;padding:8px 12px;border-radius:7px;background:white;cursor:pointer}.employee-button.primary{background:#ce2333;color:white;border-color:#ce2333}.employee-dialog{border:1px solid #dfe5ed;border-radius:12px;width:min(520px,95vw);color:#263347}.employee-dialog::backdrop{background:#15233780}.employee-dialog label{display:block;margin:12px 0}.employee-dialog input,.employee-dialog select{display:block;width:100%;padding:10px;border:1px solid #dfe5ed;border-radius:6px;margin-top:5px}.employee-footer{display:flex;justify-content:flex-end;gap:10px;margin-top:18px}.employee-error{color:#b51c2c}.employee-table-wrap{overflow-x:auto}@media(max-width:650px){#employeesHost{padding:18px 12px}.employee-toolbar{flex-wrap:wrap}.employee-toolbar input{width:100%}}`;document.head.append(style);
+ let q='',page=1,epoch=0,timer,rows=[],dialog;
+ const active=()=>!host.hidden;
+ function leave(){if(dialog?.open){if(!confirm('Discard unsaved employee edits?'))return false;dialog.close();}host.hidden=true;tab.setAttribute('aria-selected','false');return true;}
+ nav.addEventListener('click',e=>{if(e.target.closest('button')!==tab&&active()&&!leave()){e.preventDefault();e.stopImmediatePropagation();}},true);
+ function show(){
+  for(const node of document.querySelectorAll('.app-shell'))node.hidden=node!==host;
+  for(const button of nav.querySelectorAll('button'))button.setAttribute('aria-selected',String(button===tab));
+  if(location.pathname!=='/workspace-v12/employees')history.pushState({workspace:'employees'},'','/workspace-v12/employees');
+  host.innerHTML='<div class="employee-toolbar"><h1>Employees</h1><input id="employeeSearch" type="search" aria-label="Search employees" placeholder="Search employees by name" maxlength="200"><button id="addEmployee" class="employee-button primary">+ Add Employee</button></div><p>Responsible recruiters use the existing employee directory. Assignment is not an authenticated actor identity.</p><p id="employeeStatus" role="status"></p><div class="employee-table-wrap"><table class="employee-table"><thead><tr><th>Employee Name</th><th>Email</th><th>Mobile Number</th><th>Designation</th><th>Status</th><th>Actions</th></tr></thead><tbody id="employeeRows"></tbody></table></div><div id="employeePages" class="employee-footer"></div>';
+  const input=host.querySelector('#employeeSearch');input.value=q;input.oninput=()=>{q=input.value;page=1;++epoch;clearTimeout(timer);timer=setTimeout(load,200);};host.querySelector('#addEmployee').onclick=()=>edit();void load();
+ }
+ async function load(){const ticket=++epoch,status=host.querySelector('#employeeStatus');if(!status)return;status.textContent='Loading employees…';try{
+  const result=await native.api('/api/v12/employees?'+new URLSearchParams({q,page,page_size:20}));if(ticket!==epoch||!active())return;rows=result.items;status.textContent=result.total+' employee'+(result.total===1?'':'s');
+  host.querySelector('#employeeRows').innerHTML=rows.map(r=>`<tr><td><strong>${esc(r.display_name)}</strong></td><td>${esc(r.email||'—')}</td><td>${esc(r.mobile||'—')}</td><td>${esc(r.designation||'—')}</td><td>${r.is_active?'Active':'Inactive'}</td><td><button class="employee-button" data-edit="${esc(r.id)}">Edit</button> <button class="employee-button" data-status="${esc(r.id)}">${r.is_active?'Deactivate':'Activate'}</button></td></tr>`).join('')||'<tr><td colspan="6">No matching employees</td></tr>';
+  host.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>edit(rows.find(r=>r.id===b.dataset.edit)));
+  host.querySelectorAll('[data-status]').forEach(b=>b.onclick=()=>changeStatus(rows.find(r=>r.id===b.dataset.status),b));
+  host.querySelector('#employeePages').innerHTML=`<button class="employee-button" id="employeePrev" ${page<=1?'disabled':''}>Previous</button><span>Page ${page}</span><button class="employee-button" id="employeeNext" ${page*20>=result.total?'disabled':''}>Next</button>`;
+  host.querySelector('#employeePrev').onclick=()=>{page--;void load();};host.querySelector('#employeeNext').onclick=()=>{page++;void load();};
+ }catch(error){if(ticket===epoch)status.textContent=error.message;}}
+ async function changeStatus(row,owner){if(!confirm(`${row.is_active?'Deactivate':'Activate'} ${row.display_name}? Previous assignments and history will remain intact.`))return;owner.disabled=true;try{await native.authorize();await native.api('/api/v12/employees/'+row.id,{display_name:row.display_name,email:row.email,mobile:row.mobile,designation:row.designation,is_active:!row.is_active,expected_revision:row.revision},'PATCH',owner);await load();window.dispatchEvent(new Event('jobmitra-employees-update'));}catch(error){host.querySelector('#employeeStatus').textContent=error.message;}finally{owner.disabled=false;}}
+ function edit(row){
+  dialog?.remove();dialog=document.createElement('dialog');dialog.className='employee-dialog';host.append(dialog);
+  dialog.innerHTML=`<form id="employeeForm"><h2>${row?'Edit Employee':'Add Employee'}</h2>${[['display_name','Employee Name',true,'text'],['email','Email',false,'email'],['mobile','Mobile Number',false,'tel'],['designation','Designation',false,'text']].map(([id,label,required,type])=>`<label>${label}${required?' *':''}<input name="${id}" type="${type}" value="${esc(row?.[id]||'')}" ${required?'required':''} maxlength="${id==='email'?254:id==='mobile'?50:200}"></label>`).join('')}<label>Status<select name="is_active" aria-label="Status"><option value="true">Active</option><option value="false" ${row&&!row.is_active?'selected':''}>Inactive</option></select></label><p class="employee-error" role="alert" id="employeeError"></p><div class="employee-footer"><button type="button" class="employee-button" id="employeeCancel">Cancel</button><button class="employee-button primary" type="submit">Save Employee</button></div></form>`;
+  const form=dialog.querySelector('form');dialog.querySelector('#employeeCancel').onclick=()=>dialog.close();let busy=false;
+  form.onsubmit=async e=>{e.preventDefault();if(busy)return;busy=true;const submit=form.querySelector('[type=submit]');submit.disabled=true;try{
+   await native.authorize();const values=Object.fromEntries(new FormData(form));values.is_active=values.is_active==='true';values.expected_revision=row?.revision||null;
+   await native.api('/api/v12/employees'+(row?'/'+row.id:''),values,row?'PATCH':'POST',form,JSON.stringify(values));dialog.close();await load();window.dispatchEvent(new Event('jobmitra-employees-update'));
+  }catch(error){dialog.querySelector('#employeeError').textContent=error.message+(error.fieldErrors?.length?' '+error.fieldErrors.map(f=>f.field+': '+f.message).join(' '):'');}finally{busy=false;submit.disabled=false;}};dialog.showModal();
+ }
+ tab.onclick=show;window.addEventListener('popstate',()=>{if(location.pathname==='/workspace-v12/employees')show();else if(active())leave();});
+ if(document.body.dataset.section==='employees')show();
+ return{show,load};
+}

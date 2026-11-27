@@ -10,7 +10,7 @@ async function saveDetails(){
   }
   if(!submission.validate(errors))return;
   await native.authorize();
-  const number=v=>v===''||v==null?null:Number(v),body={company_id:draft.companyId,title:draft.title,target_date:draft.targetDate||null,company_contact:draft.companyContact||null,location:draft.location||null,work_mode:draft.workMode||null,vacancies:number(draft.vacancies),status:draft.status,skills:String(draft.skills||'').split(',').map(s=>s.trim()).filter(Boolean),experience_min:number(draft.experienceMin),experience_max:number(draft.experienceMax),qualification:draft.qualification||null,salary_min_inr:number(draft.salaryMin),salary_max_inr:number(draft.salaryMax),salary_period:draft.salaryPeriod||null,salary_basis:draft.salaryBasis||'UNKNOWN',requirement_notes:draft.notes||null,full_jd:draft.fullJD||null};
+  const number=v=>v===''||v==null?null:Number(v),body={company_id:draft.companyId,assigned_recruiter_id:draft.recruiterId||null,...(!isNew?{expected_revision:draft.revision}:{}),title:draft.title,target_date:draft.targetDate||null,company_contact:draft.companyContact||null,location:draft.location||null,work_mode:draft.workMode||null,vacancies:number(draft.vacancies),status:draft.status,skills:String(draft.skills||'').split(',').map(s=>s.trim()).filter(Boolean),experience_min:number(draft.experienceMin),experience_max:number(draft.experienceMax),qualification:draft.qualification||null,salary_min_inr:number(draft.salaryMin),salary_max_inr:number(draft.salaryMax),salary_period:draft.salaryPeriod||null,salary_basis:draft.salaryBasis||'UNKNOWN',requirement_notes:draft.notes||null,full_jd:draft.fullJD||null};
   const result=await submission.request(native,'/api/ats-v2/jobs'+(isNew?'':'/'+draft.id),body,isNew?'POST':'PATCH');
   selectedId=String(result.id);draft.id=selectedId;isNew=false;
   const contacts=native.companies.find(c=>c.id===body.company_id)?.contacts||[],contact=contacts.find(c=>c.id===body.company_contact);
@@ -35,7 +35,7 @@ function cleanJD(){
 }
 function header(){
  el('heroTitle').textContent=view==='dashboard'?'JD Dashboard':draft.title.trim()||'New Job Requirement';
- el('heroSubtitle').textContent=view==='dashboard'?'Requirements, deadlines and progress':draft.company||'Select company';
+ el('heroSubtitle').textContent=view==='dashboard'?'Requirements, deadlines and progress':(draft.company||'Select company')+' · Assigned Recruiter: '+(draft.recruiterName||'Unassigned')+(draft.recruiterName&&draft.recruiterActive===false?' (Inactive)':'');
  const status=draft.status;
  el('statusPill').className='status '+({ACTIVE:'green',ON_HOLD:'amber',CLOSED:'red'}[status]||'neutral');
  el('statusPill').innerHTML='<i></i>'+({ACTIVE:'Active hiring',DRAFT:'Draft',ON_HOLD:'On hold',CLOSED:'Closed'}[status]||'Draft');

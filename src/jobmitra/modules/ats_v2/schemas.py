@@ -39,6 +39,7 @@ class Input(BaseModel):
 
 class JobCreate(Input):
     company_id: UUID
+    assigned_recruiter_id: UUID | None = None
     title: str = Field(min_length=1, max_length=200)
     target_date: date
     company_contact: str | None = Field(default=None, max_length=300)
@@ -76,6 +77,8 @@ class JobCreate(Input):
 
 
 class JobPatch(Input):
+    assigned_recruiter_id: UUID | None = None
+    expected_revision: str | None = Field(default=None, min_length=64, max_length=64)
     company_id: UUID | None = None
     title: str | None = Field(default=None, min_length=1, max_length=200)
     target_date: date | None = None

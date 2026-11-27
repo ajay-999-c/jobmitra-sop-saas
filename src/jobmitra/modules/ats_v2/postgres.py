@@ -117,7 +117,15 @@ def scoped_sql(statement, schema):
                 raise RuntimeError("V12 query attempted to leave its isolated development schema.")
         if previous == "." or tokens[i].startswith(("'", "%(", ":")):
             continue
-        if word.strip('"') in TABLES and previous in {"from", "join", "into", "update", "table"}:
+        from .workspace_store import OBJECTS
+
+        if word.strip('"') in TABLES | OBJECTS and previous in {
+            "from",
+            "join",
+            "into",
+            "update",
+            "table",
+        }:
             tokens[i] = f'"{schema}"."{word.strip(chr(34))}"'
         elif word in FUNCTIONS and following == "(":
             tokens[i] = f'"{schema}"."{word}"'
@@ -193,8 +201,16 @@ def validate_postgres(engine):
                 {"s": schema},
             ).scalars()
         )
-        if names != TABLES - {n for n in TABLES if n.startswith("v_")}:
+        from . import workspace_store
+
+        extended = "jd_workspace_versions" in names
+        extension_tables = {"jd_workspace_versions"} if extended else set()
+        if names - extension_tables != TABLES - {n for n in TABLES if n.startswith("v_")}:
             raise RuntimeError("V12 PostgreSQL table inventory mismatch.")
+        if extended and conn.execute(
+            text("SELECT version,definition_sha256 FROM jd_workspace_versions")
+        ).all() != [(1, workspace_store.digest())]:
+            raise RuntimeError("JD workspace extension manifest mismatch.")
         triggers = set(
             conn.execute(
                 text(
@@ -206,8 +222,14 @@ def validate_postgres(engine):
                 {"s": schema},
             ).all()
         )
-        expected_triggers = {(t, "v12_guard_" + t) for t in names}
-        expected_triggers |= {(t, "v12_no_truncate") for t in names}
+        expected_triggers = {(t, "v12_guard_" + t) for t in names - extension_tables}
+        expected_triggers |= {(t, "v12_no_truncate") for t in names - extension_tables}
+        if extended:
+            expected_triggers |= {
+                ("job_descriptions", "workspace_recruiter_check"),
+                ("job_descriptions", "workspace_recruiter_audit"),
+            }
+            expected_triggers.add(("jd_workspace_versions", "workspace_manifest_guard"))
         expected_triggers |= {
             (t, "v12_audit_" + t)
             for t in {

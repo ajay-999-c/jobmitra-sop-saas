@@ -1,11 +1,11 @@
 import {enhanceSelect} from './searchable-select.mjs';
 // Filter the existing complete option sets; never broaden active-JD/company rules.
 export function selectorSearch(kind,id,native,label=''){
- const item=(kind==='job'?native.jobs:native.companies).find(x=>String(x.id)===String(id));
+ const item=(kind==='job'?native.jobs:kind==='employee'?(native.employees||[]):native.companies).find(x=>String(x.id)===String(id));
  return [label,...(kind==='job'?[item?.title,item?.company,item?.code,item?.id]:[item?.name])].filter(x=>x!==null&&x!==undefined).join(' ');
 }
 export function installWorkspaceSelectors(native,root){
- const selectors={f_company:['company','Search company'],jobPicker:['job','Choose job requirement'],poolJobSelect:['job','Active job requirement'],selectActiveJD:['job','Select active JD']};
+ const selectors={f_company:['company','Search company'],jobPicker:['job','Choose job requirement'],poolJobSelect:['job','Active job requirement'],selectActiveJD:['job','Select active JD'],f_recruiterId:['employee','Assigned Recruiter']};
  function scan(){
   for(const [id,[kind,label]] of Object.entries(selectors)){
    const select=root.getElementById(id);if(!select)continue;

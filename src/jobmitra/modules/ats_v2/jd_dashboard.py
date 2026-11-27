@@ -8,6 +8,7 @@ from pydantic import Field, model_validator
 from sqlalchemy import text
 
 from .candidate_registers import bounds
+from .common import AtsError
 from .database import begin_read
 from .schemas import Input
 
@@ -15,6 +16,8 @@ from .schemas import Input
 class Filters(Input):
     q: str = Field(default="", max_length=300)
     company_id: UUID | None = None
+    assigned_recruiter_id: UUID | None = None
+    unassigned: bool = False
     status: Literal["DRAFT", "ACTIVE", "ON_HOLD", "CLOSED"] | None = None
     period: Literal["ALL", "TODAY", "WEEK", "MONTH", "YEAR", "CUSTOM"] = "ALL"
     date_from: date | None = None
@@ -41,6 +44,10 @@ def browse(engine, filters, now=None):
     postgres = engine.dialect.name == "postgresql"
     created = "CAST(d.created_at AS TIMESTAMPTZ)" if postgres else "julianday(d.created_at)"
     clauses, params = ["1=1"], {}
+    from . import workspace_store
+
+    with engine.connect() as connection:
+        extended = workspace_store.installed(connection)
     if filters.q:
         literal = filters.q.casefold().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
         params["q"] = "%" + literal + "%"
@@ -55,6 +62,7 @@ def browse(engine, filters, now=None):
                     "CAST(d.id AS TEXT)",
                     "j.location",
                 ]
+                + (["e.display_name"] if extended else [])
             )
             + ")"
         )
@@ -66,6 +74,17 @@ def browse(engine, filters, now=None):
         if value is not None:
             clauses.append(f"d.{field}=:{field}")
             params[field] = str(value)
+    if filters.assigned_recruiter_id:
+        if not extended:
+            raise AtsError("Recruiter assignment migration is required", 503)
+        clauses.append("j.assigned_recruiter_id=:recruiter")
+        params["recruiter"] = (
+            str(filters.assigned_recruiter_id).replace("-", "")
+            if not postgres
+            else str(filters.assigned_recruiter_id)
+        )
+    if filters.unassigned and extended:
+        clauses.append("j.assigned_recruiter_id IS NULL")
     if calendar["start_utc"]:
         start = "CAST(:start AS TIMESTAMPTZ)" if postgres else "julianday(:start)"
         end = "CAST(:end AS TIMESTAMPTZ)" if postgres else "julianday(:end)"
@@ -74,6 +93,17 @@ def browse(engine, filters, now=None):
     join = (
         " FROM v_jd_dashboard d JOIN job_descriptions j ON j.id=d.id "
         "JOIN companies c ON c.id=d.company_id "
+    )
+    if extended:
+        join += (
+            "LEFT JOIN v_employee_directory e ON "
+            "replace(e.id,'-','')=replace(CAST(j.assigned_recruiter_id AS TEXT),'-','') "
+        )
+    recruiter_fields = (
+        ",j.assigned_recruiter_id,e.display_name AS assigned_recruiter_name,"
+        "e.is_active AS assigned_recruiter_active"
+        if extended
+        else ",NULL AS assigned_recruiter_id,NULL AS assigned_recruiter_name"
     )
     where = " WHERE " + " AND ".join(clauses)
     ordering = {
@@ -89,7 +119,9 @@ def browse(engine, filters, now=None):
         total = conn.scalar(text("SELECT count(*)" + join + where), params)
         rows = conn.execute(
             text(
-                "SELECT d.*,j.location,c.company_name,(SELECT count(*) FROM jd_candidates l "
+                "SELECT d.*,j.location,c.company_name"
+                + recruiter_fields
+                + ",(SELECT count(*) FROM jd_candidates l "
                 "WHERE l.job_id=d.id) candidate_count"
                 + join
                 + where
@@ -125,12 +157,26 @@ def browse(engine, filters, now=None):
                 text("SELECT id,company_name FROM companies ORDER BY lower(company_name),id")
             ).mappings()
         ]
+        employees = (
+            [
+                dict(r)
+                for r in conn.execute(
+                    text(
+                        "SELECT id,display_name,is_active FROM v_employee_directory ORDER "
+                        "BY lower(display_name),id"
+                    )
+                ).mappings()
+            ]
+            if extended
+            else []
+        )
     return {
         "items": items,
         "total": total,
         "summary": summary,
         "summary_scope": "ALL_JDS",
         "companies": companies,
+        "employees": employees,
         "calendar": calendar,
         "page": filters.page,
         "page_size": filters.page_size,

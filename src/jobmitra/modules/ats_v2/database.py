@@ -126,6 +126,16 @@ def _check(connection: Connection, *, allow_v1: bool = False) -> bool:
         from .profile_store import extension_objects as profile_objects
 
         expected = {**expected, **profile_objects()}
+    if version == UNIFIED_SCHEMA_VERSION and ("table", "jd_workspace_versions") in objects:
+        import hashlib
+
+        from .workspace_store import SQLITE_PATH, sqlite_objects
+
+        expected = {**expected, **sqlite_objects()}
+        if connection.exec_driver_sql(
+            "SELECT version,definition_sha256,staff_schema FROM jd_workspace_versions"
+        ).all() != [(1, hashlib.sha256(SQLITE_PATH.read_bytes()).hexdigest(), "main")]:
+            raise RuntimeError("JD workspace extension manifest mismatch.")
     if objects != expected:
         raise RuntimeError("ATS V2 schema differs from its version. No migration was applied.")
     if connection.exec_driver_sql("PRAGMA quick_check").scalar_one() != "ok":

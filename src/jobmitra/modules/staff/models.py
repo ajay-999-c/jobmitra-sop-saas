@@ -21,3 +21,7 @@ class StaffMember(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+    # Deferred so legacy staff reads remain compatible until the explicit migration.
+    email: Mapped[str | None] = mapped_column(Text, deferred=True)
+    mobile: Mapped[str | None] = mapped_column(Text, deferred=True)
+    designation: Mapped[str | None] = mapped_column(Text, deferred=True)

@@ -38,7 +38,14 @@ def target_state(job, today=None):
 
 
 def job_record(row):
+    from .workspace_store import revision
+
     row = dict(row)
+    row["revision"] = revision(row)
+    if row.get("assigned_recruiter_id"):
+        from uuid import UUID
+
+        row["assigned_recruiter_id"] = str(UUID(str(row["assigned_recruiter_id"])))
     row["skills"] = json.loads(row.pop("skills_json", "[]"))
     row.pop("owner_name", None)
     row["target_state"] = target_state(row)
@@ -60,9 +67,10 @@ JOB_SELECT = """SELECT j.*, (SELECT count(*) FROM jd_candidates l
 
 
 def job_select(conn):
+    from . import workspace_store
     from .unified import is_v3
 
-    return (
+    query = (
         JOB_SELECT.replace(
             "l.stage_code='JOINED'",
             "l.selection_outcome='JOINED_CONFIRMED' AND l.joined_on IS NOT NULL "
@@ -71,6 +79,17 @@ def job_select(conn):
         if is_v3(conn)
         else JOB_SELECT
     )
+    if workspace_store.installed(conn):
+        query = query.replace(
+            "SELECT j.*",
+            "SELECT j.*,e.display_name AS assigned_recruiter_name,e.is_active "
+            "AS assigned_recruiter_active",
+        )
+        query += (
+            " LEFT JOIN v_employee_directory e ON "
+            "replace(e.id,'-','')=replace(CAST(j.assigned_recruiter_id AS TEXT),'-','')"
+        )
+    return query
 
 
 def get_job(engine, job_id):
@@ -128,6 +147,15 @@ def create_job(engine, data, companies):
         prior = receipts.replay(conn, "job-create", data.model_dump(mode="json"))
         if prior is not None:
             return get_job(engine, prior)
+        from . import workspace_store
+
+        if workspace_store.installed(conn):
+            workspace_store.assignment(conn, values.get("assigned_recruiter_id"))
+            values["assigned_recruiter_id"] = workspace_store.storage_id(
+                conn, values.get("assigned_recruiter_id")
+            )
+        elif values.pop("assigned_recruiter_id", None):
+            workspace_store.require(conn)
         columns = ",".join(values)
         result = insert_result(
             conn,
@@ -151,12 +179,33 @@ def update_job(engine, job_id, data, companies):
         request_data = {"job_id": job_id, **changes}
         if receipts.replay(conn, "job-update", request_data) is not None:
             return get_job(engine, job_id)
-        current = job_record(one(conn, "job_descriptions", job_id))
+        from . import workspace_store
+
+        raw_current = one(conn, "job_descriptions", job_id)
+        expected = changes.pop("expected_revision", None)
+        if workspace_store.installed(conn):
+            if expected != workspace_store.revision(raw_current):
+                raise AtsError(
+                    "This JD changed. Reload and review the latest details before saving.",
+                    409,
+                    "JD_CONFLICT",
+                )
+            if "assigned_recruiter_id" in changes:
+                workspace_store.assignment(
+                    conn, changes["assigned_recruiter_id"], raw_current.get("assigned_recruiter_id")
+                )
+        elif changes.pop("assigned_recruiter_id", None):
+            workspace_store.require(conn)
+        current = job_record(raw_current)
         merged = {name: current.get(name) for name in JobCreate.model_fields}
         merged.update(changes)
         validated = JobCreate.model_validate(merged)
         # Validate the complete patch, while preserving only fields that were explicitly submitted.
         values = {key: validated.model_dump(mode="json")[key] for key in changes}
+        if "assigned_recruiter_id" in values:
+            values["assigned_recruiter_id"] = workspace_store.storage_id(
+                conn, values["assigned_recruiter_id"]
+            )
         from .unified import is_v3
 
         if is_v3(conn) and values.get("company_id", current["company_id"]) != current["company_id"]:

@@ -42,7 +42,7 @@ api = APIRouter(prefix="/api/v12", route_class=AtsRoute, dependencies=[Depends(e
 def workspace(
     request: Request,
     engine: Store,
-    section: Literal["companies", "candidates", "jobs", "email"] = "companies",
+    section: Literal["companies", "candidates", "jobs", "email", "employees"] = "companies",
 ):
     from jobmitra.core.pages import templates
 

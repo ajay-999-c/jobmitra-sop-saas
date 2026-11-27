@@ -71,6 +71,23 @@ def current_state(engine: Store):
     return approved.state(engine)
 
 
+@router.get("/employee-options")
+def employee_options(engine: Store):
+    from . import workspace_store
+
+    with engine.connect() as conn:
+        workspace_store.require(conn)
+        return [
+            dict(r)
+            for r in conn.execute(
+                text(
+                    "SELECT id,display_name,is_active FROM v_employee_directory ORDER "
+                    "BY lower(display_name),id"
+                )
+            ).mappings()
+        ]
+
+
 @router.get("/search")
 def search(engine: Store, params: Annotated[SearchParams, Query()]):
     return candidates.search_candidates(engine, params, include_names=True)
