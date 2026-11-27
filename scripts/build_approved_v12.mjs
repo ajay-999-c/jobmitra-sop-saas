@@ -161,6 +161,9 @@ source=source.replace("draft=clone(state.jobs.find(x=>x.id===selectedId)||state.
 source=source.replace('const detailsDirty=()=>isNew||', 'const detailsDirty=()=>isNew||!!selectedId&&');
 source=source.replace('const workflowDirty=()=>', 'const workflowDirty=()=>!!selectedId&&');
 source=source.replace("draft[name]||''", "draft[name]??''");
+source=source.replace("if(n.length<3)return'Stage names must contain at least 3 characters.'", "if(n.length<3||n.length>80)return'Stage names must contain 3–80 characters.'");
+source=source.replace("draft.workflowMode='CONFIGURED';draft.rounds=names.map","if(draft.rounds.some(r=>r.active)&&!confirm('Replace the unsaved interview rounds with this preset?'))return;draft.workflowMode='CONFIGURED';draft.rounds=names.map");
+source=source.replace('Maximum 15 company interview rounds in this prototype.','Maximum 15 company interview rounds.');
 // Backend-neutral statuses keep the approved presentation valid for either store.
 const storageWording=[
  ['Canonical company records from SQLite.','Canonical company records from the workspace.'],

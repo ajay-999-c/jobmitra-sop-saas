@@ -103,6 +103,101 @@ def employee(legacy, name="Workspace Test Recruiter", **changes):
         return save(session, EmployeeInput(display_name=name, **changes), "OFFICE_LAN", uuid4())
 
 
+def test_round_removal_restore_and_direct_progress_preserve_facts(office_workspace):
+    from jobmitra.modules.ats_v2 import candidates, direct_movement
+    from jobmitra.modules.ats_v2.candidate_schemas import CandidateCreate
+    from jobmitra.modules.ats_v2.schemas import WorkflowInput
+
+    engine, _, company, *_ = office_workspace
+    candidate = candidates.create_candidate(
+        engine, CandidateCreate(full_name="Round safety fixture")
+    )
+    job = jobs.create_job(
+        engine,
+        JobCreate(company_id=company, title="Round safety", target_date="2099-01-01"),
+        CompanyGateway(engine),
+    )
+    flow = jobs.save_workflow(
+        engine,
+        job["id"],
+        WorkflowInput(
+            workflow_mode="CONFIGURED",
+            workflow_version=0,
+            rounds=[{"round_name": "Portfolio assessment"}, {"round_name": "Manager discussion"}],
+        ),
+    )
+    link = jobs.attach_contact(engine, job["id"], candidate["id"])
+    assert link["stage_code"] == "CONTACT"
+    assert jobs.attach_contact(engine, job["id"], candidate["id"])["id"] == link["id"]
+    facts = direct_movement.choices(engine, job["id"], link["id"])
+    direct_movement.move(
+        engine,
+        job["id"],
+        link["id"],
+        direct_movement.DirectMove(
+            idempotency_key=uuid4(),
+            destination_stage="ROUND",
+            destination_round_id=flow["rounds"][0]["id"],
+            expected_stage="CONTACT",
+            workflow_version=facts["workflow_version"],
+        ),
+        "OFFICE_LAN",
+    )
+    rounds = [{k: r[k] for k in ("id", "round_name", "mode", "is_active")} for r in flow["rounds"]]
+    rounds[0]["is_active"] = False
+    with pytest.raises(AtsError, match="Move candidates out"):
+        jobs.save_workflow(
+            engine,
+            job["id"],
+            WorkflowInput(
+                workflow_mode="CONFIGURED",
+                workflow_version=1,
+                rounds=rounds,
+            ),
+        )
+    rounds[0]["is_active"], rounds[1]["is_active"] = True, False
+    removed = jobs.save_workflow(
+        engine,
+        job["id"],
+        WorkflowInput(
+            workflow_mode="CONFIGURED",
+            workflow_version=1,
+            rounds=rounds,
+        ),
+    )
+    assert removed["rounds"][1]["retired_at"]
+    rounds[1]["is_active"] = True
+    restored = jobs.save_workflow(
+        engine,
+        job["id"],
+        WorkflowInput(
+            workflow_mode="CONFIGURED",
+            workflow_version=2,
+            rounds=rounds,
+        ),
+    )
+    assert [r["id"] for r in restored["rounds"]] == [r["id"] for r in flow["rounds"]]
+    with engine.connect() as conn:
+        assert (
+            conn.scalar(
+                text("SELECT count(*) FROM candidate_activities WHERE candidate_id=:c"),
+                {"c": candidate["id"]},
+            )
+            == 0
+        )
+        assert (
+            conn.scalar(
+                text(
+                    "SELECT count(*) FROM recruitment_events WHERE jd_candidate_id=:l "
+                    "AND event_type IN ('FEEDBACK','EMAIL_SEND_ATTEMPT','INTERVIEW_SCHEDULED')"
+                ),
+                {"l": link["id"]},
+            )
+            == 0
+        )
+    assert jobs.pipeline(engine, job["id"])["items"][0]["round_id"] == flow["rounds"][0]["id"]
+
+
 def test_canonical_identity_optional_details_and_idempotency(office_workspace):
     _, legacy, *_ = office_workspace
     key = uuid4()

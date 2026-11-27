@@ -127,3 +127,24 @@ approved source/CSS);10 existing JS checks passed (selectors, request invalidati
 allocation, history and card styling). Controlled delayed old dashboard response was
 ignored before the next250ms debounce fired. Browser checked a single New JD
 entry point and retained query on return. Screenshots02/03 show dashboard/form.
+
+### Interview and pipeline verification
+
+The approved three-section editor retains the canonical versioned workflow review,
+retirement/restore and occupied-round rules. The ordinary impact/safety panels are
+removed; Review still computes the same candidate impact. Saved round identifiers
+remain unchanged on removal/restoration. Stage titles are validated at3–80characters.
+Primary pipeline actions remain Email, Next Stage, Move to Stage and Not Selected;
+Profile, Feedback, Schedule Interview and Placement use a compact accessible menu.
+Selected candidates retain explicit joining/closure actions and Submission retains
+its checkboxes/composer. No email template bytes were changed.
+
+Nine focused remote PostgreSQL/adapter tests and23 JavaScript checks passed.
+Browser verification confirmed: Pool completion and Contact opening on attachment;
+existing attachment replay without reset; normal/direct progression, source-stage
+feedback, explicit screening feedback and an interview activity with
+`invitation_sent=false`. An occupied round's Remove control is disabled and the
+server independently rejects retirement. Contact Email opens the existing Studio
+with canonical candidate/JD context, verified recipient and screening template;
+Gmail remains disabled. Screenshots04/05 record editor and pipeline actions.
+Generator consistency, immutable reference checks, Ruff and whitespace passed.
