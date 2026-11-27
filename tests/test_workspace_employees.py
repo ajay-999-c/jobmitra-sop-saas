@@ -442,3 +442,35 @@ def test_canonical_employee_migration_rolls_back_and_preserves_ids(office_worksp
     finally:
         with legacy.begin() as conn:
             conn.execute(text(f'DROP SCHEMA IF EXISTS "{schema}" CASCADE'))
+
+
+def test_new_job_active_default_does_not_promote_existing_drafts(office_workspace):
+    engine, _, company, *_ = office_workspace
+    gateway = CompanyGateway(engine)
+    old = jobs.create_job(
+        engine,
+        JobCreate(
+            company_id=company, title="Intentional Draft", target_date="2099-01-01", status="DRAFT"
+        ),
+        gateway,
+    )
+    new = jobs.create_job(
+        engine,
+        JobCreate(
+            company_id=company,
+            title="New Active Requirement",
+            target_date="2099-01-01",
+            salary_min_inr=0,
+        ),
+        gateway,
+    )
+    assert new["status"] == "ACTIVE"
+    assert new["salary_min_inr"] == 0 and new["salary_max_inr"] is None and new["vacancies"] is None
+    assert jobs.get_job(engine, old["id"])["status"] == "DRAFT"
+    patched = jobs.update_job(
+        engine,
+        old["id"],
+        JobPatch(title="Draft still editable", expected_revision=old["revision"]),
+        gateway,
+    )
+    assert patched["status"] == "DRAFT"

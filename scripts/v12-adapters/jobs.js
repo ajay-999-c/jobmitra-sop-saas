@@ -34,16 +34,20 @@ function cleanJD(){
  return native.jdClean;
 }
 function header(){
- el('heroTitle').textContent=view==='dashboard'?'JD Dashboard':draft.title.trim()||'New Job Requirement';
- el('heroSubtitle').textContent=view==='dashboard'?'Requirements, deadlines and progress':(draft.company||'Select company')+' · Assigned Recruiter: '+(draft.recruiterName||'Unassigned')+(draft.recruiterName&&draft.recruiterActive===false?' (Inactive)':'');
- const status=draft.status;
- el('statusPill').className='status '+({ACTIVE:'green',ON_HOLD:'amber',CLOSED:'red'}[status]||'neutral');
- el('statusPill').innerHTML='<i></i>'+({ACTIVE:'Active hiring',DRAFT:'Draft',ON_HOLD:'On hold',CLOSED:'Closed'}[status]||'Draft');
- el('statusPill').hidden=view==='dashboard';
- el('topSaveBtn').hidden=view!=='workflow';el('topSaveBtn').disabled=isNew;
+ const hasJob=!!selectedId&&!isNew;
+ el('jdSelectedHeader').hidden=!hasJob||view==='dashboard';
+ el('heroTitle').textContent=draft.title||'';
+ el('heroSubtitle').textContent=(draft.company||'Company not selected')+' · '+(draft.location||'Location not set');
+ el('jdRecruiter').textContent=(draft.recruiterName||'Unassigned')+(draft.recruiterActive===false?' (Inactive)':'');
+ el('statusPill').className='status '+({ACTIVE:'green',ON_HOLD:'amber',CLOSED:'red'}[draft.status]||'neutral');
+ el('statusPill').textContent=({ACTIVE:'Active',DRAFT:'Draft',ON_HOLD:'On hold',CLOSED:'Closed'})[draft.status]||'Draft';
+ el('topSaveBtn').hidden=true;
  for(const [id,value] of Object.entries({navDashboard:'dashboard',navDetails:'details',navWorkflow:'workflow',navPipeline:'pipeline',navPlacement:'placement',navHistory:'history'})){
-  const node=el(id);node.classList.toggle('active',view===value);node.setAttribute('aria-current',view===value?'page':'false');
+  const node=el(id);node.disabled=id!=='navDashboard'&&!hasJob;node.classList.toggle('active',view===value);node.setAttribute('aria-current',view===value?'page':'false');
  }
+ el('jdSwitch').hidden=!hasJob||view==='dashboard';
+ el('newJobBtn').hidden=view==='dashboard'||isNew;el('newJobBtn').parentElement.hidden=el('newJobBtn').hidden;
+ el('jdSidebarContext').textContent=hasJob&&view!=='dashboard'?(draft.code||'JD '+draft.id):'Select a JD to manage its pipeline.';
  renderJobPicker();renderDateSummary();
 }
 function headerNoRerender(){header();}
@@ -113,3 +117,40 @@ function composeSubmissionBatch(){
       const base={status:'candidate_submission',viewStage:'COMPANY_SUBMISSION',jobId:draft.id,jobTitle:draft.title,companyName:draft.company,location:draft.location||'',companyContacts:contacts,candidates:list.map(emailCandidateData),startSerial:1};
       window.JobmitraUnified?.openEmailStudio?.(base);
     }
+
+function newJD(){
+ if(!abandonIfDirty())return;
+ stageFilter='POOL';isNew=true;selectedId=null;draft={...native.emptyJD(),status:'ACTIVE'};
+ view='details';fullJDOpen=false;render();
+}
+
+function renderDetails(){
+ const select=(label,id,name,values,value)=>`<div class="field"><label for="${id}">${label}</label><select class="control" id="${id}" name="${name}">${options(value,values)}</select></div>`;
+ el('workspace').innerHTML=`<div class="jd-editor"><div class="row between titlebar"><h2>${isNew?'Create JD':'Edit JD'}</h2><button type="button" class="btn secondary" data-goto-view="${isNew?'dashboard':'pipeline'}">${isNew?'Back to dashboard':'Back to pipeline'}</button></div>
+ <form id="jdForm" novalidate><section class="panel"><div class="formgroup"><h3>Basic information</h3><div class="formgrid" style="margin-top:15px">
+ <div class="field"><label for="f_company">Company *</label><select class="control" id="f_company" name="company" required>${options(draft.companyId,[['','Choose an existing company'],...native.companies.filter(c=>c.active).map(c=>[c.id,c.name])])}</select></div>
+ ${valueInput('Job title / working title','title',{placeholder:'e.g. Accounts Executive',required:true})}
+ ${valueInput('JD target date','targetDate',{type:'date',required:true})}
+ ${valueInput('Work location','location',{placeholder:'e.g. Indore'})}
+ ${valueInput('Vacancies','vacancies',{placeholder:'Not set',type:'number',min:1,step:1})}
+ ${select('JD status','f_status','status',[['DRAFT','Draft'],['ACTIVE','Active'],['ON_HOLD','On hold'],['CLOSED','Closed']],draft.status)}
+ ${select('Assigned Recruiter','f_recruiterId','recruiterId',[['','Unassigned'],...(native.employees||[]).filter(e=>e.active||e.id===draft.recruiterId).map(e=>[e.id,e.name+(e.active?'':' (Inactive)')])],draft.recruiterId)}
+ ${select('Work mode','f_workMode','workMode',[['','Not specified'],['ONSITE','Office / On-site'],['HYBRID','Hybrid'],['REMOTE','Remote']],draft.workMode)}
+ ${valueInput('Company contact (optional)','companyContact',{placeholder:'Contact name or saved contact ID'})}
+ <div class="field"><label for="f_createdAt">JD creation date · automatic</label><input class="control" id="f_createdAt" readonly value="${esc(isNew?'Automatic on save':createdDate(draft))}"></div>
+ </div></div>
+ <details class="group" ${isNew?'':'open'}><summary>Requirements <small>· Optional</small></summary><div class="formgroup formgrid"><div class="field"><label for="f_notes">Requirement / company notes</label><textarea class="control" id="f_notes" name="notes" maxlength="20000">${esc(draft.notes)}</textarea></div>${valueInput('Key skills · comma separated','skills')}${valueInput('Minimum experience (years)','experienceMin',{type:'number',min:0,step:.5})}${valueInput('Maximum experience (years)','experienceMax',{type:'number',min:0,step:.5})}${valueInput('Qualification (optional)','qualification')}</div></details>
+ <details class="group" ${isNew?'':'open'}><summary>Salary Budget <small>· Optional</small></summary><div class="formgroup formgrid"><div class="field"><label>Salary period</label><div class="segmented"><button type="button" class="segment ${draft.salaryPeriod==='MONTHLY'?'active':''}" data-salary-period="MONTHLY">Monthly</button><button type="button" class="segment ${draft.salaryPeriod==='ANNUAL'?'active':''}" data-salary-period="ANNUAL">Annual</button></div></div>${select('Salary basis','f_salaryBasis','salaryBasis',[['UNKNOWN','Not specified'],['CTC','CTC / Total package'],['GROSS','Gross'],['IN_HAND','In-hand']],draft.salaryBasis)}<div></div>${valueInput('Minimum salary (₹)','salaryMin',{type:'number',min:0,step:1})}${valueInput('Maximum salary (₹)','salaryMax',{type:'number',min:0,step:1})}</div></details>
+ <button class="full-jd-toggle" type="button" id="toggleFullJD">Full Job Description · Optional ${fullJDOpen?'−':'+'}</button><div id="fullJDContent" class="full-jd-content ${fullJDOpen?'':'hidden'}"><div class="field"><label for="f_fullJD">Paste detailed JD if available</label><textarea class="control" id="f_fullJD" name="fullJD" maxlength="100000">${esc(draft.fullJD)}</textarea></div></div></section>
+ <div class="savebar"><span class="grow muted" id="detailsDirtyLabel"></span><button type="button" class="btn secondary" id="discardDetails">Discard</button><button type="submit" class="btn primary">${isNew?'Create JD':'Save JD Details'}</button></div></form></div>`;
+ updateDetailsPreview();
+}
+
+function renderHistory(){
+ const filter=state.activityFilter||'ALL';
+ const groups={MOVED:'Movement',FEEDBACK:'Feedback',INTERVIEW_SCHEDULED:'Interview',EMAIL:'Email',JD_CREATED:'JD details',JD_UPDATED:'JD details',JD_RECRUITER_ASSIGNED:'JD details',JD_WORKFLOW_UPDATED:'Workflow',ROUND_ADDED:'Workflow',ROUND_UPDATED:'Workflow',ROUND_RETIRED:'Workflow'};
+ const names={MOVED:'Stage advanced',ADDED:'Added to JD Pool',JD_RECRUITER_ASSIGNED:'Recruiter assignment changed',JD_CREATED:'JD created',JD_UPDATED:'JD details updated',JD_WORKFLOW_UPDATED:'Interview rounds updated'};
+ const events=draft.events.filter(e=>filter==='ALL'||(groups[e.type]||e.type)===filter);
+ el('workspace').innerHTML=`<section class="panel timeline"><div class="toolbar"><h2>JD Activity</h2><span class="grow"></span><label>Activity type <select class="control" id="jdActivityFilter">${options(filter,[['ALL','All activity'],...['Movement','Feedback','Interview','Email','JD details','Workflow','Placement'].map(x=>[x,x])])}</select></label></div>${events.map(e=>`<div class="event"><div class="muted compact"><time>${esc(e.at||e.time)}</time></div><div><strong>${esc(names[e.type]||e.type)}</strong><details><summary>Details</summary><pre>${esc(e.info||e.feedback||'Recorded event')}</pre></details></div></div>`).join('')||'<div class="empty">No matching activity</div>'}</section>`;
+ el('jdActivityFilter').onchange=e=>{state.activityFilter=e.target.value;renderHistory();};
+}

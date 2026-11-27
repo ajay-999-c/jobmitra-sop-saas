@@ -74,7 +74,7 @@ export function installCleanJD(native,options){
   const {job}=context(),t=options.target(job);
   const node=$('jdTargetSummary');if(!node)return;
   node.className='summary '+t.key;
-  node.innerHTML=`<div><span class="label">Created</span><strong>${esc(options.created(job))}</strong></div><div><span class="label">Target date</span><strong>${esc(options.date(job.targetDate))}</strong><small><span class="status ${t.key==='overdue'?'red':t.key==='due'?'amber':t.key==='track'||t.key==='filled'?'green':'neutral'}"><i></i>${esc(t.key==='overdue'?'Overdue':t.label)}</span> · ${esc(t.detail)}</small></div><div><span class="label">Joined / vacancies</span><strong>${options.joined(job)} / ${esc(job.vacancies??'Unknown')}</strong></div>`;
+  node.innerHTML=`<div><span class="label">Created</span><strong>${esc(options.created(job))}</strong></div><div><span class="label">Target date</span><strong>${esc(options.date(job.targetDate))}</strong><small><span class="status ${t.key==='overdue'?'red':t.key==='due'?'amber':t.key==='track'||t.key==='filled'?'green':'neutral'}"><i></i>${esc(t.key==='overdue'?'Overdue':t.label)}</span> · ${esc(t.detail)}</small></div><div><span class="label">Joined / vacancies</span><strong>${options.joined(job)} / ${esc(job.vacancies==null||job.vacancies===''?'Not set':job.vacancies)}</strong></div>`;
  }
  function workflow(){
   const ctx=context();

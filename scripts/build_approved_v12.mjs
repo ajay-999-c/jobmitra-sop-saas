@@ -3,6 +3,7 @@
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 import {cleanJDStyles,cleanJDMarkup} from './v12-clean-jd.mjs';
+import {workspaceMarkup,workspaceStyles} from './v12-workspace-layout.mjs';
 import {emailWorkspaceMarkup,emailWorkspaceStyles} from './v12-email.mjs';
 import {createRequire} from 'node:module';
 import {parse} from '@babel/parser';
@@ -32,7 +33,7 @@ traverse(babelParse(source,'reference.js'),{
  VariableDeclarator(p){if(p.node.id.name==='refStage'&&area(p.node)==='jobs')replace(p.node.init,`(key,name,roundId)=>{if(key==='ROUND'&&roundId)return 'ROUND:'+roundId;if(key&&key!=='ROUND')return key;const label=String(name||'').toLowerCase().trim(),aliases={'candidate pool':'POOL','candidate contact':'CONTACT','jobmitra screening':'SCREENING','company submission':'COMPANY_SUBMISSION','selected by company':'SELECTED','joined':'JOINED','not selected':'NOT_SELECTED'};if(aliases[label])return aliases[label];const rounds=draft.rounds.filter(r=>r.name?.toLowerCase()===label);return rounds.length===1?'ROUND:'+rounds[0].id:null;}`);if(p.node.id.name==='countJoined'&&area(p.node)==='jobs')replace(p.node.init,"j=>j.joinedCount??(j.candidates||[]).filter(c=>c.stageKey==='JOINED').length");if(p.node.id.name==='canEmail'&&area(p.node)==='jobs')replace(p.node.init,'canComposePipelineEmail(key)');if(['jdPrototypeDemo','jdFallbackJourney'].includes(p.node.id.name))replace(p.node.init,'{}');if(p.node.id.name==='persist')replace(p.node.init,'()=>{}');},
  AssignmentExpression(p){
   const left=source.slice(p.node.left.start,p.node.left.end),a=area(p.node),n=p.node.right;
-  if(left==='jdShadow.innerHTML')replace(n,JSON.stringify(cleanJDMarkup(n.value)));
+  if(left==='jdShadow.innerHTML')replace(n,JSON.stringify(workspaceMarkup(cleanJDMarkup(n.value))));
   if(left==='candidateShadow.innerHTML'){const approved=n.value;if(typeof approved!=='string')throw Error('Candidate HTML boundary missing.');const foundit='<button class="tab" role="tab" aria-selected="false" data-tab="foundit" type="button">Foundit Paste</button>';let ui=approved.replace('<button data-tab="foundit" type="button">Foundit Paste</button>','');const marker='<button class="tab"';const pool=ui.indexOf('data-tab="pool"');const start=ui.lastIndexOf(marker,pool);if(start<0)throw Error('Foundit navigation insertion point missing.');ui=ui.slice(0,start)+foundit+ui.slice(start);replace(n,JSON.stringify(ui));}
   const handlers={
    "el('saveMilestone').onclick":`()=>native.run(async()=>{const button=el('saveMilestone'),value=el('milestoneValue').value,note=el('milestoneNote').value.trim();await native.activity(c.id,{job_id:Number(draft.id),activity_type:'FOLLOW_UP',notes:note||labels[key]+' · '+value,details:{kind:'PLACEMENT_MILESTONE',milestone:key,value,manual_fact_only:true,delivery_enabled:false,financial_transaction:false}},button);closeModal();await native.refresh();render();toast('Manual status recorded. No email, invoice or payment was sent.');},toast)`,
@@ -153,8 +154,13 @@ for(const [a,b] of wording)source=source.replaceAll(a,b);
 source=source.replaceAll('Advance candidate to next stage','Move candidate to next stage').replaceAll('Save & Advance','Save & Move to Next Stage');
 source=source.replace("const detailKeys=[","const detailKeys=['companyId','recruiterId',");
 // Nullable canonical staff assignment; retain an inactive existing assignee visibly.
-source=source.replace(`<label for="f_companyContact">Company contact (optional)</label>`, `<label for="f_recruiterId">Assigned Recruiter</label><select class="control" id="f_recruiterId" name="recruiterId">\${options(draft.recruiterId,[['','Unassigned'],...(native.employees||[]).filter(e=>e.active||e.id===draft.recruiterId).map(e=>[e.id,e.name+(e.active?'':' (Inactive)')])])}</select></div><div class="field"><label for="f_companyContact">Company contact (optional)</label>`);
 
+// Dashboard is independent of JD selection; source components remain canonical.
+source=source.replace("selectedId=state.activeId||state.jobs[0]?.id||null,view='pipeline'", "selectedId=null,view='dashboard'");
+source=source.replace("draft=clone(state.jobs.find(x=>x.id===selectedId)||state.jobs[0]||native.emptyJD())", "draft=native.emptyJD()");
+source=source.replace('const detailsDirty=()=>isNew||', 'const detailsDirty=()=>isNew||!!selectedId&&');
+source=source.replace('const workflowDirty=()=>', 'const workflowDirty=()=>!!selectedId&&');
+source=source.replace("draft[name]||''", "draft[name]??''");
 // Backend-neutral statuses keep the approved presentation valid for either store.
 const storageWording=[
  ['Canonical company records from SQLite.','Canonical company records from the workspace.'],
@@ -187,7 +193,13 @@ shell=shell.replace('</head>','<link rel="stylesheet" href="/static/ats-v2/email
 shell=shell.replace('.unified-header{display:flex;justify-content:space-between;', '.unified-header{display:flex;justify-content:flex-start;');
 // CSS selectors such as `{#emailStudioOverlay` are literal CSS, not Jinja comments.
 shell='{% raw %}'+shell.replace('{{ workspace_section }}','{% endraw %}{{ workspace_section }}{% raw %}')+'{% endraw %}';
-const outputs=[['src/jobmitra/static/ats_v2/approved.mjs',generated],['src/jobmitra/templates/v12/approved.html',shell],['src/jobmitra/static/ats_v2/jd-clean.css',cleanJDStyles()],['src/jobmitra/static/ats_v2/email-workspace.css',emailWorkspaceStyles()]];
+shell=shell.replace(/(<div role="tablist" class="unified-switcher" aria-label="Recruitment workspaces">)([\s\S]*?)(<\/div>)/,(_,open,body,close)=>{
+ const buttons=Object.fromEntries([...body.matchAll(/<button id="([^"]+)"[^>]*>[\s\S]*?<\/button>/g)].map(m=>[m[1],m[0].replace(/aria-selected="(?:true|false)"/,`aria-selected="${m[1]==='unifiedJDTab'}"`)]));
+ buttons.unifiedEmployeesTab='<button id="unifiedEmployeesTab" type="button" role="tab" aria-selected="false">Employees</button>';
+ return open+['unifiedJDTab','unifiedCandidateTab','unifiedEmailTab','unifiedCompaniesTab','unifiedEmployeesTab'].map(id=>buttons[id]).join('')+close;
+});
+shell=shell.replace('</style>','\n.unified-header{height:62px;min-height:62px;padding:0 24px;gap:24px}.unified-brand{font-size:25px}.unified-switcher{height:62px;align-items:stretch}.unified-switcher{background:white;border-radius:0;padding:0}.unified-switcher button{background:white;border-radius:0;box-shadow:none;padding:0 17px;border-bottom:3px solid transparent}.unified-switcher button[aria-selected="true"]{box-shadow:none;border-bottom-color:#ce2333}@media(max-width:700px){.unified-header{height:auto;padding:10px 12px}.unified-switcher{height:35px}}\n</style>');
+const outputs=[['src/jobmitra/static/ats_v2/approved.mjs',generated],['src/jobmitra/templates/v12/approved.html',shell],['src/jobmitra/static/ats_v2/jd-clean.css',cleanJDStyles()],['src/jobmitra/static/ats_v2/jd-workspace.css',workspaceStyles()],['src/jobmitra/static/ats_v2/email-workspace.css',emailWorkspaceStyles()]];
 if(check){
  for(const [path,contents] of outputs)if(!fs.readFileSync(path).equals(Buffer.from(contents)))throw Error('Generated artifact differs: '+path);
  console.log('Approved reference and generated artifacts verified byte-for-byte.');

@@ -79,3 +79,51 @@ Synthetic preview preparation is explicit in `scripts/preview_jd_workspace.py`.
 Forking retains prior namespaces and archives the private identifier state; it
 never deletes existing documents or recruitment history. Preview namespaces contain
 synthetic examples only. Screenshots stay under ignored `output/playwright/jd-workspace/`.
+
+### Local checkpoint1
+
+`5f7d2b0` — `feat: add employee management and JD recruiter assignment`.
+The checkpoint contains25 reviewed files. No private ENV, data, documents,
+screenshots or runtime reports were staged. No push occurred.
+
+### Approved workspace layout mapping
+
+The immutable `Jobmitra_JD_Tracking_Interview_Rounds_Preview.html` reference has
+SHA-256`6587ab895c7024cc03871338cfbe172c084a0528c88c7a7ad5b2c2f77793fed9`.
+`scripts/v12-workspace-layout.mjs` extracts its CSS and builds a permanent sidebar
+using the existing component IDs/event handlers. The reference's demo script and
+localStorage are never imported. `jd-dashboard.mjs` renders the compact table over
+the same server browse API/metric calculations; filters survive JD navigation.
+The JD form retains all fields and salary-period conversion through the original
+service adapters; optional sections are collapsible and Salary Budget replaces
+Compensation. No salary/vacancy nulls are converted to zero. New JDs default Active;
+existing explicit statuses remain unchanged. Selected JD header shows company,
+location, responsible recruiter, status, dates, deadline and joined/vacancy counts.
+Root/overview and the bare V12 route land on JD Dashboard without selecting a JD.
+Global order is JD Tracking → Candidate Desk → Email → Companies → Employees.
+JD navigation stays disabled until a real JD is chosen.
+
+Browser verification confirmed default route/sidebar, PostgreSQL creation201,
+recruiter persistence, true salary0, unknown max/vacancies remaining NULL, and
+preserved dashboard query after opening/returning from a JD. The original approved
+unified HTML and embedded Email Studio bytes remain unchanged. The redesign does
+not replace canonical services with prototype state.
+
+### Performance baseline
+
+Before performance optimization, the244-candidate/14-JD/53-membership synthetic
+remote PostgreSQL fixture produced a3329.5ms full-state fetch of900056 decoded bytes.
+Navigation through the initial pipeline to dashboard took4051ms in the recorded
+Mac browser sample. Four API requests had completed at readiness; three further
+inactive-module search requests were subsequently observed. The raw trace is
+private under runtime, with paths/timings only. No long task was observed in that
+sample; the older tiny-local-fixture audit's207ms task is a different condition.
+The final before/after benchmark will use comparable fixture shape and report its
+limits rather than present this as measured Windows application performance.
+
+Layout verification:16 focused Python checks passed (employee/assignment,
+new Active default with unchanged explicit Drafts,7 legacy URL aliases and immutable
+approved source/CSS);10 existing JS checks passed (selectors, request invalidation,
+allocation, history and card styling). Controlled delayed old dashboard response was
+ignored before the next250ms debounce fired. Browser checked a single New JD
+entry point and retained query on return. Screenshots02/03 show dashboard/form.

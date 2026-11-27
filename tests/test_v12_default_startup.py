@@ -124,8 +124,8 @@ def test_missing_local_database_never_falls_back_or_creates_empty_file(tmp_path,
 @pytest.mark.parametrize(
     "path,target",
     [
-        ("/", "companies"),
-        ("/overview/", "companies"),
+        ("/", "jobs"),
+        ("/overview/", "jobs"),
         ("/companies", "companies"),
         ("/candidate-desk", "candidates"),
         ("/candidate-search-v2/", "candidates"),

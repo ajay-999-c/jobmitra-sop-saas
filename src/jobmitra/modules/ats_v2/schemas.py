@@ -46,7 +46,7 @@ class JobCreate(Input):
     location: str | None = Field(default=None, max_length=200)
     work_mode: Literal["ONSITE", "HYBRID", "REMOTE"] | None = None
     vacancies: int | None = Field(default=None, ge=1, le=100000)
-    status: Literal["DRAFT", "ACTIVE", "ON_HOLD", "CLOSED"] = "DRAFT"
+    status: Literal["DRAFT", "ACTIVE", "ON_HOLD", "CLOSED"] = "ACTIVE"
     skills: list[str] = Field(default_factory=list, max_length=100)
     experience_min: float | None = Field(default=None, ge=0, le=80)
     experience_max: float | None = Field(default=None, ge=0, le=80)

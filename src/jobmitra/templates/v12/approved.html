@@ -30,14 +30,12 @@
 .unified-switcher{max-width:100%;overflow-x:auto;scrollbar-width:thin}
 .unified-switcher button{min-height:36px}
 @media(max-width:520px){.unified-switcher button{font-size:11px;padding:9px 8px}.unified-trailing{display:none}}
+
+.unified-header{height:62px;min-height:62px;padding:0 24px;gap:24px}.unified-brand{font-size:25px}.unified-switcher{height:62px;align-items:stretch}.unified-switcher{background:white;border-radius:0;padding:0}.unified-switcher button{background:white;border-radius:0;box-shadow:none;padding:0 17px;border-bottom:3px solid transparent}.unified-switcher button[aria-selected="true"]{box-shadow:none;border-bottom-color:#ce2333}@media(max-width:700px){.unified-header{height:auto;padding:10px 12px}.unified-switcher{height:35px}}
 </style><link rel="stylesheet" href="/static/ats-v2/email-workspace.css"></head><body data-section="{% endraw %}{{ workspace_section }}{% raw %}">
 <header class="unified-header">
  <div class="unified-brand"><span class="job">Job</span>mitra<span class="job">.com</span><small>Your online job friend</small></div>
- <div role="tablist" class="unified-switcher" aria-label="Recruitment workspaces">
-   <button id="unifiedCompaniesTab" type="button" role="tab" aria-selected="false">Companies</button>
-    <button id="unifiedCandidateTab" type="button" role="tab" aria-selected="true">Candidate Desk</button>
-   <button id="unifiedJDTab" type="button" role="tab" aria-selected="false">JD Tracking</button><button id="unifiedEmailTab" type="button" role="tab" aria-selected="false">Email</button>
- </div>
+ <div role="tablist" class="unified-switcher" aria-label="Recruitment workspaces"><button id="unifiedJDTab" type="button" role="tab" aria-selected="true">JD Tracking</button><button id="unifiedCandidateTab" type="button" role="tab" aria-selected="false">Candidate Desk</button><button id="unifiedEmailTab" type="button" role="tab" aria-selected="false">Email</button><button id="unifiedCompaniesTab" type="button" role="tab" aria-selected="false">Companies</button><button id="unifiedEmployeesTab" type="button" role="tab" aria-selected="false">Employees</button></div>
  <div class="unified-trailing"><b>SQLITE WORKSPACE</b> · Loading records</div>
 </header>
 <section class="app-shell" id="companiesHost" hidden aria-label="Companies and Placement Analytics"></section>

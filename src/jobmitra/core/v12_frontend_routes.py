@@ -17,8 +17,8 @@ class V12FrontendRoutes:
         ):
             path = scope["path"].rstrip("/") or "/"
             target = {
-                "/": "/workspace-v12/companies",
-                "/overview": "/workspace-v12/companies",
+                "/": "/workspace-v12/jobs",
+                "/overview": "/workspace-v12/jobs",
                 "/companies": "/workspace-v12/companies",
                 "/candidate-desk": "/workspace-v12/candidates",
                 "/candidates": "/workspace-v12/candidates?section=candidates",
